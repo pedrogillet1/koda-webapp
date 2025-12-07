@@ -1,7 +1,19 @@
-/* ============================================
-   KODA CHAT UI - CLEAN TIGHT SPACING
-   All gaps set to 0px for single-line spacing
-   ============================================ */
+/**
+ * ============================================================================
+ * MASTER MARKDOWN STYLES - SINGLE SOURCE OF TRUTH
+ * ============================================================================
+ * 
+ * PURPOSE: Consolidates ALL markdown and citation styling into ONE file
+ * Replaces: MarkdownStyles.css, index.css markdown section, inline styles
+ * 
+ * RULES:
+ * 1. NO inline styles in components - all styling here
+ * 2. TWO citation button sizes: inline (small) and listing (large)
+ * 3. Consistent typography across all answers
+ * 4. Proper spacing and line heights
+ * 
+ * ============================================================================
+ */
 
 /* ============================================
    1. CONTAINER
@@ -10,7 +22,7 @@
 .markdown-preview-container {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 16px;
-  line-height: 1.4;
+  line-height: 1.5;
   color: #1a1a1a;
   max-width: 720px;
   padding: 0;
@@ -27,10 +39,9 @@
 }
 
 /* ============================================
-   2B. CONSISTENT 12px GAP BETWEEN ALL ELEMENTS
+   3. CONSISTENT 12px GAP BETWEEN ELEMENTS
    ============================================ */
 
-/* Gap after headings */
 .markdown-preview-container h1 + *,
 .markdown-preview-container h2 + *,
 .markdown-preview-container h3 + *,
@@ -40,33 +51,35 @@
   margin-top: 12px !important;
 }
 
-/* Gap after paragraphs */
 .markdown-preview-container p + * {
   margin-top: 12px !important;
 }
 
-/* Gap after lists */
 .markdown-preview-container ul + *,
 .markdown-preview-container ol + * {
   margin-top: 12px !important;
 }
 
-/* Gap between list items */
-.markdown-preview-container li + li,
-.markdown-preview-container .markdown-li + .markdown-li {
-  margin-top: 12px !important;
+.markdown-preview-container li + li {
+  margin-top: 8px !important;
 }
 
 /* ============================================
-   3. TYPOGRAPHY (font sizes only, no margins)
+   4. TYPOGRAPHY
    ============================================ */
+
+.markdown-h1 {
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  line-height: 1.3 !important;
+  color: #1a1a1a !important;
+}
 
 .markdown-h2 {
   font-size: 22px !important;
   font-weight: 600 !important;
   line-height: 1.4 !important;
   color: #1a1a1a !important;
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
 .markdown-h3 {
@@ -74,38 +87,29 @@
   font-weight: 700 !important;
   line-height: 1.4 !important;
   color: #1a1a1a !important;
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
 .markdown-paragraph {
   font-size: 16px !important;
   font-weight: 400 !important;
-  line-height: 1.4 !important;
+  line-height: 1.5 !important;
   color: #1a1a1a !important;
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
 .markdown-preview-container strong,
 .markdown-preview-container b {
   font-weight: 600 !important;
-}
-
-.markdown-inline-code {
-  font-size: 14px !important;
-  background-color: #f3f4f6 !important;
-  padding: 2px 6px !important;
-  border-radius: 4px !important;
-  font-family: 'Monaco', 'Menlo', 'Courier New', monospace !important;
+  color: #1a1a1a !important;
 }
 
 /* ============================================
-   4. LISTS (only padding-left for indent)
+   5. LISTS
    ============================================ */
 
 .markdown-ul,
 .markdown-ol {
   padding-left: 1.5em !important;
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  list-style-position: outside !important;
 }
 
 .markdown-ul {
@@ -117,26 +121,13 @@
 }
 
 .markdown-preview-container li {
-  line-height: 1.4 !important;
+  line-height: 1.5 !important;
   color: #1a1a1a !important;
   font-size: 16px !important;
 }
 
-/* Nested lists */
-.markdown-ul ul,
-.markdown-ol ul,
-.markdown-ul ol,
-.markdown-ol ol {
-  padding-left: 1.5em !important;
-}
-
-/* Collapse empty paragraphs */
-.markdown-preview-container p:empty {
-  display: none !important;
-}
-
 /* ============================================
-   5. TABLES - Professional styling
+   6. TABLES
    ============================================ */
 
 .markdown-table {
@@ -144,8 +135,7 @@
   border-collapse: collapse;
   font-size: 15px;
   background: white;
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
-  margin: 1em 0 !important;
+  margin: 16px 0 !important;
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid #e5e7eb;
@@ -185,7 +175,32 @@
 }
 
 /* ============================================
-   6. LINKS
+   7. CODE
+   ============================================ */
+
+.markdown-inline-code {
+  font-size: 14px !important;
+  background-color: #f3f4f6 !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace !important;
+  color: #374151 !important;
+}
+
+.markdown-code-block {
+  display: block !important;
+  background-color: #f5f5f5 !important;
+  color: #374151 !important;
+  padding: 12px !important;
+  border-radius: 6px !important;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace !important;
+  font-size: 14px !important;
+  overflow-x: auto !important;
+  margin: 12px 0 !important;
+}
+
+/* ============================================
+   8. LINKS
    ============================================ */
 
 .markdown-link {
@@ -202,61 +217,185 @@
 }
 
 /* ============================================
-   7. BLOCKQUOTES
+   9. BLOCKQUOTES
    ============================================ */
 
 .markdown-blockquote {
   border-left: 3px solid #e0e0e0 !important;
   background-color: transparent !important;
   padding: 0 0 0 16px !important;
-  margin: 0.8em 0 !important;
+  margin: 12px 0 !important;
   color: #666666 !important;
   font-style: normal !important;
+}
+
+/* ============================================
+   10. CITATION BUTTONS - TWO SIZES
+   ============================================ */
+
+/* INLINE CITATION BUTTON (Small - for use within text) */
+.citation-button-inline {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 2px 8px !important;
+  margin: 0 2px !important;
+  background-color: #F9FAFB !important;
+  border: 1px solid #E5E7EB !important;
+  border-radius: 12px !important;
+  vertical-align: middle !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  text-align: left !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+  line-height: 1.5 !important;
+}
+
+.citation-button-inline:hover {
+  background-color: #F3F4F6 !important;
+  border-color: #D1D5DB !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.citation-button-inline img {
+  width: 14px !important;
+  height: 14px !important;
+  object-fit: contain !important;
+  flex-shrink: 0 !important;
+}
+
+.citation-button-inline span {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #1a1a1a !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  max-width: 150px !important;
+}
+
+/* LISTING CITATION BUTTON (Large - for document lists) */
+.citation-button-listing {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 8px 16px !important;
+  margin: 4px 8px 4px 0 !important;
+  background-color: #F9FAFB !important;
+  border: 1px solid #E5E7EB !important;
+  border-radius: 24px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  text-align: left !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+.citation-button-listing:hover {
+  background-color: #F3F4F6 !important;
+  border-color: #D1D5DB !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.citation-button-listing img {
+  width: 24px !important;
+  height: 24px !important;
+  object-fit: contain !important;
+  flex-shrink: 0 !important;
+}
+
+.citation-button-listing span {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  color: #1a1a1a !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  max-width: 220px !important;
+}
+
+/* ============================================
+   11. FOLDER BUTTONS (Same size as listing)
+   ============================================ */
+
+.folder-button {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 8px 16px !important;
+  margin: 4px 8px 4px 0 !important;
+  background-color: #FEF3C7 !important;
+  border: 1px solid #FCD34D !important;
+  border-radius: 24px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  text-align: left !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+.folder-button:hover {
+  background-color: #FDE68A !important;
+  border-color: #FBBF24 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.folder-button svg {
+  width: 20px !important;
+  height: 20px !important;
+  flex-shrink: 0 !important;
+  stroke: #92400E !important;
+}
+
+.folder-button span {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  color: #92400E !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  max-width: 220px !important;
+}
+
+/* ============================================
+   12. DOCUMENT SOURCES DROPDOWN
+   ============================================ */
+
+.document-sources-container {
+  margin-top: 12px !important;
+  border-top: 1px solid #E5E7EB !important;
+  padding-top: 12px !important;
+}
+
+.document-sources-button {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 8px 14px !important;
+  background-color: #FAFAFA !important;
+  border: 1px solid #E5E7EB !important;
+  border-radius: 20px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
   font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
-.markdown-blockquote p {
-  margin: 0 !important;
-  color: #666666 !important;
+.document-sources-button:hover {
+  background-color: #F3F4F6 !important;
+  border-color: #D1D5DB !important;
+}
+
+.document-sources-expanded {
+  margin-top: 10px !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  padding: 8px 0 !important;
 }
 
 /* ============================================
-   8. CODE BLOCKS
-   ============================================ */
-
-.markdown-code-block {
-  display: block !important;
-  background-color: #f5f5f5 !important;
-  color: #374151 !important;
-  padding: 12px !important;
-  border-radius: 6px !important;
-  font-family: 'Monaco', 'Menlo', 'Courier New', monospace !important;
-  font-size: 14px !important;
-  overflow-x: auto !important;
-  margin: 0.8em 0 !important;
-}
-
-/* ============================================
-   9. IMAGES
-   ============================================ */
-
-.markdown-image {
-  max-width: 100% !important;
-  height: auto !important;
-  border-radius: 8px !important;
-  margin: 1em 0 !important;
-}
-
-/* ============================================
-   10. HORIZONTAL RULE - Hidden
-   ============================================ */
-
-.markdown-hr {
-  display: none !important;
-}
-
-/* ============================================
-   11. RESPONSIVE DESIGN
+   13. RESPONSIVE DESIGN
    ============================================ */
 
 @media (max-width: 768px) {
@@ -273,65 +412,39 @@
     font-size: 17px !important;
   }
 
-  .markdown-table {
-    font-size: 14px;
+  .citation-button-inline span {
+    max-width: 120px !important;
   }
 
-  .markdown-table thead th,
-  .markdown-table tbody td {
-    padding: 8px 12px !important;
-  }
-}
-
-/* ============================================
-   12. PRINT STYLES
-   ============================================ */
-
-@media print {
-  .markdown-preview-container {
-    padding: 0;
-    background: white;
-  }
-
-  .markdown-h2 {
-    page-break-after: avoid;
-  }
-
-  .markdown-table {
-    page-break-inside: avoid;
-  }
-
-  .markdown-link {
-    color: #000 !important;
-    text-decoration: underline !important;
+  .citation-button-listing span {
+    max-width: 180px !important;
   }
 }
 
 /* ============================================
-   13. ACCESSIBILITY
+   14. ACCESSIBILITY
    ============================================ */
 
 .markdown-preview-container *:focus {
-  outline: 2px solid #3b82f6;
-  outline-offset: 2px;
+  outline: 2px solid #3b82f6 !important;
+  outline-offset: 2px !important;
 }
 
-/* Selection styling */
 .markdown-preview-container ::selection {
-  background: #dbeafe;
-  color: #1e40af;
+  background: #dbeafe !important;
+  color: #1e40af !important;
 }
 
 /* ============================================
-   14. STREAMING CURSOR
+   15. STREAMING CURSOR
    ============================================ */
 
 .markdown-preview-container.streaming .cursor {
-  display: inline-block;
-  animation: blink 1s step-end infinite;
-  margin-left: 2px;
-  color: #6366F1;
-  font-weight: 400;
+  display: inline-block !important;
+  animation: blink 1s step-end infinite !important;
+  margin-left: 2px !important;
+  color: #6366F1 !important;
+  font-weight: 400 !important;
 }
 
 @keyframes blink {
@@ -340,36 +453,5 @@
 }
 
 /* ============================================
-   15. MESSAGE CARD LAYOUT FIXES
-   ============================================ */
-
-/* Bot message row - avatar aligned with card top */
-.assistant-message {
-  display: flex;
-  align-items: flex-start !important;
-  gap: 12px;
-}
-
-/* Bot message card - full width, proper padding */
-.assistant-message-card {
-  flex: 1;
-  width: 100%;
-  max-width: 720px;
-  padding: 24px 28px;
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-/* ============================================
-   TYPOGRAPHY SUMMARY (ChatGPT Quality):
-   - Base font: 16px (was 14px) +14%
-   - Answer title (h2): 22px (was 16px) +38%
-   - Section headings (h3): 18px, bold (was 12px) +50%
-   - Bold text (strong): 16px, weight 600 (same size as body)
-   - Line-height: 1.5 (consistent)
-   - Paragraph margin: 0.7em (~11px) (was 0 or 8px)
-   - List item margin: 0.35em (~6px) (was 0)
-   - Section heading margins: 1.5em top, 0.6em bottom
-   - Colors: #1a1a1a (darker, not washed out grey)
+   END OF MASTER STYLES
    ============================================ */
