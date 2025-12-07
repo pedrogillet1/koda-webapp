@@ -90,22 +90,22 @@ const OnboardingModal = ({ currentStep, onNext, onBack, onSkip, onComplete, onGo
             top: '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
-            maxWidth: 640,
-            width: 'min(640px, 90vw)',
-            maxHeight: '80vh',
+            maxWidth: 860,
+            width: 'min(860px, 90vw)',
+            maxHeight: 'calc(100vh - 96px)',
             background: '#FFFFFF',
             borderRadius: 24,
             boxShadow: '0 24px 40px rgba(0, 0, 0, 0.18)',
-            padding: '24px 32px 24px 32px',
+            padding: '32px 32px 24px 32px',
             display: 'flex',
             flexDirection: 'column',
-            overflow: 'auto'
+            overflow: 'hidden'
           }}
         >
           {/* Top Row: Close Button Only (titles are in slides) */}
           <div style={{
             position: 'absolute',
-            top: 24,
+            top: 32,
             right: 32,
             zIndex: 10
           }}>
@@ -132,7 +132,7 @@ const OnboardingModal = ({ currentStep, onNext, onBack, onSkip, onComplete, onGo
           {/* Slide Content with directional animation */}
           <div style={{
             flex: 1,
-            overflow: 'auto',
+            overflow: 'hidden',
             paddingRight: 48 // Space for close button
           }}>
             <div

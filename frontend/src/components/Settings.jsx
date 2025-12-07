@@ -963,7 +963,7 @@ const Settings = () => {
             onMouseOver={(e) => e.currentTarget.style.background = '#F5F5F5'}
             onMouseOut={(e) => e.currentTarget.style.background = 'white'}
           >
-            {/* Icon - Sparkle/Monitor emoji with shadow (matching LanguageCard pattern) */}
+            {/* Icon - iMac emoji with shadow (matching LanguageCard pattern) */}
             <div style={{
               width: 56,
               height: 56,
@@ -973,7 +973,7 @@ const Settings = () => {
               fontSize: 42,
               filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15))'
             }}>
-              ✨
+              🖥️
             </div>
 
             {/* Text content */}

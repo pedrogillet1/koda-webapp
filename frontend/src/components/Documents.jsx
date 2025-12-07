@@ -1301,7 +1301,7 @@ const Documents = () => {
                             e.stopPropagation();
                             // Show upload modal for this category
                             setUploadCategoryId(category.id);
-                            setShowUploadModal(true);
+                            setShowUniversalUploadModal(true);
                             setCategoryMenuOpen(null);
                           }}
                           style={{

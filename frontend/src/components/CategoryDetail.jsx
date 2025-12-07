@@ -247,6 +247,11 @@ const CategoryDetail = () => {
     isSelected
   } = useDocumentSelection();
 
+  // ✅ Helper function to calculate document count for each folder
+  const getDocumentCountByFolder = (folderId) => {
+    return contextDocuments.filter(doc => doc.folderId === folderId).length;
+  };
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -506,9 +511,12 @@ const CategoryDetail = () => {
   // Handle add to category
   const handleAddToCategory = (doc) => {
     // ✅ Use folders from context instead of API call (eliminates 500-1000ms delay)
-    const availableFolders = contextFolders.filter(f =>
-      f.name?.toLowerCase() !== 'recently added'
-    );
+    const availableFolders = contextFolders
+      .filter(f => f.name?.toLowerCase() !== 'recently added')
+      .map(folder => ({
+        ...folder,
+        documentCount: getDocumentCountByFolder(folder.id)
+      }));
     // ✅ Batch state updates together
     setSelectedDocumentForCategory(doc);
     setAvailableCategories(availableFolders);
@@ -1152,9 +1160,12 @@ const CategoryDetail = () => {
                 <button
                   onClick={() => {
                     if (selectedDocuments.size === 0) return;
-                    const availableFolders = contextFolders.filter(f =>
-                      f.name?.toLowerCase() !== 'recently added' && f.id !== currentFolderId
-                    );
+                    const availableFolders = contextFolders
+                      .filter(f => f.name?.toLowerCase() !== 'recently added' && f.id !== currentFolderId)
+                      .map(folder => ({
+                        ...folder,
+                        documentCount: getDocumentCountByFolder(folder.id)
+                      }));
                     setAvailableCategories(availableFolders);
                     setShowCategoryModal(true);
                   }}
@@ -1414,9 +1425,12 @@ const CategoryDetail = () => {
                     onClick={() => {
                       if (selectedDocuments.size === 0) return;
                       // ✅ Use folders from context (instant - 0ms)
-                      const availableFolders = contextFolders.filter(f =>
-                        f.name?.toLowerCase() !== 'recently added' && f.id !== currentFolderId
-                      );
+                      const availableFolders = contextFolders
+                        .filter(f => f.name?.toLowerCase() !== 'recently added' && f.id !== currentFolderId)
+                        .map(folder => ({
+                          ...folder,
+                          documentCount: getDocumentCountByFolder(folder.id)
+                        }));
                       setAvailableCategories(availableFolders);
                       setShowCategoryModal(true);
                     }}
@@ -2058,12 +2072,15 @@ const CategoryDetail = () => {
                             data-folder-menu-id={folder.id}
                             onClick={(e) => {
                               e.stopPropagation();
+                              console.log('🟢 [FOLDER MENU] Three dots clicked for folder:', folder.name, folder.id);
+                              console.log('🟢 [FOLDER MENU] Current openFolderMenuId:', openFolderMenuId);
                               const rect = e.currentTarget.getBoundingClientRect();
                               setFolderMenuPosition({
                                 top: rect.bottom + 4,
                                 right: window.innerWidth - rect.right
                               });
                               setOpenFolderMenuId(openFolderMenuId === folder.id ? null : folder.id);
+                              console.log('🟢 [FOLDER MENU] Setting openFolderMenuId to:', openFolderMenuId === folder.id ? null : folder.id);
                             }}
                             style={{
                               width: 28,
@@ -2088,7 +2105,11 @@ const CategoryDetail = () => {
                           </button>
 
                           {/* Dropdown Menu - Using Portal to escape overflow constraints */}
-                          {openFolderMenuId === folder.id && ReactDOM.createPortal(
+                          {(() => {
+                            const shouldShow = openFolderMenuId === folder.id;
+                            console.log('🟡 [FOLDER MENU RENDER] Checking if should show menu for', folder.name, ':', shouldShow, '(openFolderMenuId:', openFolderMenuId, 'folder.id:', folder.id, ')');
+                            return shouldShow;
+                          })() && ReactDOM.createPortal(
                             <div
                               data-dropdown
                               onClick={(e) => e.stopPropagation()}
@@ -2108,9 +2129,12 @@ const CategoryDetail = () => {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  e.preventDefault();
+                                  console.log('✏️ [FOLDER EDIT] Button clicked for folder:', folder.name);
                                   setItemToRename({ type: 'folder', id: folder.id, name: folder.name });
                                   setShowRenameModal(true);
                                   setOpenFolderMenuId(null);
+                                  console.log('✏️ [FOLDER EDIT] Rename modal state set to true');
                                 }}
                                 style={{
                                   width: '100%',
@@ -2126,7 +2150,9 @@ const CategoryDetail = () => {
                                   borderRadius: 6,
                                   transition: 'background 0.2s',
                                   display: 'flex',
-                                  alignItems: 'center'
+                                  alignItems: 'center',
+                                  pointerEvents: 'auto',
+                                  zIndex: 999999
                                 }}
                                 onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
@@ -2140,13 +2166,27 @@ const CategoryDetail = () => {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  e.preventDefault();
+                                  console.log('🔵 [FOLDER MOVE] Button clicked for folder:', folder.name);
                                   // ✅ Use folders from context (instant - 0ms)
-                                  setSelectedDocumentForCategory({ type: 'folder', id: folder.id, name: folder.name });
-                                  const availableFolders = contextFolders.filter(f =>
-                                    f.name?.toLowerCase() !== 'recently added'
-                                  );
+                                  // Set folder with proper structure for modal display
+                                  setSelectedDocumentForCategory({
+                                    type: 'folder',
+                                    id: folder.id,
+                                    name: folder.name,
+                                    filename: folder.name, // Add filename for display
+                                    isFolder: true // Flag to identify folders in modal
+                                  });
+                                  const availableFolders = contextFolders
+                                    .filter(f => f.name?.toLowerCase() !== 'recently added')
+                                    .map(folder => ({
+                                      ...folder,
+                                      documentCount: getDocumentCountByFolder(folder.id)
+                                    }));
+                                  console.log('🔵 [FOLDER MOVE] Available folders:', availableFolders.length);
                                   setAvailableCategories(availableFolders);
                                   setShowCategoryModal(true);
+                                  console.log('🔵 [FOLDER MOVE] Modal state set to true');
                                   setOpenFolderMenuId(null);
                                 }}
                                 style={{
@@ -2163,7 +2203,9 @@ const CategoryDetail = () => {
                                   borderRadius: 6,
                                   transition: 'background 0.2s',
                                   display: 'flex',
-                                  alignItems: 'center'
+                                  alignItems: 'center',
+                                  pointerEvents: 'auto',
+                                  zIndex: 999999
                                 }}
                                 onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
@@ -3229,6 +3271,11 @@ const CategoryDetail = () => {
                 }}>
                   <img
                     src={(() => {
+                      // Check if it's a folder first
+                      if (selectedDocumentForCategory.isFolder) {
+                        return folderIcon;
+                      }
+                      // Otherwise, determine file type icon
                       const filename = selectedDocumentForCategory.filename.toLowerCase();
                       if (filename.match(/\.(pdf)$/)) return pdfIcon;
                       if (filename.match(/\.(jpg|jpeg)$/)) return jpgIcon;
@@ -3242,7 +3289,7 @@ const CategoryDetail = () => {
                       if (filename.match(/\.(mp3)$/)) return mp3Icon;
                       return docIcon;
                     })()}
-                    alt="File icon"
+                    alt={selectedDocumentForCategory.isFolder ? "Folder icon" : "File icon"}
                     style={{
                       width: 40,
                       height: 40,
@@ -3271,7 +3318,10 @@ const CategoryDetail = () => {
                       fontFamily: 'Plus Jakarta Sans',
                       fontWeight: '400'
                     }}>
-                      {((selectedDocumentForCategory.fileSize || 0) / 1024 / 1024).toFixed(2)} MB
+                      {selectedDocumentForCategory.isFolder
+                        ? `${contextFolders.filter(f => f.parentFolderId === selectedDocumentForCategory.id).length + contextDocuments.filter(d => d.folderId === selectedDocumentForCategory.id).length} Files`
+                        : `${((selectedDocumentForCategory.fileSize || 0) / 1024 / 1024).toFixed(2)} MB`
+                      }
                     </div>
                   </div>
                 </div>

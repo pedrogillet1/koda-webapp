@@ -1,17 +1,23 @@
 import React from 'react';
+import laptopMockup from '../../assets/laptop-mockup.svg';
+import question1 from '../../assets/question1.svg';
+import answer1 from '../../assets/answer1.svg';
+import question2 from '../../assets/question2.svg';
+import answer2 from '../../assets/answer2.svg';
+import question3 from '../../assets/question3.svg';
+import answer3 from '../../assets/answer3.svg';
 
 /**
  * Slide 1: Organizing documents isn't your job. It's mine. - Refined
  *
- * Shows chat-style illustration with 3 persona bubbles (Lawyer, Finance, Engineering)
- * Updated specs: consistent grey card sizing, pill-shaped user bubbles, proper spacing
+ * Shows chat-style illustration with SVG images
  */
 const Slide1 = () => {
   return (
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      gap: 8
+      gap: 4
     }}>
       {/* Micro Label */}
       <div style={{
@@ -21,7 +27,7 @@ const Slide1 = () => {
         fontFamily: 'Plus Jakarta Sans',
         textTransform: 'uppercase',
         letterSpacing: '0.5px',
-        marginBottom: 4
+        marginBottom: 2
       }}>
         STEP 1 OF 3
       </div>
@@ -51,112 +57,154 @@ const Slide1 = () => {
         I store your contracts, reports, spreadsheets and drawings. You just ask — I find the right answer.
       </div>
 
-      {/* Grey Chat Mock Card */}
+      {/* Chat Composition: MacBook + 3 Cylinder Zoom Lenses */}
       <div style={{
         width: '100%',
-        maxWidth: 520,
-        height: 220,
+        maxWidth: 760,
         margin: '0 auto',
-        background: '#F3F4F6',
-        borderRadius: 20,
-        padding: 24,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 16,
-        justifyContent: 'center'
+        position: 'relative',
+        minHeight: 360,
+        maxHeight: 360,
+        marginTop: -10
       }}>
-        {/* Koda Bubble (Left) - White with shadow */}
+        {/* MacBook - No longer dimmed */}
         <div style={{
-          display: 'flex',
-          justifyContent: 'flex-start'
+          position: 'absolute',
+          left: '50%',
+          top: '48%',
+          transform: 'translate(-50%, -50%)',
+          width: '36%',
+          maxWidth: 270,
+          zIndex: 1
         }}>
-          <div style={{
-            background: '#FFFFFF',
-            borderRadius: 16,
-            padding: '12px 16px',
-            maxWidth: '70%',
-            boxShadow: '0 4px 10px rgba(0, 0, 0, 0.06)'
-          }}>
-            <div style={{
-              fontSize: 13,
-              color: '#111827',
-              fontFamily: 'Plus Jakarta Sans',
-              lineHeight: '18px'
-            }}>
-              I can find that across your files.
-            </div>
+          <img
+            src={laptopMockup}
+            alt="Laptop showing chat interface"
+            style={{
+              width: '100%',
+              height: 'auto',
+              filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.04))'
+            }}
+          />
+        </div>
+
+        {/* Lens A (TOP LEFT) - Engineering: Q3 + A3 (Basement B2) */}
+        <div style={{
+          position: 'absolute',
+          top: 35,
+          left: 0,
+          zIndex: 2,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: 10
+        }}>
+          {/* Q3 */}
+          <div style={{ width: 340 }}>
+            <img
+              src={question3}
+              alt="Where does 'basement B2' appear in the drawings?"
+              style={{
+                width: '100%',
+                height: 'auto',
+                filter: 'drop-shadow(0 3px 6px rgba(0, 0, 0, 0.16))'
+              }}
+            />
+          </div>
+
+          {/* A3 */}
+          <div style={{ width: 440 }}>
+            <img
+              src={answer3}
+              alt="B2 answer"
+              style={{
+                width: '100%',
+                height: 'auto',
+                filter: 'drop-shadow(0 4px 10px rgba(0, 0, 0, 0.13)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.09))',
+                transform: 'perspective(1000px) rotateY(-1deg)',
+                transformStyle: 'preserve-3d'
+              }}
+            />
           </div>
         </div>
 
-        {/* User Bubble 1 - Lawyer (Right) - Dark pill */}
+        {/* Lens B (MIDDLE RIGHT) - Finance: Q2 + A2 (EBITDA) */}
         <div style={{
+          position: 'absolute',
+          top: 55,
+          right: -60,
+          zIndex: 2,
           display: 'flex',
-          justifyContent: 'flex-end'
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: 10
         }}>
-          <div style={{
-            background: '#111827',
-            borderRadius: 999,
-            padding: '8px 16px',
-            maxWidth: '75%',
-            boxShadow: '0 4px 10px rgba(0, 0, 0, 0.18)'
-          }}>
-            <div style={{
-              fontSize: 13,
-              fontWeight: '500',
-              color: '#FFFFFF',
-              fontFamily: 'Plus Jakarta Sans',
-              lineHeight: '18px'
-            }}>
-              Which clauses mention penalties in the Acme contract?
-            </div>
+          {/* Q2 */}
+          <div style={{ width: 330 }}>
+            <img
+              src={question2}
+              alt="What was the consolidated EBITDA in 2023?"
+              style={{
+                width: '100%',
+                height: 'auto',
+                filter: 'drop-shadow(0 3px 6px rgba(0, 0, 0, 0.16))'
+              }}
+            />
+          </div>
+
+          {/* A2 */}
+          <div style={{ width: 450 }}>
+            <img
+              src={answer2}
+              alt="EBITDA answer"
+              style={{
+                width: '100%',
+                height: 'auto',
+                filter: 'drop-shadow(0 4px 10px rgba(0, 0, 0, 0.13)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.09))',
+                transform: 'perspective(1000px) rotateY(-1deg)',
+                transformStyle: 'preserve-3d'
+              }}
+            />
           </div>
         </div>
 
-        {/* User Bubble 2 - Finance (Right) - Dark pill */}
+        {/* Lens C (BOTTOM LEFT) - Legal: Q1 + A1 (Acme penalties) */}
         <div style={{
+          position: 'absolute',
+          top: 180,
+          left: 0,
+          zIndex: 2,
           display: 'flex',
-          justifyContent: 'flex-end'
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: 10
         }}>
-          <div style={{
-            background: '#111827',
-            borderRadius: 999,
-            padding: '8px 16px',
-            maxWidth: '75%',
-            boxShadow: '0 4px 10px rgba(0, 0, 0, 0.18)'
-          }}>
-            <div style={{
-              fontSize: 13,
-              fontWeight: '500',
-              color: '#FFFFFF',
-              fontFamily: 'Plus Jakarta Sans',
-              lineHeight: '18px'
-            }}>
-              What was the consolidated EBITDA in 2023?
-            </div>
+          {/* Q1 */}
+          <div style={{ width: 335 }}>
+            <img
+              src={question1}
+              alt="Which clauses mention penalties in the Acme contract?"
+              style={{
+                width: '100%',
+                height: 'auto',
+                filter: 'drop-shadow(0 3px 6px rgba(0, 0, 0, 0.16))'
+              }}
+            />
           </div>
-        </div>
 
-        {/* User Bubble 3 - Engineering (Right) - Dark pill */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'flex-end'
-        }}>
-          <div style={{
-            background: '#111827',
-            borderRadius: 999,
-            padding: '8px 16px',
-            maxWidth: '75%',
-            boxShadow: '0 4px 10px rgba(0, 0, 0, 0.18)'
-          }}>
-            <div style={{
-              fontSize: 13,
-              fontWeight: '500',
-              color: '#FFFFFF',
-              fontFamily: 'Plus Jakarta Sans',
-              lineHeight: '18px'
-            }}>
-              Where does 'basement B2' appear in the drawings?
-            </div>
+          {/* A1 */}
+          <div style={{ width: 455 }}>
+            <img
+              src={answer1}
+              alt="Penalties answer"
+              style={{
+                width: '100%',
+                height: 'auto',
+                filter: 'drop-shadow(0 4px 10px rgba(0, 0, 0, 0.13)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.09))',
+                transform: 'perspective(1000px) rotateY(-1deg)',
+                transformStyle: 'preserve-3d'
+              }}
+            />
           </div>
         </div>
       </div>
@@ -165,15 +213,15 @@ const Slide1 = () => {
       <div style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 10,
-        marginTop: 24
+        gap: 8,
+        marginTop: 16
       }}>
         <div style={{
           fontSize: 14,
           fontWeight: '400',
           color: '#111827',
           fontFamily: 'Plus Jakarta Sans',
-          lineHeight: '22px',
+          lineHeight: '20px',
           display: 'flex',
           gap: 8
         }}>
@@ -188,7 +236,7 @@ const Slide1 = () => {
           fontWeight: '400',
           color: '#111827',
           fontFamily: 'Plus Jakarta Sans',
-          lineHeight: '22px',
+          lineHeight: '20px',
           display: 'flex',
           gap: 8
         }}>
@@ -200,7 +248,7 @@ const Slide1 = () => {
           fontWeight: '400',
           color: '#111827',
           fontFamily: 'Plus Jakarta Sans',
-          lineHeight: '22px',
+          lineHeight: '20px',
           display: 'flex',
           gap: 8
         }}>
