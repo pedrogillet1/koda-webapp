@@ -43,7 +43,7 @@ export async function generateMicroSummary(
 
   try {
     // Use Gemini Flash for fast, cheap micro-summary generation
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const prompt = buildMicroSummaryPrompt(chunkText, chunkType, documentType, sectionName);
 

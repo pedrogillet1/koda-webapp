@@ -357,7 +357,7 @@ Return a JSON array of entities:
 
 Only include entities you're confident about. Return only the JSON array, no other text.`;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent(prompt);
     const response = result.response.text();
 
