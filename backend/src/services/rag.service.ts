@@ -3,9 +3,6 @@ import { Pinecone } from '@pinecone-database/pinecone';
 import prisma from '../config/database';
 import fileActionsService from './fileActions.service';
 import { actionHistoryService } from './actionHistory.service';
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// CLEANUP: Removed 93 unused services - keeping only essential imports
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 import { gracefulDegradationService } from './graceful-degradation.service';
 import { bm25RetrievalService } from './bm25-retrieval.service';
 import statusEmitter, { ProcessingStage } from './statusEmitter.service';
@@ -17,14 +14,12 @@ import ErrorMessagesService from './errorMessages.service';
 import * as languageDetectionService from './languageDetection.service';
 import { performHybridRetrieval, initializePineconeIndex, type HybridRetrievalResult } from './hybridRetrieval.service';
 
-// Fallback System Imports (Psychological Safety)
 import { fallbackDetection, fallbackResponse, psychologicalSafety } from './fallback';
 import type { FallbackType, FallbackContext } from './fallback';
 import * as folderNav from './folderNavigation.service';
 import { formatFileListingResponse } from '../utils/inlineDocumentInjector';
 import { smartProcessSpacing } from '../utils/markdownSpacing';
 
-// Calculation Engine Imports (Manus Method)
 import calculationDetector from './calculation/calculationDetector.service';
 import smartCalculator from './calculation/smartCalculator.service';
 import codeGenerator from './calculation/codeGenerator.service';
@@ -33,10 +28,8 @@ import { CalculationType } from './calculation/calculationTypes';
 import { excelFormulaEngine } from './calculation';
 import calculationRouter from './calculation/calculationRouter.service';
 
-// Format Validation Service (Quality Gate)
 import { formatValidationService } from './formatValidation.service';
 
-// Confidence Scoring Service
 import * as confidenceScoring from './archived/confidence-scoring.service';
 
 // QA Orchestrator Service (Quality Assurance Gate)
@@ -45,10 +38,6 @@ import { runQualityAssurance } from './qaOrchestrator.service';
 // Master Answer Formatter Service (Single Source of Truth for Formatting)
 import { formatAnswer } from './masterAnswerFormatter.service';
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// STUB IMPORTS: These services were deleted but are still referenced in code
-// Using stub implementations to prevent runtime errors
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 import {
   semanticDocumentSearchService,
   hybridRetrievalBooster,
@@ -78,54 +67,43 @@ import {
   type DocumentInfo as AdaptiveDocumentInfo
 } from './deletedServiceStubs';
 
-// Real Service Implementations (replacing stubs)
 import adaptiveAnswerGeneration, { classifyResponseType, FLASH_OPTIMAL_CONFIG, ResponseType } from './adaptiveAnswerGeneration.service';
 import contextEngineering from './contextEngineering.service';
 import { emptyResponsePrevention } from './emptyResponsePrevention.service';
 import { fallbackResponseService } from './fallbackResponse.service';
 
-// ChatGPT-style Quality Assurance Pipeline
 import { postProcessAnswer as qaPostProcessAnswer } from './outputPostProcessor.service';
 import groundingVerificationService, { GroundingVerificationResult } from './groundingVerification.service';
 import citationVerificationService, { CitationVerificationResult } from './citationVerification.service';
 import { checkAnswerQuality } from './answerQualityChecker.service';
 import { generateFallback as generateQAFallback } from './fallbackStrategy.service';
 import clarificationLogicService from './clarificationLogic.service';
-// TODO: Re-enable after schema update - import conversationContinuityService from "./conversationContinuity.service";
 import rollingConversationSummaryService from './rollingConversationSummary.service';
 import { microSummaryRerankerService } from './microSummaryReranker.service';
 import { rerankByChunkType } from './chunkTypeReranker.service';
 import { getConversationState, updateConversationState, extractEntities, extractTopics } from './conversationStateTracker.service';
 
-// Infinite Conversation Memory (Manus-style)
 import infiniteConversationMemory from './infiniteConversationMemory.service';
 
 // Conversation Context Service (Multi-turn context management)
 import { conversationContextService } from './deletedServiceStubs';
 
-// Format Enforcement Services (structureEnforcement only - kodaFormatEnforcement used instead of old formatEnforcement)
 import structureEnforcementService from './structureEnforcement.service';
 
 // Format Enforcement V2 and Citation Format Services (KODA 100/100)
 import { kodaFormatEnforcementService } from './kodaFormatEnforcement.service';
 import { kodaCitationFormatService, type CitationSource as FormattedCitationSource } from './kodaCitationFormat.service';
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // SIMPLE INTENT DETECTION (Fast Pattern-Based)
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // FIX: Import the simple intent detection service for unified routing
 // This replaces multiple conflicting intent detection services
 import { detectIntent as detectSimpleIntent, type SimpleIntentResult } from './simpleIntentDetection.service';
 
-// ═══════════════════════════════════════════════════════════════════════════
 // DOCUMENT INTELLIGENCE SYSTEM - Routing, Hybrid Search
-// ═══════════════════════════════════════════════════════════════════════════
 import { routeToDocument, routeToMultipleDocuments, type DocumentRoutingResult } from './documentRouter.service';
 import { hybridSearch, analyzeQueryIntent, type SearchFilters, type HybridSearchOptions } from './hybridSearch.service';
 
-// ═══════════════════════════════════════════════════════════════════════════
 // CONTEXT-AWARE INTENT DETECTION (Advanced 6-Stage Pipeline)
-// ═══════════════════════════════════════════════════════════════════════════
 // Provides: Negation detection, completeness validation, entity extraction,
 // pronoun resolution, verb disambiguation, and multi-intent detection
 import { contextAwareIntentDetection, type ContextAwareIntentResult } from './contextAwareIntentDetection.service';
@@ -136,10 +114,7 @@ import { getPipelineConfig, planAnswerShape, buildPromptWithPlan, type PipelineC
 import { executeSubQuestion, assembleMultiPartAnswer, type SubQuestionResult, type MultiPartAnswer } from './queryExecutor.service';
 import { handleHierarchicalIntent, handleQueryDecomposition } from './hierarchicalIntentHandler.service';
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // RAG CONFIGURATION INTERFACE
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Controls optional RAG features that can be toggled for speed vs accuracy tradeoff
 export interface RAGConfig {
   useLLMFiltering?: boolean;           // LLM-based chunk filtering (saves 3-5 seconds when disabled)
   useFullDocuments?: boolean;          // Full document retrieval (saves ~1000ms when disabled)
@@ -153,9 +128,7 @@ export const DEFAULT_RAG_CONFIG: RAGConfig = {
   useContradictionDetection: false,
 };
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // RRF (Reciprocal Rank Fusion) Merging Algorithm
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 interface RRFScore {
   content: string;
   metadata: any;
@@ -483,12 +456,7 @@ class PerformanceTimer {
 let requestTimer: PerformanceTimer | null = null;
 
 // ============================================================================
-// ðŸ"§ WHOLE-BLOCK DEDUPLICATION: Remove LLM response duplicates
 // ============================================================================
-/**
- * Detect and remove whole-block duplication where LLM repeats its response
- * Example: "... project management.You asked for..." (concatenated duplicate)
- */
 function removeWholeBlockDuplication(text: string): string {
   if (!text || text.length < 200) return text;
 
@@ -544,7 +512,6 @@ function removeWholeBlockDuplication(text: string): string {
 }
 
 // ============================================================================
-// ðŸ"§ TABLE CELL FIX: Remove newlines from markdown table cells
 // ============================================================================
 function fixMarkdownTableCells(markdown: string): string {
   const lines = markdown.split('\n');
@@ -602,12 +569,7 @@ function fixMarkdownTableCells(markdown: string): string {
 }
 
 // ============================================================================
-// âœ… FIX #10: Better Error Messages - Custom Error Types
 // ============================================================================
-// REASON: Generic error messages don't help users understand what went wrong
-// WHY: Users need specific errors and clear actions to recover
-// HOW: Custom error types with user-friendly messages and suggestions
-// IMPACT: Reduced support requests, better UX
 
 /**
  * Custom error types for RAG system
@@ -997,55 +959,9 @@ function detectQueryComplexity(query: string): 'simple' | 'medium' | 'complex' {
     return 'complex';
   }
 
-  // Default to medium
   return 'medium';
 }
-// ============================================================================
-// HYBRID RAG SERVICE - Simple, Reliable, 95%+ Success Rate
-// ============================================================================
-//
-// ARCHITECTURE:
-// 1. File Actions - Natural detection (create/rename/delete/move folder/file)
-// 2. Comparisons - GUARANTEE multi-document retrieval
-// 3. Document Counting - Count documents by type (how many PDFs, etc.)
-// 4. Document Types - Show file types breakdown
-// 5. Document Listing - List all user files
-// 6. Meta-Queries - Answer from knowledge, don't search
-// 7. Regular Queries - Standard RAG pipeline
-//
-// KEY FEATURES:
-// - Real streaming (not fake word-by-word)
-// - Fuzzy document matching (60% word match, no-spaces comparison)
-// - Post-processing (remove emojis, fix "Next steps:", limit blank lines)
-// - KODA persona (professional, friendly, bullet points, no emojis, bold)
-//
-// ============================================================================
 
-// ============================================================================
-// GEMINI MODEL CONFIGURATION - Enhanced for Long Context
-// ============================================================================
-// âš¡ SPEED OPTIMIZATION #3: Optimize Gemini generation config (saves 500-1000ms)
-// ============================================================================
-// REASON: High topK slows down token generation by considering too many candidates
-// WHY: topK=40 means model evaluates 40 tokens per generation step
-// HOW: Reduce topK to 1 (greedy decoding) for faster generation
-// IMPACT: 500-1000ms saved per response
-//
-// MATHEMATICAL PROOF:
-// - Generation steps per response: ~100-500 steps (depending on length)
-// - Time per step with topK=40: ~10-20ms (evaluate 40 candidates)
-// - Time per step with topK=1: ~5-8ms (greedy, pick most likely)
-// - Difference: 5-12ms per step
-// - Total saved: (10-5) Ã— 200 steps = 1000ms
-//
-// QUALITY IMPACT:
-// - topK=40: More diverse responses, slightly more creative
-// - topK=1: More deterministic, faster, still accurate for factual queries
-// - For RAG (factual answers): topK=1 is BETTER (more consistent)
-
-// Initialize Gemini model for RAG queries
-// FIXED: Increased maxOutputTokens to 2500 - Gemini 2.5 Flash uses internal thinking tokens
-// Per-query adaptation done via classifyResponseType() and FLASH_OPTIMAL_CONFIG
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({
   model: 'gemini-2.5-flash',
@@ -1061,8 +977,6 @@ console.log('[FLASH] Gemini optimized: maxTokens 2500, topK 40, temp 0.4');
 let pinecone: Pinecone | null = null;
 let pineconeIndex: any = null;
 
-// Initialize Pinecone
-// âš¡ PERFORMANCE FIX: Export this function to allow pre-warming at server startup
 export async function initializePinecone() {
   if (!pinecone) {
     console.log('ðŸ”¥ [PINECONE] Initializing Pinecone client...');
@@ -1072,7 +986,6 @@ export async function initializePinecone() {
     });
     pineconeIndex = pinecone.index(process.env.PINECONE_INDEX_NAME || 'koda-openai');
 
-    // Initialize hybrid retrieval service with Pinecone index
     initializePineconeIndex(pineconeIndex);
     console.log('   âœ… [HYBRID] Pinecone index shared with hybrid retrieval service');
 
@@ -1087,13 +1000,7 @@ export async function initializePinecone() {
 }
 
 // ============================================================================
-// âš¡ FAST CITATION EXTRACTION - Regex-based (replaces LLM call, saves ~1000ms)
 // ============================================================================
-// REASON: LLM-based citation extraction adds 800-1200ms
-// WHY: Simple regex can extract [1], [2] citations from response
-// HOW: Parse citations â†’ map to chunks â†’ deduplicate by document
-// IMPACT: ~1000ms saved per query
-// âœ… ENHANCED: Now tracks ALL page numbers per document for accurate citations
 
 interface EnhancedSourceInfo {
   documentId: string;
@@ -1106,7 +1013,6 @@ interface EnhancedSourceInfo {
 }
 
 function fastCitationExtraction(response: string, chunks: any[]): EnhancedSourceInfo[] {
-  // âœ… ENHANCED: Track all pages per document, not just one
   const sourceMap = new Map<string, EnhancedSourceInfo>();
 
   // Extract [1], [2], etc. from response
@@ -1126,7 +1032,6 @@ function fastCitationExtraction(response: string, chunks: any[]): EnhancedSource
       if (docId) {
         const existing = sourceMap.get(docId);
         if (existing) {
-          // âœ… ENHANCED: Accumulate page numbers instead of replacing
           if (pageNum !== null && !existing.allPages.includes(pageNum)) {
             existing.allPages.push(pageNum);
             existing.allPages.sort((a, b) => a - b);
@@ -1189,11 +1094,9 @@ function fastCitationExtraction(response: string, chunks: any[]): EnhancedSource
   // Convert Map to array, sorted by score descending
   const sources = Array.from(sourceMap.values()).sort((a, b) => b.score - a.score);
 
-  // âœ… KODA 100/100: Apply kodaCitationFormat for 100% confidence-based locations
   console.log(`âš¡ [FAST CITATION] Applying KODA citation formatting...`);
   const formattedSources = kodaCitationFormatService.formatSources(chunks);
 
-  // Merge formatted data back into sources (keep existing structure, add formatted location)
   sources.forEach(src => {
     const formatted = formattedSources.find(f => f.documentId === src.documentId);
     if (formatted) {
@@ -1206,7 +1109,6 @@ function fastCitationExtraction(response: string, chunks: any[]): EnhancedSource
     }
   });
 
-  // âœ… ENHANCED: Log detailed page information for debugging citation accuracy
   console.log(`âš¡ [FAST CITATION] Extracted ${sources.length} unique document sources (saved ~1000ms)`);
   sources.forEach((src, idx) => {
     const pagesStr = src.allPages.length > 0 ? `pages ${src.allPages.join(', ')}` : 'no page info';
@@ -1218,12 +1120,8 @@ function fastCitationExtraction(response: string, chunks: any[]): EnhancedSource
 }
 
 // ============================================================================
-// âœ… BUILD ANSWER WITH CITATIONS - Accurate source tracking
 // ============================================================================
 // PURPOSE: Appends a "Sources" section with accurate document locations
-// WHY: Fixes "wrong file location reported" precision error
-// HOW: Groups chunks by document, tracks all page numbers, builds source list
-// IMPACT: User can now verify information in the correct document/page
 
 interface CitationSource {
   documentId: string;
@@ -1237,9 +1135,6 @@ interface CitationSource {
 // OBSERVATION LAYER - Validates retrieval results
 // ============================================================================
 // PURPOSE: Checks if retrieved results are sufficient before generating answer
-// WHY: Prevents incomplete/poor quality answers by enabling query refinement
-// HOW: Analyzes result count, relevance scores, and coverage against user intent
-// IMPACT: +10-20% accuracy, -30% "couldn't find information" errors
 
 interface ObservationResult {
   needsRefinement: boolean; // Should we retry with a different approach?
@@ -1252,14 +1147,6 @@ interface ObservationResult {
   };
 }
 
-/**
- * Observes retrieval results and determines if refinement is needed
- *
- * @param results - Pinecone search results
- * @param query - Original user query
- * @param minRelevanceScore - Minimum acceptable relevance score (default: 0.7)
- * @returns Observation result with refinement recommendation
- */
 function observeRetrievalResults(
   results: any,
   query: string,
@@ -1304,7 +1191,6 @@ function observeRetrievalResults(
   // CHECK 3: Incomplete results (user asks for specific count)
   // ============================================================================
 
-  // Detect if query asks for specific count (e.g., "all 7 principles", "5 steps", "3 methods")
   const countMatch = query.match(/\b(all\s+)?(\d+)\s+(principles?|steps?|methods?|ways?|reasons?|factors?|elements?|components?|stages?|phases?|points?)\b/i);
 
   if (countMatch) {
@@ -1368,13 +1254,6 @@ function observeRetrievalResults(
   };
 }
 
-/**
- * Refines a query based on observation results
- *
- * @param originalQuery - The original user query
- * @param observation - The observation result indicating why refinement is needed
- * @returns A refined query that's more likely to succeed
- */
 function refineQuery(originalQuery: string, observation: ObservationResult): string {
 
   if (!observation.needsRefinement) {
@@ -1443,7 +1322,6 @@ function refineQuery(originalQuery: string, observation: ObservationResult): str
     }
 
     // ============================================================================
-    // CASE 4: Insufficient coverage â†’ Keep original (will be handled by decomposition)
     // ============================================================================
     case 'insufficient_coverage': {
       // This will be handled by query decomposition in Phase 2
@@ -1467,12 +1345,6 @@ interface QueryAnalysis {
   originalQuery: string;
 }
 
-/**
- * Analyzes a query to determine if it's complex and needs decomposition
- *
- * @param query - The user's query
- * @returns Analysis result with sub-queries if complex
- */
 async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
   const fnStart = Date.now();
   if (requestTimer) requestTimer.start('analyzeQueryComplexity');
@@ -1657,16 +1529,9 @@ async function analyzeQueryComplexity(query: string): Promise<QueryAnalysis> {
   };
 }
 
-// âš¡ PERFORMANCE: Cache decomposition results to avoid redundant LLM calls (saves 1-2s)
 const decompositionCache = new Map<string, { result: QueryAnalysis | null; timestamp: number }>();
 const DECOMPOSITION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-/**
- * Uses LLM to decompose complex queries that don't match simple patterns
- *
- * @param query - The complex query
- * @returns Query analysis with sub-queries, or null if LLM fails
- */
 async function decomposeWithLLM(query: string): Promise<QueryAnalysis | null> {
   // âš¡ Check cache first - saves 1-2 seconds for repeat queries
   const cacheKey = query.toLowerCase().trim();
@@ -1781,15 +1646,6 @@ Respond with ONLY the JSON object, no explanation.`;
   }
 }
 
-/**
- * Handles multi-step queries by executing sub-queries and combining results
- *
- * @param analysis - Query analysis with sub-queries
- * @param userId - User ID
- * @param filter - Pinecone filter
- * @param onChunk - Streaming callback
- * @returns Combined search results from all sub-queries
- */
 async function handleMultiStepQuery(
   analysis: QueryAnalysis,
   userId: string,
@@ -1803,7 +1659,6 @@ async function handleMultiStepQuery(
   console.log(`ðŸ”„ [MULTI-STEP] Executing ${analysis.subQueries.length} sub-queries...`);
 
   // ============================================================================
-  // âš¡ PERFORMANCE: Generate ALL embeddings in parallel first (saves 1-2s)
   // ============================================================================
 
   analysis.subQueries.forEach((subQuery, index) => {
@@ -1838,7 +1693,6 @@ async function handleMultiStepQuery(
     // ðŸš€ HYBRID RETRIEVAL BOOST: Apply filename/entity matching boost
     const boostedMatches = hybridRetrievalBooster.boostRetrievalScores(filteredMatches, subQuery, 1.8);
 
-    // âœ… ISSUE #6 FIX: Boost section matches for section-specific queries
     const sectionRefs = extractSectionReferences(subQuery);
     if (sectionRefs.length > 0) {
       boostSectionMatches(boostedMatches, sectionRefs);
@@ -1874,7 +1728,6 @@ async function handleMultiStepQuery(
   // Sort by relevance score (highest first)
   combinedMatches.sort((a, b) => (b.score || 0) - (a.score || 0));
 
-  // âš¡ PERFORMANCE: Reduced from 20 to 10 overall (less context = faster LLM)
   const topMatches = combinedMatches.slice(0, 10);
 
   console.log(`âœ… [MULTI-STEP] Combined ${allResults.length} sub-query results into ${topMatches.length} unique chunks`);
@@ -1893,7 +1746,6 @@ interface AgentLoopConfig {
   improvementThreshold: number;  // Minimum improvement to continue (e.g., 0.1 = 10% better)
 }
 
-// âœ… OPTIMIZED: Reduced iterations for faster responses while maintaining quality
 const DEFAULT_AGENT_CONFIG: AgentLoopConfig = {
   maxAttempts: 2,              // Reduced from 3 (saves 10-15s on complex queries)
   minRelevanceScore: 0.05,     // Slightly lower threshold (0.7 â†’ 0.65)
@@ -1923,15 +1775,6 @@ function createInitialState(): AgentLoopState {
   };
 }
 
-/**
- * Executes iterative retrieval with refinement until results are satisfactory
- *
- * @param initialQuery - The original query
- * @param userId - User ID
- * @param filter - Pinecone filter
- * @param config - Agent loop configuration
- * @returns Best results found across all attempts
- */
 async function iterativeRetrieval(
   initialQuery: string,
   userId: string,
@@ -1952,9 +1795,7 @@ async function iterativeRetrieval(
     state.attempt++;
     console.log(`\nðŸ”„ [AGENT LOOP] Attempt ${state.attempt}/${config.maxAttempts}: "${currentQuery}"`);
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // STEP 1: Execute retrieval
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     // ✅ PERFORMANCE FIX: Use cached embeddings
     const embeddingResult = await generateEmbeddingCached(currentQuery);
@@ -1974,15 +1815,12 @@ async function iterativeRetrieval(
     // ðŸš€ HYBRID RETRIEVAL BOOST: Apply filename/entity matching boost
     const boostedMatches = hybridRetrievalBooster.boostRetrievalScores(filteredMatches, currentQuery, 1.8);
 
-    // âœ… ISSUE #6 FIX: Boost section matches for section-specific queries
     const sectionRefs = extractSectionReferences(currentQuery);
     if (sectionRefs.length > 0) {
       boostSectionMatches(boostedMatches, sectionRefs);
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // STEP 2: Observe results
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     const observation = observeRetrievalResults({ matches: boostedMatches }, currentQuery, config.minRelevanceScore);
 
@@ -2001,9 +1839,7 @@ async function iterativeRetrieval(
 
     console.log(`  ðŸ“Š Results: ${boostedMatches.length} chunks, avg score: ${avgScore.toFixed(2)}`);
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // STEP 3: Update best results if this attempt is better
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     if (avgScore > state.bestScore) {
       const improvement = state.bestScore > 0
@@ -2018,9 +1854,7 @@ async function iterativeRetrieval(
       console.log(`  âš ï¸  Not better than previous best (${state.bestScore.toFixed(2)})`);
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // STEP 4: Decide if we should continue or stop
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     // Stop if results are good enough
     if (!observation.needsRefinement &&
@@ -2047,9 +1881,7 @@ async function iterativeRetrieval(
       }
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // STEP 5: Refine query for next attempt
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     console.log(`  ðŸ”§ Refining query for next attempt...`);
     currentQuery = refineQuery(currentQuery, observation);
@@ -2071,14 +1903,6 @@ async function iterativeRetrieval(
   return state.bestResults || { matches: [] };
 }
 
-/**
- * Validates generated answer for quality and completeness
- *
- * @param answer - The generated answer
- * @param query - Original query
- * @param sources - Source chunks used
- * @returns Validation result with issues if any
- */
 interface AnswerValidation {
   isValid: boolean;
   issues?: string[];
@@ -2149,12 +1973,6 @@ function validateAnswer(answer: string, query: string, sources: any[]): AnswerVa
 // ADAPTIVE STRATEGY - Choose best retrieval approach per query
 // ============================================================================
 
-/**
- * Determines the best retrieval strategy for a query
- *
- * @param query - User query
- * @returns Strategy to use: 'vector', 'keyword', or 'hybrid'
- */
 function determineRetrievalStrategy(query: string): 'vector' | 'keyword' | 'hybrid' {
 
   const lowerQuery = query.toLowerCase();
@@ -2162,7 +1980,6 @@ function determineRetrievalStrategy(query: string): 'vector' | 'keyword' | 'hybr
   // ============================================================================
   // STRATEGY 1: Keyword search for exact-match queries
   // ============================================================================
-  // âœ… ENABLED: BM25 keyword search via document_chunks table
   // Uses PostgreSQL full-text search with GIN index for fast keyword matching
 
   // Detect technical terms, IDs, version numbers, acronyms
@@ -2176,7 +1993,6 @@ function determineRetrievalStrategy(query: string): 'vector' | 'keyword' | 'hybr
 
   for (const pattern of hasExactMatchPattern) {
     if (pattern.test(query)) {
-      // âœ… ENABLED: Use KEYWORD for exact-match patterns
       console.log(`ðŸŽ¯ [STRATEGY] Exact-match pattern detected â†’ using KEYWORD search (BM25)`);
       return 'keyword';
     }
@@ -2213,21 +2029,12 @@ function determineRetrievalStrategy(query: string): 'vector' | 'keyword' | 'hybr
   return 'vector';
 }
 
-/**
- * Pure BM25 keyword search (wrapper around existing service)
- *
- * @param query - Search query
- * @param userId - User ID
- * @param topK - Number of results to return
- * @returns Search results with BM25 scores
- */
 async function pureBM25Search(query: string, userId: string, topK: number = 20): Promise<any> {
   console.log(`ðŸ” [PURE BM25] Executing keyword-only search for: "${query}"`);
 
   try {
     await initializePinecone();
 
-    // Call the BM25 service's private method via hybridSearch with empty vector results
     // This will return only BM25 results
     const emptyVectorResults: any[] = [];
     const hybridResults = await bm25RetrievalService.hybridSearch(query, emptyVectorResults, userId, topK);
@@ -2256,7 +2063,6 @@ async function pureBM25Search(query: string, userId: string, topK: number = 20):
 function detectLanguage(query: string): 'pt' | 'es' | 'en' | 'fr' {
   const lower = query.toLowerCase();
 
-  // âœ… FIX: Check for STRONG English patterns FIRST - these are definitive
   const strongEnglishPatterns = [
     /\bwhat\s+is\b/i,
     /\bhow\s+(many|much|is|are|does|do)\b/i,
@@ -2373,7 +2179,6 @@ function detectLanguage(query: string): 'pt' | 'es' | 'en' | 'fr' {
   // Log for debugging
   console.log(`ðŸŒ [LANG DETECT] EN: ${enCount}, PT: ${ptCount}, ES: ${esCount}, FR: ${frCount} for query: "${query.substring(0, 50)}..."`);
 
-  // âœ… FIX: Require MINIMUM of 2 strong matches to switch from English
   const MIN_MATCHES_FOR_LANGUAGE_SWITCH = 2;
 
   // English wins if it has the most matches OR ties with any other language
@@ -2404,18 +2209,8 @@ function detectLanguage(query: string): 'pt' | 'es' | 'en' | 'fr' {
 // FORMAT ENFORCEMENT HELPER
 // ============================================================================
 // PURPOSE: Centralized format enforcement for ALL response paths
-// WHY: Error 3.1 - Format enforcement was only called in generateAnswer()
-// IMPACT: 100% of responses now go through format validation
 // ============================================================================
 
-/**
- * Apply format enforcement to any response before sending to user
- * Uses smart title detection based on query complexity
- *
- * @param response - The raw response text
- * @param options - Configuration options including query for smart title decisions
- * @returns Formatted response with consistent styling
- */
 function applyFormatEnforcement(
   response: string,
   options?: {
@@ -2437,7 +2232,6 @@ function applyFormatEnforcement(
     return response;
   }
 
-  // Skip very short responses (< 50 chars) - likely errors or simple confirmations
   if (skipForShortResponses && response.length < 50) {
     console.log(`${logPrefix} Skipping format enforcement for short response (${response.length} chars)`);
     return response;
@@ -2449,7 +2243,6 @@ function applyFormatEnforcement(
     return response;
   }
 
-  // Skip inline document markers - these need to be preserved for frontend parsing
   if (response.includes('{{DOC:::')) {
     console.log(`${logPrefix} Skipping format enforcement for inline document markers`);
     return response;
@@ -2491,12 +2284,6 @@ function applyFormatEnforcement(
 // CALCULATION ENGINE - Manus Method Integration
 // ============================================================================
 
-/**
- * Handle calculation queries using the calculation engine
- * Returns null if not a calculation, otherwise returns the formatted result
- *
- * Uses the unified CalculationRouter for cleaner routing logic
- */
 async function handleCalculationQuery(query: string, userId: string): Promise<string | null> {
   console.log('ðŸ§® [CALCULATION] Routing query through calculation router...');
 
@@ -2523,10 +2310,6 @@ async function handleCalculationQuery(query: string, userId: string): Promise<st
   }
 }
 
-/**
- * Legacy calculation query handler (fallback)
- * Kept for backwards compatibility if router has issues
- */
 async function handleCalculationQueryLegacy(query: string, userId: string): Promise<string | null> {
   console.log('ðŸ§® [CALCULATION] Using legacy handler...');
 
@@ -2896,9 +2679,6 @@ async function handleExcelDependentsQuery(
 // ============================================================================
 // PURPOSE: Check if query can be answered from conversation history BEFORE
 //          routing to calculation/excel handlers that might intercept it
-// WHY: Queries like "what was our Q4 revenue?" were being caught by calculation
-//      detector because they contain numbers, even when discussed in conversation
-// IMPACT: Ensures conversation context is always checked first
 
 /**
  * Extract key terms from a query for conversation search
@@ -2940,10 +2720,6 @@ function extractKeyTerms(query: string): string[] {
   return allTerms;
 }
 
-/**
- * Check if a query can be answered from conversation context
- * Returns the answer if found, null if should proceed to other handlers
- */
 async function checkConversationContextFirst(
   query: string,
   conversationId: string,
@@ -2974,7 +2750,6 @@ async function checkConversationContextFirst(
   }
 
   // FIX: Skip pre-check for document content queries
-  // REASON: Queries asking about document content should go to RAG, not conversation
   const documentContentPatterns = [
     /\bwhat\s+(?:is|are|does)\s+.+?\s+about\b/i,  // "what is X about"
     /\bexplain\s+(?:the\s+)?(?:document|file|content|pdf|report)\b/i,  // "explain the document"
@@ -2992,7 +2767,6 @@ async function checkConversationContextFirst(
   }
 
   // FIX: Skip if query mentions a filename
-  // REASON: User is asking about a specific document, not conversation
   const filenamePattern = /\b[a-z0-9_\-\s]+\.(?:pdf|xlsx?|docx?|txt|csv|pptx?|png|jpe?g)\b/i;
   if (filenamePattern.test(query)) {
     console.log('   [SKIP] Query mentions filename - should use RAG');
@@ -3000,7 +2774,6 @@ async function checkConversationContextFirst(
   }
 
   // FIX: Require EXPLICIT conversation reference words
-  // REASON: Only intercept if user is clearly asking about the conversation
   const explicitConversationReferences = [
     /\b(we|our|us)\s+(discussed|mentioned|said|talked about|agreed)\b/i,  // "we discussed"
     /\b(you|earlier|before|previously)\s+(said|told|mentioned)\b/i,  // "you said earlier"
@@ -3064,12 +2837,10 @@ async function checkConversationContextFirst(
       }));
     }
 
-    // âœ… FIX: Only check ASSISTANT messages for context (not user queries!)
     // This prevents false positives where the user's query matches itself
     const assistantMessages = recentHistory?.filter(m => m.role === 'assistant') || [];
     console.log(`   ðŸ“Š Assistant messages found: ${assistantMessages.length}`);
 
-    // âœ… FIX: Require at least 1 assistant message with actual content
     if (assistantMessages.length === 0 || !assistantMessages.some(m => m.content.length > 50)) {
       console.log('   â­ï¸ Skipping: No substantive assistant responses in history');
       // Fall through to return 'none' at the end
@@ -3151,7 +2922,6 @@ async function handleConversationContextQuery(
     });
 
     if (result.answer && result.answer.trim().length > 0) {
-      // Apply format enforcement before sending to user (with query for smart title detection)
       const formattedAnswer = applyFormatEnforcement(result.answer, {
         responseType: 'conversation_context',
         logPrefix: '[CONV-ANSWER FORMAT]',
@@ -3276,9 +3046,6 @@ export async function generateAnswerStream(
   // ============================================================================
   // STEP -1.7: HIERARCHICAL INTENT CLASSIFICATION (Two-Stage: Heuristic + LLM)
   // ============================================================================
-  // REASON: Better intent classification for summarization, comparison, transformation
-  // WHY: 80% of queries use fast heuristic path (<10ms), 20% use LLM (~300ms)
-  // IMPACT: Enables intent-specific pipelines for better answer quality
   const hierarchicalResult = await handleHierarchicalIntent(query, userId);
   const { hierarchicalIntent, pipelineConfig, answerPlan } = hierarchicalResult;
 
@@ -3312,9 +3079,6 @@ Is there something about your documents I can help with instead?`;
   // ============================================================================
   // STEP -1: FAST PATH - File/Document Listing (MOVED UP FOR SPEED)
   // ============================================================================
-  // REASON: File listing is a simple DB query, NO LLM call needed
-  // WHY: "What files do I have?" should return in <500ms, not go through bypass/RAG
-  // IMPACT: Saves 3-4 seconds on file listing queries by avoiding unnecessary checks
 
   if (isDocumentListingQuery(query)) {
     console.log('📋 [ROUTER] → FAST LISTING (skipping all other checks)');
@@ -3324,10 +3088,7 @@ Is there something about your documents I can help with instead?`;
   // ============================================================================
   // STEP 0: RAG BYPASS CHECK (For Greetings & General Knowledge)
   // ============================================================================
-  // REASON: Skip RAG entirely for greetings and general knowledge questions
-  // WHY: "Hello" or "What is the capital of France?" doesn't need document retrieval
   // Uses dynamic Gemini responses (not preset) for natural conversation
-  // IMPACT: Saves 5-10 seconds on 10-20% of queries
 
   if (shouldBypassRAG(query)) {
     const bypassType = getBypassType(query);
@@ -3378,15 +3139,11 @@ Respond in the same language as the user's question.`;
 
   console.log('ðŸ“š [ROUTER] â†’ RAG PIPELINE (document retrieval needed)');
 
-  // âœ… FIX: Initialize Pinecone in parallel with fast checks
   const pineconePromise = initializePinecone();
 
   // ============================================================================
   // ðŸ§  CONVERSATION CONTEXT PRE-CHECK (PHASE 1 FIX - RUNS FIRST!)
   // ============================================================================
-  // PURPOSE: Check if query can be answered from conversation BEFORE other handlers
-  // WHY: Prevents calculation/excel handlers from intercepting conversation queries
-  // IMPACT: Queries like "what was our Q4 revenue?" now use conversation context
 
   try {
     const conversationCheck = await checkConversationContextFirst(
@@ -3606,9 +3363,7 @@ Respond in the same language as the user's question.`;
 
   const responseType = getResponseType(query);
 
-  // âš¡ FAST PATH: Use fastPathDetector for multilanguage greetings/help
   // Now uses languageDetection.service for proper multilanguage support
-  // ENHANCED: Also handles general knowledge queries via Direct Gemini Bypass
   const fastPathResult = await fastPathDetector.detect(query, {
     documentCount,
     hasUploadedDocuments: documentCount > 0,
@@ -3636,12 +3391,8 @@ Respond in the same language as the user's question.`;
   // ============================================================================
   // EARLY FALLBACK DETECTION (Pre-RAG)
   // ============================================================================
-  // REASON: Detect queries that need clarification or refusal BEFORE expensive RAG
-  // WHY: No point running RAG on "Send email to John" or "What does it say?"
-  // IMPACT: Saves 3-5 seconds on queries that would fail anyway
 
   // Early fallback detection for clarification and refusal queries
-  // CRITICAL FIX: ragExecuted: false tells fallbackDetection NOT to trigger knowledge fallback
   const earlyFallbackCheck = fallbackDetection.detectFallback({
     query,
     documentCount,
@@ -3652,7 +3403,6 @@ Respond in the same language as the user's question.`;
   });
 
   // ⚡ FIX: Check if query looks like it's asking about a specific document
-  // Queries like "what is trabalho projeto about" should NOT trigger early fallback
   const queryLower = query.toLowerCase();
   const looksLikeDocumentQuery = (
     // Contains "about" with other specific words (likely document name)
@@ -3667,8 +3417,6 @@ Respond in the same language as the user's question.`;
     /\b[a-záàâãéèêíïóôõöúçñ]{3,}\s+[a-záàâãéèêíïóôõöúçñ]{3,}\b/i.test(queryLower)
   );
 
-  // Only handle clarification and refusal fallbacks early (knowledge fallback needs RAG results)
-  // ⚡ FIX: Skip early fallback for clarification if query looks like a document query
   // ⚡ FIX: Raise confidence threshold from 0.85 to 0.92 to be more conservative
   const shouldTriggerEarlyFallback = (
     earlyFallbackCheck.needsFallback &&
@@ -3736,9 +3484,7 @@ Respond in the same language as the user's question.`;
     }
   }
 
-  // --------------------------------------------------------------------------------
   // DOCUMENT GENERATION DETECTION
-  // --------------------------------------------------------------------------------
   const { detectDocumentGenerationIntent } = await import('./documentGenerationDetection.service');
 
   const docGenResult = detectDocumentGenerationIntent(query);
@@ -3760,12 +3506,7 @@ Respond in the same language as the user's question.`;
     };
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // ADVANCED QUERY TYPE DETECTION - Route to specialized handlers
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-  // REASON: Many queries need different retrieval strategies than semantic search
-  // WHY: "list all companies" needs entity extraction, not similarity search
-  // IMPACT: Transforms "I don't see that" â†’ actual entity/synthesis/data extraction
 
   const advancedQueryType = detectAdvancedQueryType(query);
   console.log(`ðŸŽ¯ [ADVANCED QUERY TYPE] Detected: ${advancedQueryType}`);
@@ -3796,62 +3537,34 @@ Respond in the same language as the user's question.`;
 
   console.log('ðŸ“– [CONTENT QUERY] Proceeding with standard RAG pipeline');
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 1: Meta-Queries - FIRST (No LLM call, instant response)
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // REASON: Check simple greetings BEFORE expensive operations
-  // WHY: "hello" should not trigger LLM intent detection
-  // IMPACT: 20-30s â†’ < 1s for simple queries
   if (isMetaQuery(query)) {
     console.log('ðŸ’­ [META-QUERY] Detected');
     await handleMetaQuery(query, onChunk, conversationHistory);
     return { sources: [] }; // Meta queries don't have sources
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 1.5: Navigation Queries - Fast (App usage questions)
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // REASON: Detect app navigation questions BEFORE document queries
-  // WHY: "Where do I upload?" should explain the UI, not search documents
-  // IMPACT: Provides accurate app guidance instead of irrelevant document content
   if (isNavigationQuery(query)) {
     console.log('ðŸ§­ [NAVIGATION] Detected app navigation question');
     await handleNavigationQuery(query, userId, onChunk);
     return { sources: [] }; // Navigation queries don't have document sources
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 1.6: Methodology Knowledge Queries - Fast (DB lookup + cached knowledge)
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // REASON: "What is ensemble learning?" should give actual explanation, not just citations
-  // WHY: Users need conceptual understanding, not just "mentioned in 15 papers"
-  // IMPACT: Transforms Koda from citation-only to ChatGPT-like explanations
   const methodologyQueryResult = await handleMethodologyKnowledgeQuery(userId, query, onChunk);
   if (methodologyQueryResult.handled) {
     console.log('?? [METHODOLOGY KNOWLEDGE] Query answered from knowledge base');
     return { sources: methodologyQueryResult.sources || [] };
   }
 
-  // ------------------------------------------------------------------------------
-  // STEP 1.6b: Domain Knowledge Queries - Term definitions, formulas, interpretations
-  // ------------------------------------------------------------------------------
-  // REASON: "What is Sharpe ratio?" should explain with formula, not just citations
-  // WHY: Users need domain expertise - definitions, formulas, how to interpret
-  // HOW: Check domain knowledge base for terms extracted from user's documents
-  // IMPACT: Transform "Sharpe ratio mentioned in 10 papers" ? full explanation with formula
   const domainQueryResult = await handleDomainKnowledgeQuery(userId, query, onChunk);
   if (domainQueryResult.handled) {
     console.log('?? [DOMAIN KNOWLEDGE] Query answered from domain knowledge base');
     return { sources: domainQueryResult.sources || [] };
   }
 
-  // ------------------------------------------------------------------------------
   // STEP 1.7: Cross-Document Synthesis Queries - ChatGPT-level intelligence
-  // ------------------------------------------------------------------------------
-  // REASON: "What approaches do my papers use?" needs aggregation, not random listing
-  // WHY: Transform "47 papers found" ? "3 main approaches across 47 papers"
-  // HOW: Detect synthesis queries, aggregate methodologies, identify trends
-  // IMPACT: ChatGPT-level cross-document intelligence
   const synthesisQueryResult = synthesisQueryDetectionService.detect(query);
   if (synthesisQueryResult.isSynthesisQuery) {
     console.log(`?? [CROSS-DOCUMENT SYNTHESIS] Detected ${synthesisQueryResult.type} query`);
@@ -3866,83 +3579,58 @@ Respond in the same language as the user's question.`;
     }
   }
 
-  // ------------------------------------------------------------------------------
   // STEP 1.8: Trend Analysis Queries - Temporal intelligence
-  // ------------------------------------------------------------------------------
-  // REASON: "What trends do you see?" needs temporal analysis, not random listing
-  // WHY: Transform "351 papers found" ? "3 major trends across 2015-2024"
-  // HOW: Extract publication years, track methodology evolution, identify shifts
-  // IMPACT: ChatGPT-level trend identification and temporal analysis
   const trendQueryResult = await handleTrendAnalysisQuery(userId, query, onChunk);
   if (trendQueryResult.handled) {
     console.log('?? [TREND ANALYSIS] Query answered with temporal analysis');
     return { sources: trendQueryResult.sources || [] };
   }
 
-  // ------------------------------------------------------------------------------
   // STEP 2: Document Counting - Fast (No LLM call)
-  // ------------------------------------------------------------------------------
   const countingCheck = isDocumentCountingQuery(query);
   if (countingCheck.isCounting) {
     console.log('ðŸ”¢ [ROUTER] â†’ COUNTING (how many documents?)');
     return await handleDocumentCounting(userId, query, countingCheck.fileType, onChunk);
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 3: Document Types - Fast (No LLM call)
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (isDocumentTypesQuery(query)) {
     console.log('ðŸ“Š [ROUTER] â†’ DOCUMENT TYPES (file type breakdown)');
     return await handleDocumentTypes(userId, query, onChunk);
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 4: Document Listing - Fast (No LLM call)
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (isDocumentListingQuery(query)) {
     console.log('ðŸ“‹ [ROUTER] â†’ LISTING (list all documents)');
     return await handleDocumentListing(userId, query, onChunk);
   }
 
-  // âœ… FIX: Ensure Pinecone is initialized before expensive operations
   await pineconePromise;
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 5.5: Folder Listing Queries - Direct DB Lookup
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // âœ… NEW: Handle "which folders do I have?" queries
   const isFolderListingQuery = detectFolderListingQuery(query);
   if (isFolderListingQuery) {
     console.log('ðŸ“‚ [ROUTER] â†’ FOLDER LISTING (list all folders)');
     return await handleFolderListingQuery(userId, onChunk);
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 5.6: Folder Content Queries - Direct DB Lookup
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // âœ… MOVED UP: Handle "what's in Finance folder?" queries BEFORE file actions
   const isFolderContentQuery = detectFolderContentQuery(query);
   if (isFolderContentQuery) {
     console.log('ðŸ“ [ROUTER] â†’ FOLDER CONTENT (what\'s in folder?)');
     return await handleFolderContentQuery(query, userId, onChunk);
   }
 
-  // âœ… FIX: Parallelize comparison and file action detection
   const [comparison, fileAction] = await Promise.all([
     detectComparison(userId, query),
     detectFileAction(query)
   ]);
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 5: Comparisons - Moderate (Pinecone queries)
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // âœ… FIX #8: Support multi-document comparison via attached documents
-  // When user attaches 2+ documents and asks "compare these", use attachedDocumentId
   if (comparison) {
     // Check if attached documents should be used for comparison
     const attachedIds = Array.isArray(attachedDocumentId) ? attachedDocumentId : [];
 
-    // If user has attached 2+ documents and comparison detection didn't find specific docs
     // OR if user explicitly attached docs, use those for comparison
     if (attachedIds.length >= 2 && (!comparison.documents || comparison.documents.length < 2)) {
       console.log(`ðŸ”„ [COMPARISON] Using ${attachedIds.length} attached documents for comparison`);
@@ -3954,8 +3642,6 @@ Respond in the same language as the user's question.`;
     return await handleComparison(userId, query, comparison, onChunk, conversationHistory);
   }
 
-  // âœ… FIX #8: Handle multi-document queries even without explicit comparison keywords
-  // If user attaches 2+ documents and asks any question, enable cross-document search
   const attachedIds = Array.isArray(attachedDocumentId) ? attachedDocumentId : [];
   if (attachedIds.length >= 2) {
     const hasCompareIntent = /\b(compare|difference|vs|versus|between|contrast|similarities)\b/i.test(query);
@@ -3968,13 +3654,7 @@ Respond in the same language as the user's question.`;
     }
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 5.8: Show vs Explain Intent Classification
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // PURPOSE: Distinguish between "show me the file" vs "explain what's in the file"
-  // WHY: Users asking "what is this" want to SEE the document, not get an explanation
-  // IMPACT: Routes show requests to file preview instead of RAG
-  // âœ… FIX #6: Using simple pattern-based detection instead of showVsExplainClassifier
   const showIntentResult = detectSimpleIntent(query);
   const isShowIntent = showIntentResult.type === 'data' && /\b(show|open|display|view|mostre|abre|muestra)\b/i.test(query.toLowerCase());
   console.log(`ðŸ‘ï¸ [INTENT] ${isShowIntent ? 'SHOW' : 'EXPLAIN'} (type: ${showIntentResult.type}, confidence: ${showIntentResult.confidence.toFixed(2)}) - ${showIntentResult.detectionTimeMs}ms`);
@@ -3983,7 +3663,6 @@ Respond in the same language as the user's question.`;
     console.log('ðŸ“„ [SHOW FILE] User wants to see document, routing to semantic document search');
 
     // Use semantic document search to find and show the document
-    // âœ… FIX #6: Extract filename from query directly instead of using showVsExplainClassifier
     const filenameMatch = query.match(/\b([a-z0-9_\-\s]+\.(?:pdf|xlsx|docx|txt|csv|pptx|xls|doc))\b/i);
     const searchQuery = filenameMatch?.[1] || query;
 
@@ -4037,30 +3716,21 @@ Respond in the same language as the user's question.`;
     console.log('ðŸ“„ [SHOW FILE] No specific document found, continuing with RAG');
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 6: File Actions - SLOW (LLM call) - Check LAST
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // REASON: Only check file actions if nothing else matched
-  // WHY: LLM intent detection is expensive (20-30s)
   if (fileAction) {
     console.log(`ðŸ“ [ROUTER] â†’ FILE ACTION (${fileAction})`);
     await handleFileAction(userId, query, fileAction, onChunk);
     return { sources: [] }; // File actions don't have sources
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 6.5: File Location Queries - Direct DB Lookup
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // âœ… NEW: Handle "where is myfile.pdf?" queries with direct database lookup
   const isFileLocationQuery = detectFileLocationQuery(query);
   if (isFileLocationQuery) {
     console.log('ðŸ“ [ROUTER] â†’ FILE LOCATION (where is file?)');
     return await handleFileLocationQuery(query, userId, onChunk);
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
   // STEP 6.6: Content-Based File Location Queries - Pinecone Search
-  // ────────────────────────────────────────────────────────────────────────────
   // ✅ NEW: Handle "where is the file that talks about X?" queries
   const isContentBasedLocationQuery = detectContentBasedLocationQuery(query);
   if (isContentBasedLocationQuery) {
@@ -4069,7 +3739,6 @@ Respond in the same language as the user's question.`;
   }
 
   // // MEMORY RETRIEVAL - Get relevant user memories for context
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   console.log('ðŸ§  [MEMORY] Retrieving relevant memories...');
   const relevantMemories = await memoryService.getRelevantMemories(userId, query, undefined, 10);
   const memoryPromptContext = memoryService.formatMemoriesForPrompt(relevantMemories);
@@ -4078,9 +3747,7 @@ Respond in the same language as the user's question.`;
     console.log(`ðŸ§  [MEMORY] Found ${relevantMemories.length} relevant memories`);
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STEP 7: Regular Queries - Standard RAG
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   console.log('ðŸ“š [ROUTER] â†’ REGULAR RAG (standard document retrieval)');
   return await handleRegularQuery(userId, query, conversationId, onChunk, attachedDocumentId, conversationHistory, onStage, memoryPromptContext, isFirstMessage, detectedLanguage, ragConfig, hierarchicalIntent ?? undefined);
 }
@@ -4092,9 +3759,7 @@ Respond in the same language as the user's question.`;
 async function detectFileAction(query: string): Promise<string | null> {
   const lower = query.toLowerCase().trim();
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STAGE 1: Regex Pattern Matching (Fast Path) - MULTILINGUAL
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   // Folder operations (multilingual)
   if (/(create|make|new|add|cria|criar|nueva|nuevo|crÃ©er).*(?:folder|pasta|carpeta|dossier)/i.test(lower)) {
@@ -4124,13 +3789,7 @@ async function detectFileAction(query: string): Promise<string | null> {
     return 'moveFile';
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // STAGE 2: Quick Pre-Filter - Skip LLM for Obvious Non-File-Actions
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // REASON: Don't call expensive LLM for queries that are clearly not file actions
-  // WHY: LLM intent detection takes 20-30 seconds
-  // HOW: Check for file action keywords before calling LLM
-  // IMPACT: 20-30s saved for 90% of queries
 
   const fileActionKeywords = [
     'create', 'make', 'new', 'add', 'cria', 'criar', 'nueva', 'nuevo', 'crÃ©er',
@@ -4145,7 +3804,6 @@ async function detectFileAction(query: string): Promise<string | null> {
     'document', 'doc', 'pdf', 'txt', 'directory', 'dir'
   ];
 
-  // âœ… IMPROVED: Require BOTH action keyword AND target keyword
   const hasActionKeyword = fileActionKeywords.some(keyword => lower.includes(keyword));
   const hasTargetKeyword = fileTargetKeywords.some(keyword => lower.includes(keyword));
 
@@ -4155,7 +3813,6 @@ async function detectFileAction(query: string): Promise<string | null> {
     return null; // Skip expensive LLM call
   }
 
-  // âœ… IMPROVED: More comprehensive content question detection
   const contentQuestionPatterns = [
     /what (is|are|does|do|can|could|would|should)/i,
     /how (is|are|does|do|can|could|would|should)/i,
@@ -4171,13 +3828,6 @@ async function detectFileAction(query: string): Promise<string | null> {
     return null;
   }
 
-
-  // ------------------------------------------------------------------------------
-  // FALSE POSITIVE PREVENTION - Negative patterns that should NOT trigger show_file
-  // ------------------------------------------------------------------------------
-  // REASON: Prevent queries like "how many files?" from triggering file actions
-  // WHY: These are informational/conceptual questions, not file operations
-  // IMPACT: Reduces false positives by 80%+
 
   const negativePatterns = [
     // Informational questions about files
@@ -4214,8 +3864,6 @@ async function detectFileAction(query: string): Promise<string | null> {
     return null;
   }
 
-  // âœ… FIX #6: Use simple pattern-based intent detection instead of LLM
-  // REASON: LLM takes 3-6 seconds, pattern matching takes <10ms
   console.log('âš¡ [FILE ACTION] Using simple pattern-based intent detection');
 
   // Use the simple intent detection service
@@ -4261,7 +3909,6 @@ async function handleFileAction(
   const lang = detectLanguage(query);
 
   try {
-    // âœ… FIX: Use fileActionsService.executeAction which handles nameâ†’ID lookup
     const result = await fileActionsService.executeAction(query, userId);
 
     // Stream the result to the user with language translation
@@ -4296,7 +3943,6 @@ async function handleFileAction(
           .replace(/Folder "(.+?)" deleted successfully/i, 'Dossier "$1" supprimÃ© avec succÃ¨s');
       }
 
-      // File action success messages are typically short, but apply format enforcement for consistency
       const formattedMessage = applyFormatEnforcement(translatedMessage, {
         responseType: 'file_action_success',
         logPrefix: '[FILE-ACTION FORMAT]',
@@ -4304,7 +3950,6 @@ async function handleFileAction(
       });
       onChunk(formattedMessage);
 
-      // TODO: Record action for undo (needs refactoring)
       // The executeAction doesn't return document/folder IDs needed for undo
     } else {
       const sorry = lang === 'pt' ? 'Desculpe, nÃ£o consegui completar essa aÃ§Ã£o:' :
@@ -4387,7 +4032,6 @@ async function detectComparison(userId: string, query: string): Promise<{
     console.log(`âœ… [COMPARISON] Document comparison: ${documentMentions.length} documents`);
     console.log(`ðŸ“„ [COMPARISON] Document IDs: ${documentMentions.join(', ')}`);
 
-    // âœ… DEBUG: Fetch and log actual document names for debugging
     const docs = await prisma.document.findMany({
       where: { id: { in: documentMentions } },
       select: { id: true, filename: true }
@@ -4415,13 +4059,6 @@ async function detectComparison(userId: string, query: string): Promise<{
   };
 }
 
-/**
- * Extract concepts being compared from query
- * Examples:
- * - "Compare Maslow vs SDT" â†’ ["Maslow", "SDT"]
- * - "difference between lawyers and accountants" â†’ ["lawyers", "accountants"]
- * - "compare Q1 vs Q2" â†’ ["Q1", "Q2"]
- */
 function extractComparisonConcepts(query: string): string[] {
   const lower = query.toLowerCase();
 
@@ -4455,10 +4092,6 @@ function extractComparisonConcepts(query: string): string[] {
 async function extractDocumentMentions(userId: string, query: string): Promise<string[]> {
   const queryLower = query.toLowerCase();
 
-  // âœ… CACHE: Check if we have user's documents cached
-  // REASON: Avoid repeated database queries for same user
-  // WHY: Same user often asks multiple questions in a row
-  // IMPACT: 100-300ms saved per query
   const userDocsCacheKey = `userdocs:${userId}`;
   let documents = documentNameCache.get(userDocsCacheKey)?.documentIds as any;
 
@@ -4496,14 +4129,6 @@ async function extractDocumentMentions(userId: string, query: string): Promise<s
   return matches;
 }
 
-/**
- * Normalize text for fuzzy matching (remove accents, special chars)
- *
- * Examples:
- * - "CapÃ­tulo8(FrameworkScrum)" â†’ "capitulo 8 frameworkscrum"
- * - "Montana-Rocking-CC" â†’ "montana rocking cc"
- * - "KODA_Master_Guide" â†’ "koda master guide"
- */
 function normalizeForMatching(text: string): string {
   return text
     .toLowerCase()
@@ -4552,15 +4177,6 @@ function isDocumentMentioned(queryLower: string, documentName: string): boolean 
 
   return matched;
 }
-/**
- * Extract section references from query
- *
- * Examples:
- * - "section 8.2" â†’ ["8.2"]
- * - "chapter 3" â†’ ["3"]
- * - "part II" â†’ ["II"]
- * - "Â§ 8.2" â†’ ["8.2"]
- */
 function extractSectionReferences(query: string): string[] {
   const sections: string[] = [];
 
@@ -4587,10 +4203,6 @@ function extractSectionReferences(query: string): string[] {
   return sections;
 }
 
-/**
- * Boost chunks that contain section references
- * This improves retrieval for queries like "According to section 8.2..."
- */
 function boostSectionMatches(matches: any[], sectionRefs: string[]): void {
   if (sectionRefs.length === 0) return;
 
@@ -4631,10 +4243,6 @@ function boostSectionMatches(matches: any[], sectionRefs: string[]): void {
 // ============================================================================
 // DOCUMENT NAME CACHE
 // ============================================================================
-// REASON: Cache document name lookups to avoid repeated database queries
-// WHY: Same documents are queried frequently
-// HOW: In-memory cache with 5-minute TTL
-// IMPACT: 100-300ms saved per query
 
 interface DocumentCacheEntry {
   documentIds: string[];
@@ -4647,10 +4255,6 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 // ============================================================================
 // QUERY RESULT CACHE
 // ============================================================================
-// REASON: Cache query results to avoid repeated processing
-// WHY: Users often ask similar questions or follow-ups
-// HOW: In-memory cache with 30-second TTL
-// IMPACT: 2-4s saved for repeated queries
 
 interface QueryCacheEntry {
   sources: any[];
@@ -4664,8 +4268,6 @@ const QUERY_CACHE_TTL = 30 * 1000; // 30 seconds
 // ============================================================================
 // PERFORMANCE FIX #2: File Listing Cache
 // ============================================================================
-// IMPACT: File actions 3.84s → <500ms (7x faster!)
-// WHY: Every "what files do I have?" query was hitting the database
 interface FileListingCacheEntry {
   documents: { id: string; filename: string; createdAt: Date }[];
   timestamp: number;
@@ -4692,8 +4294,6 @@ export function invalidateFileListingCache(userId: string): void {
 // ============================================================================
 // PERFORMANCE FIX #3: Query Embedding Cache
 // ============================================================================
-// IMPACT: Simple queries 10.68s → <3s (3.5x faster!)
-// WHY: Same queries regenerate embeddings each time
 interface EmbeddingCacheEntry {
   embedding: number[];
   timestamp: number;
@@ -4771,11 +4371,6 @@ async function handleComparison(
   }
 }
 
-/**
- * Handle concept comparison (e.g., "Compare Maslow vs SDT")
- * Searches for each concept across all documents and generates structured comparison
- * ? Cultural Context Engine: Added language support
- */
 async function handleConceptComparison(
   userId: string,
   query: string,
@@ -4790,9 +4385,6 @@ async function handleConceptComparison(
 
   console.log(`ðŸ” [CONCEPT COMPARISON] Searching for: ${concepts.join(' vs ')}`);
 
-  // âš¡ PERFORMANCE FIX #1: Parallelize concept searches using Promise.all()
-  // REASON: Sequential searches take N Ã— (embedding + pinecone) time
-  // IMPACT: Reduces 4468ms â†’ max(concept times) â‰ˆ 3625ms, saves ~843ms
   comparisonTimer.start('All Concept Searches (Parallel)');
   console.log(`ðŸ”„ [PARALLEL] Searching ${concepts.length} concepts in parallel...`);
 
@@ -4824,7 +4416,6 @@ async function handleConceptComparison(
       const totalConceptTime = Date.now() - conceptStartTime;
       console.log(`  â±ï¸  [${concept}] Embedding: ${embeddingTime}ms, Hybrid: ${pineconeTime}ms, Total: ${totalConceptTime}ms`);
 
-      // Return raw results with concept label (we'll filter deleted docs in batch later)
       return {
         concept,
         matches: hybridResults.matches || [],
@@ -4847,9 +4438,6 @@ async function handleConceptComparison(
   const totalSequentialTime = conceptResults.reduce((sum, r) => sum + r.totalTime, 0);
   console.log(`âœ… [PARALLEL] All ${concepts.length} concepts searched. Max time: ${maxConceptTime}ms (saved ${totalSequentialTime - maxConceptTime}ms vs sequential)`);
 
-  // âš¡ PERFORMANCE FIX #3: Batch filterDeletedDocuments
-  // REASON: Instead of N separate DB queries (N Ã— 325ms), do ONE batch query
-  // IMPACT: Reduces 646ms (2 Ã— 325ms) â†’ ~325ms, saves ~321ms
   comparisonTimer.start('filterDeletedDocuments (Batch)');
 
   // Collect all matches from all concepts
@@ -4959,10 +4547,6 @@ Can I help with something else?`;
   // ============================================================================
   // COMPARATIVE ANALYSIS - Extract structured comparison intelligence
   // ============================================================================
-  // REASON: Users asking comparison questions want structured tables and insights
-  // WHY: "Compare X and Y" should produce tables, not just document counts
-  // HOW: Extract comparative statements, attributes, and build comparison tables
-  // IMPACT: Transforms "You have 23 papers on X" to actual comparison with insights
 
   comparisonTimer.start('Comparative Analysis');
 
@@ -5061,11 +4645,6 @@ Can I help with something else?`;
   return { sources: allSources };
 }
 
-/**
- * Handle document comparison (e.g., "Compare Document A vs Document B")
- * Original comparison logic for specific documents
- * ? Cultural Context Engine: Added language support
- */
 async function handleDocumentComparison(
   userId: string,
   query: string,
@@ -5081,11 +4660,6 @@ async function handleDocumentComparison(
   // DOCUMENT COMPARISON: Query specific documents
   // ============================================================================
   // GUARANTEE: Search each document separately
-  // âœ… FAST: Parallel queries with Promise.all
-  // REASON: Query all documents simultaneously
-  // WHY: Sequential queries waste time (3 docs Ã— 3s = 9s)
-  // HOW: Use Promise.all to run queries in parallel
-  // IMPACT: 9s â†’ 3s for 3 documents (3Ã— faster)
 
   // Generate embedding for query (once, reuse for all documents) using OpenAI
   const embeddingResult = await embeddingService.generateEmbedding(query);
@@ -5136,9 +4710,7 @@ async function handleDocumentComparison(
   const context = allChunks
     .map((match: any) => {
       const meta = match.metadata || {};
-      // âœ… FIX: Use correct field names from Pinecone - try 'text' first, then 'content'
       const chunkContent = meta.text || meta.content || '';
-      // âœ… FIX: Only show page if it exists and is > 0 (100% confidence)
       const pageInfo = (meta.page && meta.page > 0) ? `, Page: ${meta.page}` : '';
       return `[Document: ${meta.filename || 'Unknown'}${pageInfo}]\n${chunkContent}`;
     })
@@ -5193,15 +4765,12 @@ async function handleDocumentComparison(
 
   const fullResponse = await smartStreamLLMResponse(finalSystemPrompt, '', onChunk);
 
-  // âš¡ SPEED OPTIMIZATION: Build sources using enhanced citation tracking
   console.log(`âš¡ [DOCUMENT COMPARISON] Building sources using enhanced citation tracking`);
 
-  // âœ… ENHANCED: Extract structured citations from hidden block (if present)
   const citationResult = citationTracking.extractCitations(fullResponse);
   const cleanResponse = citationResult.cleanResponse;
   const extractedCitations = citationResult.citations;
 
-  // Use LLM-provided citations if available, otherwise fall back to fast regex extraction
   if (extractedCitations.length > 0) {
     console.log(`ðŸ“Ž [DOCUMENT COMPARISON] Using LLM-provided citations (${extractedCitations.length} docs)`);
     sources = citationTracking.buildSourcesFromCitations(extractedCitations, allChunks);
@@ -5210,7 +4779,6 @@ async function handleDocumentComparison(
     sources = fastCitationExtraction(cleanResponse, allChunks);
   }
 
-  // SPECIAL CASE: For document comparison, if no sources found, assume all compared docs were used
   if (sources.length === 0 && documentIds.length > 0) {
     console.log('âš ï¸ [DOCUMENT COMPARISON] No citations found, assuming all compared documents were used');
 
@@ -5244,7 +4812,6 @@ async function handleDocumentComparison(
     console.log(`âš ï¸  [MONITORING] Low quality answer generated for query: "${query}"`);
   }
 
-  // âœ… DEBUG: Log sources being returned
   console.log(`ðŸ“š [DOCUMENT COMPARISON] Returning ${sources.length} sources:`);
   sources.forEach((src, idx) => {
     console.log(`   ${idx + 1}. ${src.documentName} (page: ${src.pageNumber || 'N/A'}, score: ${src.score?.toFixed(3) || 0})`);
@@ -5370,10 +4937,6 @@ async function handleDocumentCounting(
 // FORMULA QUERY DETECTION & EXTRACTION (Excel Formula Understanding)
 // ============================================================================
 
-/**
- * Detect if query is asking about Excel formulas
- * Used to enhance retrieval and provide formula-specific context to LLM
- */
 function isFormulaQuery(query: string): { isFormula: boolean; formulaType?: string; cellReference?: string } {
   const lower = query.toLowerCase().trim();
 
@@ -5458,10 +5021,6 @@ function isFormulaQuery(query: string): { isFormula: boolean; formulaType?: stri
   };
 }
 
-/**
- * Extract formulas from chunk text
- * Looks for pattern: "CELL: value (formula: =FORMULA)"
- */
 function extractFormulasFromChunks(chunks: Array<{ text: string; metadata?: any }>): Array<{
   cell: string;
   value: string;
@@ -5497,10 +5056,6 @@ function extractFormulasFromChunks(chunks: Array<{ text: string; metadata?: any 
   return formulas;
 }
 
-/**
- * Enhance query for formula retrieval
- * Adds formula-specific search terms
- */
 function enhanceQueryForFormulas(query: string, formulaInfo: { isFormula: boolean; formulaType?: string; cellReference?: string }): string {
   if (!formulaInfo.isFormula) {
     return query;
@@ -5530,10 +5085,6 @@ function enhanceQueryForFormulas(query: string, formulaInfo: { isFormula: boolea
 // ENTITY QUERY DETECTION AND ENHANCEMENT
 // ============================================================================
 
-/**
- * âœ… NEW: Detect entity queries (property names, investment names, etc.)
- * Returns true if the query is asking about entities like properties, investments, etc.
- */
 function isEntityQuery(query: string): { isEntity: boolean; entityType?: string } {
   const lower = query.toLowerCase().trim();
 
@@ -5583,10 +5134,6 @@ function isEntityQuery(query: string): { isEntity: boolean; entityType?: string 
   };
 }
 
-/**
- * âœ… NEW: Enhance query for entity retrieval
- * Adds entity-specific search terms like [Entities:
- */
 function enhanceQueryForEntities(query: string, entityInfo: { isEntity: boolean; entityType?: string }): string {
   if (!entityInfo.isEntity) {
     return query;
@@ -5608,10 +5155,6 @@ function enhanceQueryForEntities(query: string, entityInfo: { isEntity: boolean;
 }
 
 
-/**
- * Build formula context for LLM prompt
- * Creates a structured section showing extracted formulas
- */
 function buildFormulaContext(
   formulas: Array<{ cell: string; value: string; formula: string; context: string }>,
   formulaInfo: { isFormula: boolean; formulaType?: string; cellReference?: string }
@@ -5930,7 +5473,6 @@ async function handleDocumentListing(
   onChunk(formattedListing);
 
   // âŒ NO SOURCES: Document listing queries don't use document CONTENT
-  // We're just listing filenames from the database, not reading/analyzing documents
   return { sources: [] };
 }
 
@@ -5941,18 +5483,15 @@ async function handleDocumentListing(
 function isMetaQuery(query: string): boolean {
   const lower = query.toLowerCase().trim();
 
-  // âœ… FIX: If query mentions user's documents, it's NOT a meta query!
   // These need RAG/metadata lookup, not capability responses
   if (/\b(my|our|the)\s+(documents?|files?|folders?)\b/i.test(lower)) {
     return false;  // Route to RAG or metadata service
   }
 
-  // âœ… FIX: If query asks to show/list/analyze documents, NOT a meta query!
   if (/(show|list|display|analyze|find|search|summarize|extract).*\b(all|my|the)\s+(documents?|files?)/i.test(lower)) {
     return false;  // Route to RAG or metadata service
   }
 
-  // âœ… FIX: If query mentions specific data/content, NOT a meta query!
   if (/\b(revenue|sales|profit|data|content|topics?|themes?|insights?)\b/i.test(lower)) {
     return false;  // Route to RAG
   }
@@ -5970,7 +5509,6 @@ function isMetaQuery(query: string): boolean {
     /how (do|can) (i|you)/,
     /tell me about (yourself|koda)/,
 
-    // âœ… NEW: More natural capability patterns
     /what do you do/i,
     /what are your capabilities/i,
     /what features/i,
@@ -6027,11 +5565,6 @@ function isNavigationQuery(query: string): boolean {
 // META-QUERY HANDLER
 // ============================================================================
 
-/**
- * Handle meta-queries about KODA's capabilities
- * Now context-aware and natural
- * ? Cultural Context Engine: Added language support
- */
 async function handleMetaQuery(
   query: string,
   onChunk: (chunk: string) => void,
@@ -6054,7 +5587,6 @@ async function handleMetaQuery(
     const greetingResponse = languageDetectionService.getLocalizedGreeting(language);
 
     // FIX: DO NOT apply format enforcement to greetings
-    // Greetings should be natural responses, not structured with "## Hello\!" headers
     onChunk(greetingResponse);
     return;
   }
@@ -6098,11 +5630,6 @@ async function handleMetaQuery(
 // NAVIGATION QUERY HANDLER
 // ============================================================================
 
-/**
- * Handle navigation queries about using the app
- * Provides guidance on app features and how to use them
- * ? Cultural Context Engine: Added language support
- */
 async function handleNavigationQuery(
   query: string,
   userId: string,
@@ -6111,7 +5638,6 @@ async function handleNavigationQuery(
 ): Promise<void> {
   console.log(`ðŸ§­ [NAVIGATION] Handling app navigation question`);
 
-  // âœ… PERSONALIZATION: Fetch user's folders and document count
   const folders = await prisma.folder.findMany({
     where: { userId },
     select: {
@@ -6212,10 +5738,6 @@ async function handleNavigationQuery(
 // ============================================================================
 // METHODOLOGY KNOWLEDGE QUERY HANDLER
 // ============================================================================
-// PURPOSE: Answer "What is X?" queries with actual explanations, not just citations
-// WHY: Users need conceptual understanding - "What is ensemble learning?" should explain it
-// HOW: Check methodology knowledge base first, then fall back to RAG if not found
-// IMPACT: Transforms "mentioned in 15 papers" â†’ full ChatGPT-style explanation
 
 async function handleMethodologyKnowledgeQuery(
   userId: string,
@@ -6269,13 +5791,8 @@ async function handleMethodologyKnowledgeQuery(
   };
 }
 
-// -------------------------------------------------------------------------------
 // TREND ANALYSIS QUERY HANDLER
-// -------------------------------------------------------------------------------
 // PURPOSE: Answer "What trends do you see?" queries with temporal analysis
-// WHY: Users need to understand how their research collection evolved over time
-// HOW: Extract publication years, track methodology evolution, identify shifts
-// IMPACT: Transforms "351 papers found" ? "3 major trends across 2015-2024"
 
 async function handleTrendAnalysisQuery(
   userId: string,
@@ -6400,11 +5917,6 @@ async function handleDomainKnowledgeQuery(
     return { handled: false };
   }
 }
-// -------------------------------------------------------------------------------
-// PURPOSE: Answer "What approaches do my papers use?" with intelligent aggregation
-// WHY: Transform "47 papers found" ? "3 main approaches: mean-variance (23), Black-Litterman (12)..."
-// HOW: Aggregate methodologies across documents, detect trends, generate synthesis
-// IMPACT: ChatGPT-level cross-document intelligence
 
 async function handleCrossDocumentSynthesis(
   userId: string,
@@ -6428,7 +5940,6 @@ async function handleCrossDocumentSynthesis(
       return { handled: false };
     }
 
-    // ? FIX: If no methodologies found but documents exist, fall back to regular RAG
     if (result.methodologies.length === 0 && result.totalDocuments > 0) {
       console.log(`   ?? No methodologies extracted from ${result.totalDocuments} documents, falling back to RAG pipeline`);
       return { handled: false };
@@ -6488,16 +5999,11 @@ async function handleRegularQuery(
   const perfTimer = new PerformanceTimer();
   perfTimer.mark('start');
 
-  // âœ… FIX: Send immediate acknowledgment to establish streaming connection
   onChunk('');
 
   // ============================================================================
   // CACHE CHECK - Return cached result if available
   // ============================================================================
-  // REASON: Avoid repeated processing for same query
-  // WHY: Follow-up questions are often similar
-  // HOW: Check in-memory cache with 30s TTL
-  // IMPACT: 2-4s saved for repeated queries
 
   perfTimer.mark('cacheCheck');
   const cacheKey = generateQueryCacheKey(userId, query);
@@ -6516,12 +6022,7 @@ async function handleRegularQuery(
   console.log(`âŒ [CACHE MISS] Query result for "${query.substring(0, 50)}..."`);
 
   // ============================================================================
-  // ðŸ§  CONVERSATION CONTEXT - Load and resolve references for multi-turn support
   // ============================================================================
-  // REASON: Multi-turn conversations need context from previous messages
-  // WHY: Pronouns like "it", "that", "this" refer to previous entities
-  // HOW: Load saved context, resolve references, inject into prompt
-  // IMPACT: Enables ChatGPT-like conversation continuity
 
   perfTimer.mark('conversationContextLoad');
   let multiTurnContext = null;
@@ -6554,25 +6055,15 @@ async function handleRegularQuery(
   // ============================================================================
   // FAST PATH: Skip reasoning for simple document queries
   // ============================================================================
-  // REASON: Simple queries like "what does X say about Y" don't need 3 LLM calls
-  // WHY: Reduces 30s â†’ 3-5s by skipping analyzeQuery, planResponse, generateTeachingAnswer
-  // HOW: Check if query is simple, then do direct retrieval + single LLM call
-  // IMPACT: 6-10Ã— faster for 80% of queries
 
   // ============================================================================
   // âš¡ SMART QUERY ANALYSIS: Fast pattern matching with LLM fallback
   // ============================================================================
-  // REASON: Complex queries need decomposition, but most queries are simple
-  // WHY: 90% of queries are simple (fast path), 10% are complex (need analysis)
-  // HOW: Use pattern matching first (instant), LLM only for ambiguous cases
-  // IMPACT: Fast for simple queries, accurate for complex queries
 
   perfTimer.mark('queryAnalysis');
-  // PERF FIX: Reuse subQuestions from hierarchicalIntent if already decomposed (saves ~300ms LLM call)
   let queryAnalysis: QueryAnalysis;
 
   if (hierarchicalIntent?.subQuestions && hierarchicalIntent.subQuestions.length > 0) {
-    // Use decomposition from hierarchicalIntentClassifier (already done, no extra LLM call)
     console.log('[PERF] Using subQuestions from hierarchicalIntent (saved ~300ms LLM call)');
     queryAnalysis = {
       isComplex: true,
@@ -6594,12 +6085,7 @@ async function handleRegularQuery(
   }
 
   // ============================================================================
-  // âœ… FIX #8: Multi-Document Filtering
   // ============================================================================
-  // REASON: Support querying across multiple attached documents
-  // WHY: Enables document comparison and cross-document analysis
-  // HOW: Use Pinecone $in operator for multiple document IDs
-  // IMPACT: Users can compare documents, analyze across multiple files
   //
   // BEFORE (single document):
   // filter = { userId: "user123", documentId: "doc1" }
@@ -6636,9 +6122,6 @@ async function handleRegularQuery(
   }
 
     // DOCUMENT ROUTING: Try to identify target document from query
-    // REASON: When user mentions document by name, route to that document
-    // WHY: "What does report.pdf say about X?" should search report.pdf, not all docs
-    // IMPACT: Better precision when user refers to specific documents
     try {
       const documentRouting = await routeToDocument(userId, query, {
         confidenceThreshold: 0.7  // Only route if we're confident
@@ -6659,7 +6142,6 @@ async function handleRegularQuery(
     // Complex query - use multi-step handler
     console.log(`ðŸ§© [AGENT LOOP] Complex ${queryAnalysis.queryType} query detected - decomposing...`);
 
-    // Initialize Pinecone before calling multi-step handler
     perfTimer.mark('complexQueryInit');
     await initializePinecone();
     perfTimer.measure('Pinecone Init (complex)', 'complexQueryInit');
@@ -6668,7 +6150,6 @@ async function handleRegularQuery(
     searchResults = await handleMultiStepQuery(queryAnalysis, userId, filter, onChunk);
     perfTimer.measure('Multi-Step Query Handler', 'multiStepQuery');
 
-    // âœ… TRUE HYBRID SEARCH: Merge vector results with BM25 using RRF
     // Get BM25 results in parallel for better performance
     const vectorMatches = searchResults.matches || [];
     let hybridResults: any[];
@@ -6740,7 +6221,6 @@ async function handleRegularQuery(
     // Build context from optimized chunks with document type labels
     const contextChunks = optimizedContextResult.chunks.map((chunk: any, index: number) => {
       const content = chunk.content || '';
-      // âœ… FIX: Don't default to 0, keep as undefined if not set
       const page = chunk.pageNumber;
 
       // Get document type/name for context (helps with cross-document synthesis)
@@ -6760,14 +6240,12 @@ async function handleRegularQuery(
         docLabel = chunk.documentTitle;
       }
 
-      // âœ… FIX: Only show page if it exists and is > 0 (100% confidence)
       const pageInfo = (page && page > 0) ? ` (Page: ${page})` : '';
       return `[${docLabel} - Context ${index + 1}]${pageInfo}\n${content}`;
     });
 
     const contextText = contextChunks.join('\n\n');
 
-    // Generate answer with context (streaming) - enhanced prompts based on query type
     let comparisonPrompt = '';
 
     if (queryAnalysis.queryType === 'comparison') {
@@ -6831,7 +6309,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
       generationConfig: {
         temperature: 0.5, // âš¡ FIX: Increased from 0.3 to allow better summarization into single-line cells
         // âš¡ FIX: Increase token limit to 8192 for large tables
-        // REASON: 4000 tokens is not enough for comprehensive comparison tables
         maxOutputTokens: 8192,
       },
     });
@@ -6855,7 +6332,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
       mimeType: null as string | null,  // âœ… Added for later population from database
     }));
 
-    // âœ… FIX: Fetch current filenames and mimeType from database (in case documents were renamed)
     perfTimer.mark('complexDocMetadata');
     const sourceDocumentIds: string[] = sources.map(s => s.documentId).filter((id): id is string => Boolean(id));
     const uniqueDocumentIds = [...new Set(sourceDocumentIds)];
@@ -6885,13 +6361,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
     console.log(`âœ… [AGENT LOOP] Simple query - using standard retrieval`);
   }
 
-  // âœ… NEW: Detect query complexity for answer length mapping
   // Map complexity detection to answer length system
   perfTimer.mark('complexityDetection');
   const complexity = detectQueryComplexity(query);
   console.log(`ðŸ“Š [COMPLEXITY] Detected complexity: ${complexity} for query: "${query.substring(0, 50)}..."`);
 
-  // âœ… Issue #4 Fix: Detect comparison queries for better table formatting
   const isComparisonQuery = /\b(compare|difference|versus|vs\.?|contrast|similarities|between)\b/i.test(query);
   if (isComparisonQuery) {
     console.log(`ðŸ“Š [COMPARISON] Detected comparison query - will use comparison rules`);
@@ -6915,26 +6389,16 @@ Provide a comprehensive answer addressing all parts of the query.`;
   console.log(`📊 [CONTEXT BUDGET] complexity=${complexity} → retrievalTopK=${budget.retrievalTopK}, maxChunksForLLM=${budget.maxChunksForLLM}`);
 
   // ============================================================================
-  // âœ… FIX: Use isFirstMessage parameter from controller
   // ============================================================================
-  // REASON: Controller determines if this is the first message by counting DB messages
-  // WHY: Checking conversationHistory length doesn't work because history is retrieved
   //      BEFORE the current message is saved
-  // HOW: Controller passes isFirstMessage flag based on message count
-  // IMPACT: Greeting only appears on the very first message, not on every new chat
 
   // Use the isFirstMessage parameter (already passed from controller)
-  // If not provided, fall back to checking history length (backward compatibility)
   const shouldShowGreeting = isFirstMessage !== undefined
     ? isFirstMessage
     : (!conversationHistory || conversationHistory.length === 0);
   console.log(`ðŸ‘‹ [GREETING] shouldShowGreeting: ${shouldShowGreeting} (isFirstMessage param: ${isFirstMessage})`);
 
   // â™¾ï¸ INFINITE CONVERSATION MEMORY - Manus-style architecture
-  // REASON: Never forget context, even in very long conversations
-  // WHY: Last 3 messages loses important context from earlier discussion
-  // HOW: Last 20 messages + semantic retrieval from historical chunks + memories
-  // IMPACT: Infinite memory without token overflow
   perfTimer.mark('conversationContext');
   let conversationContext = '';
   let infiniteMemoryStats: any = null;
@@ -6990,9 +6454,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
   // ============================================================================
   // âš¡ MAJOR PARALLELIZATION FIX: Run ALL independent operations in parallel
   // ============================================================================
-  // REASON: Folder fetch, query enhancement, terminology expansion, Pinecone init,
   //         and embedding generation are ALL independent operations
-  // IMPACT: 5-7s â†’ 2-3s (saves 3-4s by running in parallel instead of sequential)
   //
   // BEFORE (Sequential - SLOW):
   //   1. Folder fetch: 300ms
@@ -7022,13 +6484,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
   let enhancedQueryText = queryEnhancementService.enhanceQuerySimple(resolvedQuery);
   console.log(`ðŸ” [QUERY ENHANCE] Enhanced: "${resolvedQuery}" â†’ "${enhancedQueryText}"`);
 
-  // âœ… Formula Query Detection - Enhance retrieval for formula questions
   const formulaQueryInfo = isFormulaQuery(resolvedQuery);
   if (formulaQueryInfo.isFormula) {
     enhancedQueryText = enhanceQueryForFormulas(enhancedQueryText, formulaQueryInfo);
   }
 
-  // âœ… Entity Query Detection - Enhance retrieval for property/investment name questions
   const entityQueryInfo = isEntityQuery(resolvedQuery);
   if (entityQueryInfo.isEntity) {
     enhancedQueryText = enhanceQueryForEntities(enhancedQueryText, entityQueryInfo);
@@ -7038,8 +6498,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
   perfTimer.mark('parallelOperations');
   if (requestTimer) requestTimer.start('Parallel Operations (Folder + Terminology + Pinecone + Embedding)');
 
-  // âš¡ PERFORMANCE FIX: Added detailed timing for each parallel operation
-  // REASON: To diagnose which operation is causing the 5s delay
   const parallelStart = Date.now();
 
   // Run ALL independent operations in parallel
@@ -7141,7 +6599,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
   }
   perfTimer.measure('Query Enhancement + Terminology', 'queryEnhancement');
 
-  // All queries now use the fast path (AgentLoop was removed as it used pgvector which isn't set up)
   console.log('âš¡ [FAST PATH] Using direct Pinecone retrieval');
   console.log(`ðŸ” [EMBEDDING] Generated embedding for: "${terminologyEnhancedQuery.substring(0, 100)}..."`);
 
@@ -7150,10 +6607,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // ============================================================================
     // ADAPTIVE STRATEGY - Choose best retrieval method based on query type
     // ============================================================================
-    // REASON: Different queries need different retrieval strategies
-    // WHY: "Find AES-256" needs exact matching, "compare X vs Y" needs hybrid, "explain X" needs vector
-    // HOW: Detect query patterns and select optimal strategy
-    // IMPACT: +10-15% accuracy on specific query types
     //
     // STRATEGIES:
     // - KEYWORD: Exact term matching (technical terms, IDs, version numbers)
@@ -7175,9 +6628,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     if (requestTimer) requestTimer.start(`Retrieval Strategy: ${strategy}`);
 
     if (strategy === 'keyword') {
-      // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // Pure BM25 keyword search for exact matches
-      // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       if (requestTimer) requestTimer.start('BM25 Search');
       const bm25Results = await pureBM25Search(query, userId, 20);
       if (requestTimer) requestTimer.end('BM25 Search');
@@ -7204,7 +6655,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
          console.log(`ï¿½ ï¿½  [KEYWORDï¿½'VECTOR FALLBACK] BM25 returned 0 results, falling back to Pinecone vector search...`);
         const queryEmbedding = earlyEmbedding;
 
-        // âœ… FIX: Use retrievalTopK for summary queries
         if (requestTimer) requestTimer.start('Pinecone Query (keyword fallback)');
         rawResults = await pineconeIndex.query({
           vector: queryEmbedding,
@@ -7227,10 +6677,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
       }
 
     } else if (strategy === 'hybrid') {
-      // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // Hybrid search (vector + keyword) for comparisons
       // Uses RRF (Reciprocal Rank Fusion) for optimal merging
-      // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
       // FIX #6: Use pre-computed embedding from parallel init
       const queryEmbedding = earlyEmbedding;
@@ -7273,13 +6721,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
       console.log(`âœ… [HYBRID+RRF] Merged vector + BM25: ${hybridResults.length} chunks`);
 
     } else {
-      // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // **HYBRID RETRIEVAL: Vector + BM25 with RRF** (FIX 4: +15-20% accuracy)
-      // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-      // REASON: Combine semantic understanding (vector) with exact keyword matching (BM25)
-      // WHY: Vector search alone misses exact keyword matches
-      // HOW: RRF (Reciprocal Rank Fusion) merges results optimally
-      // IMPACT: +15-20% retrieval accuracy, especially for specific terms/names
 
       console.log('[DEBUG] Starting hybrid retrieval (vector + BM25 with RRF)');
 
@@ -7389,7 +6831,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
       console.log('?? [FALLBACK] Attempting to retrieve documents directly from database...');
 
       try {
-        // Get all user documents from database with their metadata (where extractedText lives)
         const documents = await prisma.document.findMany({
           where: {
             userId,
@@ -7451,7 +6892,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }
     // ============================================================================
 
-    // ðŸš€ HYBRID RETRIEVAL BOOST: Apply filename/entity matching boost to main results
     if (hybridResults.length > 0) {
       // Convert hybridResults to match format expected by booster
       const matchesForBoosting = hybridResults.map((hr: any) => ({
@@ -7475,7 +6915,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
       hybridResults.sort((a: any, b: any) => (b.hybridScore || 0) - (a.hybridScore || 0));
     }
 
-    // âœ… ISSUE #6 FIX: Boost section matches for section-specific queries
     const sectionRefs = extractSectionReferences(query);
     if (sectionRefs.length > 0) {
       // Add score property to hybridResults for boostSectionMatches
@@ -7493,15 +6932,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // ============================================================================
     // NEW: ITERATIVE REFINEMENT - Full agent loop with multiple attempts
     // ============================================================================
-    // âš¡ SPEED FIX: Skip iterative refinement for simple queries (saves 1-2s)
-    // REASON: Simple queries rarely benefit from refinement, complex queries do
-    // IMPACT: 80% of queries skip this step, saving 1-2s per query
 
     // Wrap hybridResults in Pinecone-style results object for observation function
     perfTimer.mark('iterativeRefinement');
     searchResults = { matches: hybridResults };
 
-    // âš¡ SPEED FIX: Only do iterative refinement for complex queries
     if (queryAnalysis.isComplex) {
       const initialObservation = observeRetrievalResults(searchResults, query);
 
@@ -7512,7 +6947,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
         // Use iterative retrieval instead of single refinement
         const iterativeResults = await iterativeRetrieval(query, userId, filter);
 
-        // âœ… TRUE HYBRID SEARCH: Merge vector results with BM25 using RRF
         const iterativeVectorMatches = iterativeResults.matches || [];
         let iterativeHybridResults: any[];
 
@@ -7578,14 +7012,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
     onStage?.('analyzing', analyzingMsg);
 
     // ============================================================================
-    // âš¡ SPEED OPTIMIZATION #1: Disable LLM chunk filtering entirely (saves 3-5s)
     // ============================================================================
-    // REASON: LLM filtering adds 3-5 seconds but only improves accuracy by 5-10%
-    // WHY: Vector similarity scores are already 85-90% accurate
-    // HOW: Use vector scores directly with score threshold filtering
-    // IMPACT: 3-5 seconds saved, 5% accuracy trade-off (acceptable for speed)
     //
-    // MATHEMATICAL PROOF:
     // - Pinecone similarity score range: 0.0 to 1.0
     // - High similarity (>0.70) = High relevance (correlation: 0.85-0.90)
     // - LLM filtering correlation with relevance: 0.90-0.95
@@ -7608,9 +7036,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // 3. Take top 8 chunks (instant)
     // Total: 0.8 seconds for retrieval (5Ã— faster)
 
-    // âš¡ SPEED FIX #2: Reduced from 12 to 5 chunks (58% reduction)
-    // REASON: 5 chunks provide 95% of relevant info while reducing context size by 58%
-    // IMPACT: Faster generation (less tokens to process), cheaper API calls
     const MAX_CHUNKS_FOR_ANSWER = 5; // âš¡ Reduced for speed optimization
 
     // Sort by hybrid score (vector + BM25) or vector score
@@ -7632,7 +7057,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
       console.log(`ðŸ“Š [SCORE RANGE] Min: ${minScore.toFixed(3)}, Max: ${maxScore.toFixed(3)}`);
     }
 
-    // Take top N chunks directly (no threshold filtering - vector scores vary too much)
     const filteredChunks = sortedChunks.slice(0, MAX_CHUNKS_FOR_ANSWER);
     perfTimer.measure('Chunk Sorting + Selection', 'chunkSorting');
 
@@ -7689,7 +7113,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
     if (ragConfig.useContradictionDetection) {
       // Contradiction detection logic
       console.log(`ðŸ” [CHECK] Contradiction detection enabled`);
-      // TODO: Add actual contradiction detection logic here when enabled
     } else {
       console.log(`âš¡ [SPEED] Contradiction detection disabled`);
     }
@@ -7697,10 +7120,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // ============================================================================
     // ENHANCED FALLBACK SYSTEM (Psychological Safety)
     // ============================================================================
-    // REASON: Provide helpful, psychologically safe responses when exact answer not found
-    // WHY: Reduces user abandonment by 40%, builds trust, maintains competence
-    // HOW: 4-type fallback (clarification â†’ knowledge â†’ refusal â†’ error_recovery)
-    // IMPACT: Users stay engaged, feel guided, try alternatives, upload documents
     //
     // BEFORE: "I couldn't find information" â†’ User leaves âŒ
     // AFTER:  Natural, AI-generated fallback â†’ User tries again âœ…
@@ -7725,7 +7144,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
         ))
       : 0;
 
-    // Get user document count for fallback detection (avoid shadowing later documentCount)
     const userDocumentCount = userDocuments.length;
 
     // Detect fallback need with enhanced psychological safety
@@ -7843,12 +7261,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }
 
     // ============================================================================
-    // âš¡ SPEED OPTIMIZATION #2: Disable Cohere reranking (saves 2-3 seconds)
     // ============================================================================
-    // REASON: Cohere reranking adds 2-3 seconds but vector scores are already sorted
-    // WHY: Vector similarity provides good ranking, reranking adds marginal improvement
-    // HOW: Use vector-sorted chunks directly instead of calling Cohere API
-    // IMPACT: 2-3 seconds saved
     //
     // BEFORE (with Cohere reranking):
     // 1. Vector search returns sorted chunks (800ms)
@@ -7882,7 +7295,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
     console.log(`âš¡ [SPEED] Cohere reranking DISABLED (saved 2-3 seconds)`);
     console.log(`âœ… [FAST PATH] Using ${rerankedChunks.length} chunks in Pinecone order`);
 
-    // âœ… NEW: Validate chunk quality before proceeding
     const chunkQuality = emptyResponsePrevention.validateChunks(rerankedChunks, query);
     if (!chunkQuality.isValid) {
       console.warn(`âš ï¸ [CHUNK QUALITY] Validation failed: ${chunkQuality.reason}`);
@@ -7898,75 +7310,36 @@ Provide a comprehensive answer addressing all parts of the query.`;
     }
 
     // ============================================================================
-    // âš¡ SPEED OPTIMIZATION: Complex reasoning disabled (saves ~2000ms)
     // ============================================================================
-    // REASON: Claim extraction + contradiction detection add 2+ seconds
-    // WHY: Most queries don't benefit from this complex analysis
-    // HOW: Skip the expensive LLM-based claim extraction and contradiction checks
-    // IMPACT: ~2000ms saved for complex queries
-    // NOTE: Can be re-enabled for specific use cases if needed
 
     let answerConfidence: confidenceScoring.ConfidenceResult | undefined;
     let supportingEvidence: confidenceScoring.Evidence[] | undefined;
     let conflictingEvidence: confidenceScoring.Evidence[] | undefined;
 
-    // âš¡ DISABLED: Complex reasoning for speed optimization
-    const enableComplexReasoning = false;
+    perfTimer.mark('evidenceScoring');
+    const evidence = rerankedChunks.map((chunk: any) => ({
+      document_id: chunk.metadata?.documentId || 'unknown',
+      document_title: chunk.metadata?.filename || 'Unknown',
+      relevant_passage: chunk.metadata?.text || chunk.metadata?.content || chunk.content || '',
+      support_strength: confidenceScoring.scoreEvidence(
+        query,
+        chunk.metadata?.text || chunk.metadata?.content || chunk.content || '',
+        chunk.rerankScore || chunk.originalScore || 0
+      ),
+      relevance_score: chunk.rerankScore || chunk.originalScore || 0
+    }));
 
-    if (enableComplexReasoning && queryDecomposition.needsDecomposition(query)) {
-      console.log('ðŸ§  [COMPLEX REASONING] Query requires complex reasoning');
+    const supporting = evidence.filter(e => e.support_strength > 0.5);
+    const conflicting: confidenceScoring.Evidence[] = [];
 
-      // Extract document information for claim extraction
-      const documentChunks = rerankedChunks.slice(0, 5).map((chunk: any) => ({
-        document_id: chunk.metadata?.documentId || 'unknown',
-        document_title: chunk.metadata?.filename || 'Unknown',
-        content: chunk.metadata?.text || chunk.metadata?.content || chunk.content || ''
-      }));
+    const confidenceResult = confidenceScoring.calculateConfidence(supporting);
+    answerConfidence = confidenceResult;
+    supportingEvidence = supporting;
+    conflictingEvidence = conflicting;
+    perfTimer.measure('Evidence Scoring', 'evidenceScoring');
 
-      // Extract claims from documents
-      const claims = await contradictionDetection.extractClaims(documentChunks);
+    console.log(`ðŸ"Š [CONFIDENCE] Score: ${confidenceResult.score}/100 (speed-optimized path)`);
 
-      // Detect contradictions
-      const contradictions = await contradictionDetection.detectContradictions(claims);
-
-      if (contradictions.length > 0) {
-        console.log(`âš ï¸  [COMPLEX REASONING] Found ${contradictions.length} contradictions`);
-        contradictions.forEach(c => {
-          console.log(`   - ${c.contradiction_type}: ${c.explanation}`);
-        });
-      }
-    } else {
-      console.log(`âš¡ [SPEED] Complex reasoning disabled for speed optimization`);
-
-      // Build evidence for confidence scoring (simplified without contradiction detection)
-      perfTimer.mark('evidenceScoring');
-      const evidence = rerankedChunks.map((chunk: any) => ({
-        document_id: chunk.metadata?.documentId || 'unknown',
-        document_title: chunk.metadata?.filename || 'Unknown',
-        relevant_passage: chunk.metadata?.text || chunk.metadata?.content || chunk.content || '',
-        support_strength: confidenceScoring.scoreEvidence(
-          query,
-          chunk.metadata?.text || chunk.metadata?.content || chunk.content || '',
-          chunk.rerankScore || chunk.originalScore || 0
-        ),
-        relevance_score: chunk.rerankScore || chunk.originalScore || 0
-      }));
-
-      // Calculate confidence (no contradictions in speed-optimized path)
-      const supporting = evidence.filter(e => e.support_strength > 0.5);
-      const conflicting: confidenceScoring.Evidence[] = []; // âš¡ No contradictions in speed mode
-
-      const confidenceResult = confidenceScoring.calculateConfidence(supporting);
-      answerConfidence = confidenceResult;
-      supportingEvidence = supporting;
-      conflictingEvidence = conflicting;
-      perfTimer.measure('Evidence Scoring', 'evidenceScoring');
-
-      console.log(`ðŸ“Š [CONFIDENCE] Score: ${confidenceResult.score}/100 (speed-optimized path)`);
-    }
-
-    // Build context WITHOUT source labels (prevents Gemini from numbering documents)
-    // âœ… NEW: Include folder location information for file navigation awareness
     const uniqueDocuments = new Map<string, { filename: string; folderPath?: string }>();
     rerankedChunks.forEach((result: any) => {
       const meta = result.metadata || {};
@@ -7982,7 +7355,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
       .map(doc => `- "${doc.filename}" is located in: ${doc.folderPath}`)
       .join('\n');
 
-    // âœ… FIX #8: Multi-document comparison instruction
     const documentCount = uniqueDocuments.size;
     let multiDocInstruction = '';
     if (documentCount > 1) {
@@ -8002,11 +7374,9 @@ Provide a comprehensive answer addressing all parts of the query.`;
       const meta = result.metadata || {};
       const documentId = meta.documentId || 'unknown';
       const filename = meta.filename || 'Unknown';
-      // âœ… FIX: Don't show page if not confident (undefined, 0, or N/A)
       const page = meta.page || meta.pageNumber;
       const pageInfo = (page && page > 0) ? `, Page: ${page}` : '';
 
-      // âœ… Include documentId for citation tracking
       return `[Document ${idx + 1}] ${filename} (documentId: ${documentId}${pageInfo}):\n${meta.text || meta.content || result.content || ''}`;
     }).join('\n\n---\n\n');
 
@@ -8022,7 +7392,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
     // Removed nextStepText - using natural endings instead
 
-    // âœ… NEW: Build document context from search results
     const documentContextFromChunks = rerankedChunks.map((chunk: any) =>
       chunk.metadata?.text || chunk.metadata?.content || chunk.content || ''
     ).join('\n\n---\n\n');
@@ -8035,12 +7404,10 @@ Provide a comprehensive answer addressing all parts of the query.`;
       console.log(`ðŸ” [DEBUG] Sample text (first 200 chars):`, (rerankedChunks[0].metadata.text || rerankedChunks[0].metadata.content || 'EMPTY').substring(0, 200));
     }
 
-    // âœ… NEW: Choose context based on query complexity and document availability
     const baseDocumentContext = (documentContext && fullDocuments.length > 0)
       ? documentContext
       : context; // FIX: Use context variable which has proper text extraction
 
-    // âœ… FIX #8: Prepend multi-document instruction if multiple documents
     const finalDocumentContext = multiDocInstruction + baseDocumentContext;
 
     console.log(`ðŸ“ [PROMPT] Using ${complexity} complexity prompt with ${documentContext && fullDocuments.length > 0 ? 'full documents' : 'chunks'}`);
@@ -8050,10 +7417,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // ============================================================================
     // CAUSAL EXTRACTION - Real-World Context Intelligence for "Why" Questions
     // ============================================================================
-    // REASON: Users asking "why" questions want causal explanations, not just facts
-    // WHY: "Why did GDP drop?" needs explanation like "due to COVID-19 pandemic"
-    // HOW: Extract causal patterns from documents and add to prompt context
-    // IMPACT: Transforms answers from "GDP was $8,535" to "GDP dropped due to..."
 
     perfTimer.mark('causalExtraction');
     let causalContext = '';
@@ -8084,12 +7447,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     perfTimer.measure('Causal Extraction', 'causalExtraction');
 
     // ---------------------------------------------------------------------------
-    // FORMULA EXTRACTION - Excel Formula Intelligence for "How is X calculated" Questions
     // ---------------------------------------------------------------------------
-    // REASON: Users asking about formulas need to see actual Excel formulas
-    // WHY: "How is cell B71 calculated?" needs the actual formula from the spreadsheet
-    // HOW: Extract formula patterns from chunks and add structured context
-    // IMPACT: Transforms "I don't see formulas" to "B71 uses formula =+B60"
 
     perfTimer.mark('formulaExtraction');
     let formulaContext = '';
@@ -8113,12 +7471,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     perfTimer.measure('Formula Extraction', 'formulaExtraction');
 
     // ---------------------------------------------------------------------------
-    // PRACTICAL IMPLICATIONS - Actionable Recommendations for "What does this mean" Questions
     // ---------------------------------------------------------------------------
-    // REASON: Users asking "what does this mean for X" want actionable guidance
-    // WHY: "What does this mean for my strategy?" needs categorized recommendations
-    // HOW: Extract recommendations, thresholds, best practices and group by category
-    // IMPACT: Transforms "documents discuss strategies" to actionable bullet points
 
     perfTimer.mark('practicalImplications');
     let implicationsContext = '';
@@ -8144,7 +7497,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
       console.log(`ðŸ§  [CONTEXT] Built context summary for LLM (${multiTurnContextSummary.length} chars)`);
     }
 
-    // Append causal context, formula context, and implications to document context if available
     let contextWithIntelligence = finalDocumentContext;
     if (causalContext) {
       contextWithIntelligence += causalContext;
@@ -8220,7 +7572,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
       console.log(`ðŸ“Š [ADAPTIVE STATS] Words: ${answer.stats.wordCount}, Tokens: ${answer.stats.estimatedTokens}, Compression: ${(answer.stats.compressionRatio * 100).toFixed(1)}%`);
 
       // Validate answer quality (for monitoring)
-      // TODO: Re-implement quality validation in new adaptive service
       const quality = { score: 100, issues: [] };
       if (quality.score < 80) {
         console.log(`âš ï¸ [QUALITY] Score: ${quality.score}/100 - Issues: ${quality.issues.join(', ')}`);
@@ -8253,7 +7604,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
 - Translate information from the document into **${queryLangName}** if needed`;
 
       const finalSystemPrompt = systemPrompt + languageInstruction;
-      // Pass empty callback - we'll send the format-enforced response later via onChunk(fullResponse)
       // This prevents duplication (raw response + format-enforced response)
       fullResponse = await streamLLMResponse(finalSystemPrompt, contextWithIntelligence, () => {});
     }
@@ -8317,11 +7667,9 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // NEW: CONFIDENCE SCORING - Calculate answer confidence
     // ============================================================================
 
-    // âœ… ENHANCED: Build ACCURATE sources from LLM citations with proper extraction
     perfTimer.mark('sourcesExtraction');
     let sources: any[];
 
-    // âœ… ENHANCED: Extract structured citations from hidden block (if present)
     const citationResult = citationTracking.extractCitations(fullResponse);
     const cleanResponse = citationResult.cleanResponse;
     const extractedCitations = citationResult.citations;
@@ -8341,14 +7689,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
     console.log(`ðŸŽ¨ [FORMAT] Enforcing structure and formatting...`);
 
     // ❌ DISABLED: Structure enforcement causes:
-    // 1. Content duplication (adds empty "Key Findings" + "Additional Details" wrappers)
     // 2. Inconsistent formatting
-    // 3. LLM already generates properly structured responses via KODA_TITLE_GENERATION_RULES
     console.log(`🔍 [STRUCTURE] Skipping structure enforcement - LLM handles formatting`);
     // Keep fullResponse as-is from LLM
 
     // Step 2: Format Enforcement (bullets, bold, spacing, etc.)
-    // Apply master formatter with language enforcement, UTF-8 fixes, source deduplication
     const formattedResult = formatAnswer(
       fullResponse,
       [],  // sources will be built later
@@ -8380,10 +7725,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // Send the format-enforced response to client
     onChunk(fullResponse);
 
-    // âš¡ SPEED OPTIMIZATION: Use LLM-provided citations first, fallback to fast regex extraction
-    // âœ… ENHANCED: Prioritize structured citations from LLM's hidden citation block for accuracy
     if (extractedCitations.length > 0) {
-      // âœ… LLM provided structured citations - use them for accurate source tracking
       console.log(`ðŸ“Ž [CITATION] Using LLM-provided structured citations (${extractedCitations.length} docs)`);
 
       // Build chunks array for citation matching
@@ -8430,7 +7772,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
     console.log(`âœ… [CITATION] Final: ${sources.length} sources (LLM citations: ${extractedCitations.length > 0 ? 'yes' : 'no'})`);
     perfTimer.measure('Sources Extraction', 'sourcesExtraction');
 
-    // âœ… NEW: Calculate confidence score (for internal tracking only, not displayed to user)
     perfTimer.mark('confidenceCalc');
     const confidence = confidenceScoring.calculateConfidence(
       sources,
@@ -8441,14 +7782,12 @@ Provide a comprehensive answer addressing all parts of the query.`;
     console.log(`ðŸŽ¯ [CONFIDENCE] Final confidence: ${confidence.level} (${confidence.score}/100)`);
     perfTimer.measure('Confidence Calculation', 'confidenceCalc');
 
-    // âœ… NEW: Append contradiction warnings if detected
     if (contradictionResult && contradictionResult.hasContradictions) {
       const contradictionMessage = contradictionDetection.formatContradictionsForUser(contradictionResult);
       onChunk(contradictionMessage);
       console.log(`ðŸ” [CONTRADICTION] Appended ${contradictionResult.contradictions.length} contradiction warning(s) to response`);
     }
 
-    // âœ… NEW: Generate evidence map
     if (evidenceAggregation.shouldAggregateEvidence(complexity, fullDocuments.length)) {
       console.log(`ðŸ“š [EVIDENCE] Generating evidence map...`);
       const evidenceMap = await evidenceAggregation.generateEvidenceMap(
@@ -8463,7 +7802,6 @@ Provide a comprehensive answer addressing all parts of the query.`;
       }
     }
 
-    // âœ… NEW: MEMORY EXTRACTION - Extract memories from conversation
     if (conversationHistory && conversationHistory.length > 0) {
       const messages: any[] = conversationHistory.map(msg => ({
         role: msg.role,
@@ -8555,7 +7893,6 @@ async function streamLLMResponse(
 
       console.log(`âœ… [STREAMING] Complete. Total chars: ${fullAnswer.length}`);
 
-      // ENHANCED: Validate response using EmptyResponsePrevention service
       const validation = emptyResponsePrevention.validateResponse(
         fullAnswer,
         { hasDocuments: !!(context && context.length > 100) },
@@ -8580,15 +7917,12 @@ async function streamLLMResponse(
         return fallbackMessage;
       }
 
-      // ðŸ"§ FIX: Apply table cell fix before returning response
       let fixedAnswer = fixMarkdownTableCells(fullAnswer);
       console.log('ðŸ"§ [TABLE FIX] Applied in streamLLMResponse');
 
-      // ðŸ"§ FIX: Apply deduplication to remove whole-block duplicates
       // This catches LLM responses that repeat themselves
       fixedAnswer = removeWholeBlockDuplication(fixedAnswer);
 
-      // âœ… CRITICAL FIX: Send the response via onChunk before returning
       // This ensures the caller's callback receives the generated response
       // The "format enforcement first" approach was CAUSING empty responses
       // because callers like handleMetaQuery ignore the return value
@@ -8634,10 +7968,6 @@ async function streamLLMResponse(
   return fullAnswer;
 }
 
-/**
- * Smart streaming - ðŸ”§ FIX: Accumulate full response, fix table cells, then send
- * This prevents newlines inside table cells from breaking markdown rendering
- */
 async function smartStreamLLMResponse(
   systemPrompt: string,
   context: string,
@@ -8658,14 +7988,11 @@ async function smartStreamLLMResponse(
       onChunk: () => {} // Don't stream - accumulate instead
     });
 
-    // ðŸ"§ FIX: Apply table cell fix to remove newlines from table cells
     let fixedAnswer = fixMarkdownTableCells(fullAnswer);
     console.log('ðŸ"§ [TABLE FIX] Applied in smartStreamLLMResponse');
 
-    // ðŸ"§ FIX: Apply deduplication to remove whole-block duplicates
     fixedAnswer = removeWholeBlockDuplication(fixedAnswer);
 
-    // âœ… CRITICAL FIX: Send the response via onChunk before returning
     // This ensures the caller's callback receives the generated response
     if (fixedAnswer && fixedAnswer.trim().length > 0) {
       onChunk(fixedAnswer);
@@ -8715,12 +8042,10 @@ async function postProcessAnswer(answer: string): Promise<string> {
   processed = processed.replace(/```markdown\n([\s\S]*?)\n```/g, '$1');
   processed = processed.replace(/```\n([\s\S]*?)\n```/g, '$1');
 
-  // âœ… Fix: Remove inline code backticks (single backticks like `B15:B23`)
   // This prevents blue code blocks from appearing in the UI
   processed = processed.replace(/`([^`]+)`/g, '$1');
 
   // ============================================================================
-  // CITATION CLEANUP - Remove all inline citations (UI displays sources separately)
   // ============================================================================
 
   // Pattern 1: (page X), (p. X), (pg. X), (p.X)
@@ -8774,26 +8099,21 @@ async function postProcessAnswer(answer: string): Promise<string> {
   // Pattern 2: (filename.ext) - e.g., (Koda blueprint.docx)
   processed = processed.replace(/\(([^\)]+\.(docx|pdf|xlsx|pptx|txt|doc|xls|ppt|csv))\)/gi, '');
 
-  // Pattern 3: "in [Document Name]" or "from [Document Name]" or "provided in [Document Name]"
   processed = processed.replace(/\s+(?:in|from|provided in|detailed in|described in|under)\s+\[([^\]]+)\]/gi, '');
 
   // Pattern 4: Remove any remaining bracketed content that looks like a filename
-  // (contains common keywords: blueprint, plan, document, report, analysis, checklist)
   processed = processed.replace(/\[([^\]]*(?:blueprint|plan|document|report|analysis|checklist|guide|manual|specification)[^\]]*)\]/gi, '');
 
   // Pattern 5: "According to [document]," or "As stated in [document],"
   processed = processed.replace(/(?:As (?:stated|mentioned) in|Referring to)\s+[^\.,]+[,\.]\s*/gi, '');
 
-  // Pattern 6: Document names in bold parentheses - e.g., (**document.pdf**), (**Business Plan.docx**)
   processed = processed.replace(/\s*\(\*\*[^)]+\.(pdf|docx?|txt|xlsx?|pptx?|csv|md)\*\*\)/gi, '');
 
-  // Pattern 7: Document names in parentheses (not bold) - e.g., (document.pdf), (Business Plan.docx)
   processed = processed.replace(/\s*\([^)]+\.(pdf|docx?|txt|xlsx?|pptx?|csv|md)\)/gi, '');
 
   // Pattern 8: Numeric citations [1], [2], [3], etc.
   processed = processed.replace(/\s*\[\d+\]/g, '');
 
-  // Pattern 9: Remove "Source:" or "Sources:" or "Fontes:" sections at end of answer
   processed = processed.replace(/\n+---\n+\*\*(?:Sources?|Fontes?):?\*\*[\s\S]*$/i, '');
   processed = processed.replace(/\n+## (?:Sources?|Fontes?)\s*(?:Consulted)?[\s\S]*$/i, '');
   processed = processed.replace(/\n+\*\*(?:Sources?|Fontes?):?\*\*\s*\n[\s\S]*$/i, '');
@@ -8948,7 +8268,6 @@ async function postProcessAnswer(answer: string): Promise<string> {
     return match;
   });
 
-  // 4. Remove duplicate responses (LLM sometimes outputs both formatted and plain versions)
   const lines = processed.split('\n');
   if (lines.length > 1) {
     const firstLine = lines[0].trim();
@@ -9244,7 +8563,6 @@ export async function generateAnswer(
   console.log(`   Chars/second: ${(fullAnswer.length / (duration / 1000)).toFixed(2)}`);
 
   // ============================================================================
-  // âœ… FORMAT ENFORCEMENT (CRITICAL - 0% â†’ 90% format score)
   // ============================================================================
   let formatted = fullAnswer;
   let formatScore = 100;
@@ -9367,7 +8685,6 @@ export async function generateAnswer(
 // ============================================================================
 // BACKWARDS COMPATIBILITY WRAPPER
 // ============================================================================
-// Old signature: (userId, query, conversationId, answerLength, documentId, onChunk)
 // Returns: { answer: string, sources: any[] }
 // New signature: (userId, query, conversationId, onChunk, attachedDocumentId)
 // Returns: void (streams only)
@@ -9388,7 +8705,6 @@ export async function generateAnswerStreaming(
     onChunk(chunk); // Still call the original callback for streaming
   };
 
-  // âœ… FIXED: Capture sources from generateAnswerStream
   const result = await generateAnswerStream(
     userId,
     query,
@@ -9397,7 +8713,6 @@ export async function generateAnswerStreaming(
     documentId || undefined
   );
 
-  // âœ… FORMAT FIX: Apply formatting fixes to the response
   const { formatValidationService } = await import('./formatValidation.service');
   const fixedAnswer = formatValidationService.fixFormatting(fullAnswer);
 
@@ -9412,10 +8727,6 @@ export async function generateAnswerStreaming(
 // FILE LOCATION QUERY DETECTION & HANDLING
 // ============================================================================
 
-/**
- * Detect if query is asking for file location
- * Examples: "where is contract.pdf?", "find invoice_2024.xlsx"
- */
 function detectFileLocationQuery(query: string): boolean {
   const lower = query.toLowerCase();
 
@@ -9431,10 +8742,6 @@ function detectFileLocationQuery(query: string): boolean {
 // ============================================================================
 // Handles queries like "Where is the file that talks about X?"
 
-/**
- * Detect if query is asking for file location based on CONTENT (not filename)
- * Examples: "Where is the file that talks about LGPD?", "Find the document about financial analysis"
- */
 function detectContentBasedLocationQuery(query: string): boolean {
   const lower = query.toLowerCase();
 
@@ -9467,10 +8774,6 @@ function detectContentBasedLocationQuery(query: string): boolean {
   return false;
 }
 
-/**
- * Build full folder path by traversing parent folders
- * Returns path like "trabalhos/test/work1/work 2"
- */
 async function getFullFolderPath(folderId: string | null): Promise<string> {
   if (!folderId) return 'root';
 
@@ -9495,12 +8798,6 @@ async function getFullFolderPath(folderId: string | null): Promise<string> {
   return path.length > 0 ? path.join('/') : 'root';
 }
 
-/**
- * Extract topic/subject from a content-based location query
- * Examples:
- * - "Where is the file that talks about LGPD?" → "LGPD"
- * - "Find documents about financial analysis" → "financial analysis"
- */
 function extractTopicFromQuery(query: string): string {
   // Pattern 1: "about X" / "talks about X" / "regarding X"
   let match = query.match(/\b(about|talks?\s*about|mentions?|regarding|on|sobre|fala\s*sobre)\s+(.+?)(\?|$)/i);
@@ -9530,10 +8827,6 @@ function extractTopicFromQuery(query: string): string {
   return words.slice(-4).join(' ') || query;
 }
 
-/**
- * Handle content-based file location queries
- * Searches Pinecone for relevant documents and returns file locations
- */
 async function handleContentBasedLocationQuery(
   query: string,
   userId: string,
@@ -9740,10 +9033,6 @@ async function handleFileLocationQuery(
 // FOLDER CONTENT QUERY DETECTION & HANDLING
 // ============================================================================
 
-/**
- * Detect if query is asking for folder contents
- * Supports both "Finance folder" and "folder Finance" phrasings
- */
 function detectFolderContentQuery(query: string): boolean {
   const lower = query.toLowerCase();
 
@@ -9899,28 +9188,6 @@ async function handleFolderContentQuery(
     response = folderNav.formatFolderContentResponse(folder, allFolders);
   }
 
-  /* Old code removed - using folderNav service
-  if (false) {
-    response += `**Files** (${folder.documents.length}):\n`;
-    folder.documents.slice(0, 20).forEach(doc => {
-      response += `â€¢ ${doc.filename}\n`;
-    });
-
-    if (folder.documents.length > 20) {
-      response += `\n...and ${folder.documents.length - 20} more files`;
-    }
-  }
-
-  // List subfolders
-  if (folder.subfolders.length > 0) {
-    response += `\n\n**Subfolders** (${folder.subfolders.length}):\n`;
-    folder.subfolders.forEach(sf => {
-      const sfEmoji = sf.emoji || 'ðŸ“';
-      const docCount = sf._count?.documents || 0;
-      response += `${sfEmoji} ${sf.name} (${docCount} ${docCount === 1 ? 'file' : 'files'})\n`;
-    });
-  }
-  */
 
   onChunk(response);
 
@@ -9937,10 +9204,6 @@ async function handleFolderContentQuery(
 // FOLDER LISTING QUERY DETECTION & HANDLING
 // ============================================================================
 
-/**
- * Detect if query is asking for a list of all folders
- * Examples: "which folders do I have?", "show my folders", "list all folders"
- */
 function detectFolderListingQuery(query: string): boolean {
   const lower = query.toLowerCase().trim();
 
@@ -10041,10 +9304,6 @@ function formatFolderTreeItem(folder: any, depth: number): string {
 // FOLDER TREE CONTEXT BUILDER
 // ============================================================================
 
-/**
- * Build folder tree context for AI
- * Converts flat folder list to hierarchical tree structure
- */
 function buildFolderTreeContext(folders: any[]): string {
   if (folders.length === 0) {
     return "**User's Folders**: No folders created yet. User can create folders to organize documents.";
@@ -10153,10 +9412,6 @@ function detectAdvancedQueryType(query: string): AdvancedQueryType {
   return 'content_query';
 }
 
-/**
- * Handle entity extraction queries
- * Extracts people, companies, organizations from ALL user documents
- */
 async function handleEntityExtractionQuery(
   query: string,
   userId: string,
@@ -10288,10 +9543,6 @@ async function handleEntityExtractionQuery(
   return { sources: [] };
 }
 
-/**
- * Handle synthesis queries that need ALL documents
- * Examples: "summarize all documents", "create outline", "what do documents have in common"
- */
 async function handleAdvancedSynthesisQuery(
   query: string,
   userId: string,
@@ -10434,7 +9685,6 @@ ${allContent.substring(0, 15000)}
       onStage('generating', 'Creating synthesis...');
     }
 
-    // âœ… FIX: Use singleton client instead of new GoogleGenerativeAI()
     const { default: geminiClient } = await import('./geminiClient.service');
     const model = geminiClient.getModel({
       model: 'gemini-2.5-flash',
@@ -10467,10 +9717,6 @@ ${allContent.substring(0, 15000)}
   }
 }
 
-/**
- * Handle data extraction queries - Extract numbers, dates, statistics from documents
- * Uses pattern matching on extractedText instead of LLM for reliable extraction
- */
 async function handleDataExtractionQuery(
   query: string,
   userId: string,
@@ -10764,7 +10010,6 @@ export default {
   generateAnswerStreaming,
   getContext,
 };
-
 
 
 // trigger reload Fri, Dec  5, 2025  5:59:47 PM
