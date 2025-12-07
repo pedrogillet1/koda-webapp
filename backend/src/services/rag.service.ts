@@ -39,6 +39,9 @@ import { formatValidationService } from './formatValidation.service';
 // Confidence Scoring Service
 import * as confidenceScoring from './archived/confidence-scoring.service';
 
+// QA Orchestrator Service (Quality Assurance Gate)
+import { runQualityAssurance } from './qaOrchestrator.service';
+
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // STUB IMPORTS: These services were deleted but are still referenced in code
 // Using stub implementations to prevent runtime errors

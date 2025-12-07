@@ -1,16 +1,22 @@
 /**
- * Format Type Classifier Service - STUB (service removed)
+ * Stub file - formatTypeClassifier service was consolidated
+ * This stub prevents runtime errors for any remaining imports
  */
 
-export type ResponseFormatType =
-  | 'LIST'
-  | 'TABLE'
-  | 'NARRATIVE'
-  | 'COMPARISON'
-  | 'SUMMARY'
-  | 'DIRECT_ANSWER'
-  | 'STRUCTURED'
-  | 'default';
+export enum ResponseFormatType {
+  PARAGRAPH = 'paragraph',
+  LIST = 'list',
+  TABLE = 'table',
+  CODE = 'code',
+  MIXED = 'mixed'
+}
 
-export const classifyFormat = async (): Promise<ResponseFormatType> => 'default';
-export default { classifyFormat };
+export const classifyFormat = (query: string): ResponseFormatType => {
+  console.warn('[FORMAT-TYPE-CLASSIFIER-STUB] Service consolidated, returning MIXED');
+  return ResponseFormatType.MIXED;
+};
+
+export default {
+  classifyFormat,
+  ResponseFormatType
+};

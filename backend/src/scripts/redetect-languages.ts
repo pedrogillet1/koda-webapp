@@ -9,7 +9,7 @@
  */
 
 import prisma from '../config/database';
-import { detectLanguageFromSamples, type SupportedLanguage } from '../services/language-detection.service';
+import { detectLanguageFromSamples, type SupportedLanguage } from '../services/languageDetection.service';
 
 interface DetectionStats {
   total: number;

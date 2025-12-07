@@ -114,7 +114,7 @@ class GeminiClientService {
     const {
       temperature = 0.7,
       maxOutputTokens = 1000,
-      model: modelName = 'gemini-1.5-flash'
+      model: modelName = 'gemini-2.5-flash'
     } = options;
 
     const model = this.getModel({
