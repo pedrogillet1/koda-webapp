@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon --exec ts-node --transpile-only src/server.ts",
     "build": "prisma generate && tsc",
+    "build:ignore-errors": "tsc --skipLibCheck --noEmitOnError false",
     "start": "node dist/server.js",
     "worker": "ts-node src/worker.ts",
     "worker:dev": "nodemon --exec ts-node src/worker.ts",
