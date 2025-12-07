@@ -182,7 +182,18 @@ class GeminiCacheService {
           try {
             for await (const chunk of result.stream) {
               try {
-                const chunkText = chunk.text();
+                let chunkText = chunk.text();
+
+                // ✅ UTF-8 FIX: Detect and fix mojibake (e.g., "VocÃª" → "Você")
+                if (chunkText && /Ã[£¡©²³¢§¨ª«¬­´µ¶·¸¹º»¼½¾¿àáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ]/.test(chunkText)) {
+                  try {
+                    const decoded = Buffer.from(chunkText, "latin1").toString("utf8");
+                    if (decoded && !decoded.includes("�")) {
+                      chunkText = decoded;
+                    }
+                  } catch { /* Keep original if decoding fails */ }
+                }
+
                 fullResponse += chunkText;
                 chunkCount++;
 

@@ -1,16 +1,16 @@
 /* ============================================
-   KODA CHAT UI - CHATGPT-QUALITY TYPOGRAPHY
-   Updated to match UI_ISSUES_BREAKDOWN.md specs
+   KODA CHAT UI - CLEAN TIGHT SPACING
+   All gaps set to 0px for single-line spacing
    ============================================ */
 
 /* ============================================
-   1. CONTAINER - Max width 720px
+   1. CONTAINER
    ============================================ */
 
 .markdown-preview-container {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 16px;
-  line-height: 1.5;
+  line-height: 1.4;
   color: #1a1a1a;
   max-width: 720px;
   padding: 0;
@@ -18,178 +18,108 @@
 }
 
 /* ============================================
-   2. TYPOGRAPHY - Font Sizes & Weights
+   2. RESET ALL MARGINS
    ============================================ */
 
-/* Answer title (h2) - 22px, bold (600 weight) */
+.markdown-preview-container * {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* ============================================
+   2B. CONSISTENT 12px GAP BETWEEN ALL ELEMENTS
+   ============================================ */
+
+/* Gap after headings */
+.markdown-preview-container h1 + *,
+.markdown-preview-container h2 + *,
+.markdown-preview-container h3 + *,
+.markdown-preview-container h4 + *,
+.markdown-preview-container h5 + *,
+.markdown-preview-container h6 + * {
+  margin-top: 12px !important;
+}
+
+/* Gap after paragraphs */
+.markdown-preview-container p + * {
+  margin-top: 12px !important;
+}
+
+/* Gap after lists */
+.markdown-preview-container ul + *,
+.markdown-preview-container ol + * {
+  margin-top: 12px !important;
+}
+
+/* Gap between list items */
+.markdown-preview-container li + li,
+.markdown-preview-container .markdown-li + .markdown-li {
+  margin-top: 12px !important;
+}
+
+/* ============================================
+   3. TYPOGRAPHY (font sizes only, no margins)
+   ============================================ */
+
 .markdown-h2 {
   font-size: 22px !important;
   font-weight: 600 !important;
-  line-height: 1.3 !important;
+  line-height: 1.4 !important;
   color: #1a1a1a !important;
-  margin: 0 0 0.5em 0 !important;
-  padding: 0 !important;
   font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
-/* First h2 should have no top margin */
-.markdown-preview-container > h2:first-child,
-.markdown-preview-container > .markdown-h2:first-child {
-  margin-top: 0 !important;
-}
-
-/* Section headings (h3) - 18px, bold (700 weight), darker color */
 .markdown-h3 {
   font-size: 18px !important;
   font-weight: 700 !important;
   line-height: 1.4 !important;
   color: #1a1a1a !important;
-  margin: 1.5em 0 0.6em 0 !important;
-  padding: 0 !important;
-  letter-spacing: 0.02em !important;
   font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
-/* First h3 has smaller top margin */
-.markdown-preview-container > h3:first-child,
-.markdown-preview-container > .markdown-h3:first-child {
-  margin-top: 0.5em !important;
-}
-
-/* Body text / paragraphs - 16px, normal weight */
 .markdown-paragraph {
   font-size: 16px !important;
   font-weight: 400 !important;
-  line-height: 1.5 !important;
+  line-height: 1.4 !important;
   color: #1a1a1a !important;
-  margin: 0 0 0.7em 0 !important;
-  padding: 0 !important;
   font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
-/* Remove margin from last paragraph */
-.markdown-paragraph:last-child {
-  margin-bottom: 0 !important;
-}
-
-/* Bold/strong text - same size as body, just bold */
 .markdown-preview-container strong,
 .markdown-preview-container b {
   font-weight: 600 !important;
-  color: #2a2a2a !important;
 }
 
-/* Meta text (code) - for filenames, paths */
 .markdown-inline-code {
   font-size: 14px !important;
-  font-weight: 400 !important;
-  color: #374151 !important;
   background-color: #f3f4f6 !important;
   padding: 2px 6px !important;
   border-radius: 4px !important;
-  border: 1px solid #e5e7eb !important;
   font-family: 'Monaco', 'Menlo', 'Courier New', monospace !important;
 }
 
 /* ============================================
-   2B. UNIVERSAL SPACING RESET - Fix React Markdown auto-generated tags
+   4. LISTS (only padding-left for indent)
    ============================================ */
 
-/* Reset ALL elements to prevent React Markdown's auto-generated <p> tags from adding extra space */
-.markdown-preview-container > *,
-.markdown-preview-container p,
-.markdown-preview-container div,
-.markdown-preview-container span {
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-/* Reset ALL heading tags */
-.markdown-preview-container h1,
-.markdown-preview-container h2,
-.markdown-preview-container h3,
-.markdown-preview-container h4,
-.markdown-preview-container h5,
-.markdown-preview-container h6 {
-  margin: 0 !important;
-  padding: 0 !important;
-  margin-top: 16px !important;
-  margin-bottom: 8px !important;
-}
-
-/* First heading should have no top margin */
-.markdown-preview-container > h1:first-child,
-.markdown-preview-container > h2:first-child,
-.markdown-preview-container > h3:first-child {
-  margin-top: 0 !important;
-}
-
-/* Controlled spacing between block elements */
-.markdown-preview-container > * + * {
-  margin-top: 12px !important;
-}
-
-/* List items should have minimal spacing */
-.markdown-preview-container li {
-  margin: 0 !important;
-  padding: 0 !important;
-  margin-bottom: 4px !important;
-}
-
-/* Last list item has no bottom margin */
-.markdown-preview-container li:last-child {
-  margin-bottom: 0 !important;
-}
-
-/* ============================================
-   3. LISTS - Reduced spacing (0.35em between items)
-   ============================================ */
-
-/* Bullet lists */
-.markdown-ul {
-  margin: 0.6em 0 0.6em 0 !important;
-  padding-left: 1.5em !important;
-  list-style-type: disc !important;
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
-}
-
-/* List items - 16px, reduced margin (0.35em ≈ 6px) */
-.markdown-ul li {
-  margin: 0 0 0.35em 0 !important;
-  padding: 0 !important;
-  line-height: 1.5 !important;
-  color: #1a1a1a !important;
-  font-size: 16px !important;
-}
-
-/* Last list item has no margin */
-.markdown-ul li:last-child {
-  margin-bottom: 0 !important;
-}
-
-/* Bullet style */
-.markdown-ul li::marker {
-  color: #1a1a1a;
-}
-
-/* Ordered lists */
+.markdown-ul,
 .markdown-ol {
-  margin: 0.6em 0 0.6em 0 !important;
   padding-left: 1.5em !important;
-  list-style-type: decimal !important;
   font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
-.markdown-ol li {
-  margin: 0 0 0.35em 0 !important;
-  padding: 0 !important;
-  line-height: 1.5 !important;
-  color: #1a1a1a !important;
-  font-size: 16px !important;
+.markdown-ul {
+  list-style-type: disc !important;
 }
 
-.markdown-ol li:last-child {
-  margin-bottom: 0 !important;
+.markdown-ol {
+  list-style-type: decimal !important;
+}
+
+.markdown-preview-container li {
+  line-height: 1.4 !important;
+  color: #1a1a1a !important;
+  font-size: 16px !important;
 }
 
 /* Nested lists */
@@ -197,80 +127,7 @@
 .markdown-ol ul,
 .markdown-ul ol,
 .markdown-ol ol {
-  margin: 0.3em 0 0 0 !important;
   padding-left: 1.5em !important;
-}
-
-/* Fix for nested paragraphs in list items (prevents double spacing) */
-.markdown-ul li > p,
-.markdown-ol li > p {
-  margin: 0 !important;
-}
-
-/* ============================================
-   4. SECTION SPACING
-   ============================================ */
-
-/* Space after list before next section */
-.markdown-ul + .markdown-h3,
-.markdown-ol + .markdown-h3 {
-  margin-top: 1.5em !important;
-}
-
-/* Space after paragraph before heading */
-.markdown-paragraph + .markdown-h3 {
-  margin-top: 1.5em !important;
-}
-
-/* Space after heading before content */
-.markdown-h3 + .markdown-ul,
-.markdown-h3 + .markdown-ol,
-.markdown-h3 + .markdown-paragraph {
-  margin-top: 0.5em !important;
-}
-
-/* Space between consecutive paragraphs */
-.markdown-paragraph + .markdown-paragraph {
-  margin-top: 0.7em !important;
-}
-
-/* ============================================
-   4B. SPACING CONTROL - Tighter paragraph spacing
-   ============================================ */
-
-/* Control spacing between elements - REDUCED for tighter layout */
-.markdown-preview-container > * + * {
-  margin-top: 8px !important; /* Single paragraph gap = 8px (was 16px) */
-}
-
-/* H2 (title) to first element: moderate space */
-.markdown-preview-container > h2 + *,
-.markdown-preview-container > .markdown-h2 + * {
-  margin-top: 12px !important; /* Was 20px */
-}
-
-/* List items: minimal internal spacing */
-.markdown-preview-container li + li {
-  margin-top: 4px !important; /* Was 6px */
-}
-
-/* Paragraphs inside lists: no extra spacing */
-.markdown-preview-container li > p {
-  margin: 0 !important;
-}
-
-/* H3 sections: proper breathing room */
-.markdown-preview-container > h3 + *,
-.markdown-preview-container > .markdown-h3 + * {
-  margin-top: 8px !important; /* Was 12px */
-}
-
-/* After list, before next section: moderate space */
-.markdown-preview-container > ul + h3,
-.markdown-preview-container > ol + h3,
-.markdown-preview-container > .markdown-ul + .markdown-h3,
-.markdown-preview-container > .markdown-ol + .markdown-h3 {
-  margin-top: 16px !important; /* Was 24px */
 }
 
 /* Collapse empty paragraphs */

@@ -7086,6 +7086,23 @@ async function handleRegularQuery(
   } else {
     console.log(`ðŸ” [FILTER] Searching across all user documents`);
   }
+
+    // DOCUMENT ROUTING: Try to identify target document from query
+    // REASON: When user mentions document by name, route to that document
+    // WHY: "What does report.pdf say about X?" should search report.pdf, not all docs
+    // IMPACT: Better precision when user refers to specific documents
+    try {
+      const documentRouting = await routeToDocument(userId, query, {
+        confidenceThreshold: 0.7  // Only route if we're confident
+      });
+
+      if (documentRouting && documentRouting.confidence >= 0.7) {
+        filter.documentId = documentRouting.documentId;
+        console.log(`[DOC ROUTER] Routed to ${documentRouting.documentTitle} via ${documentRouting.routingMethod} (confidence: ${(documentRouting.confidence * 100).toFixed(0)}%)`);
+      }
+    } catch (routingError) {
+      console.warn('[DOC ROUTER] Routing failed, searching all documents:', routingError);
+    }
   perfTimer.measure('Filter Construction', 'filterConstruction');
 
   let searchResults;
