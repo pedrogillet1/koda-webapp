@@ -268,6 +268,15 @@ const StreamingMarkdown = ({
   // Merge custom components with defaults
   const components = { ...defaultComponents, ...customComponents };
 
+  // Normalize content to remove excessive whitespace that causes large gaps
+  const normalizedContent = useMemo(() => {
+    if (!content) return '';
+    return content
+      .replace(/\n{3,}/g, '\n\n')  // 3+ newlines → 2 (single paragraph break)
+      .replace(/[ \t]+$/gm, '')    // Remove trailing whitespace
+      .replace(/\r\n/g, '\n');     // Consistent line endings
+  }, [content]);
+
   // Memoize the markdown rendering for performance
   const renderedMarkdown = useMemo(() => {
     return (
@@ -276,10 +285,10 @@ const StreamingMarkdown = ({
         rehypePlugins={[rehypeRaw]}
         components={components}
       >
-        {content}
+        {normalizedContent}
       </ReactMarkdown>
     );
-  }, [content, components]);
+  }, [normalizedContent, components]);
 
   return (
     <div

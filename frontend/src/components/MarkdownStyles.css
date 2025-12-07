@@ -235,23 +235,23 @@
 }
 
 /* ============================================
-   4B. SPACING CONTROL - Match backend newlines
+   4B. SPACING CONTROL - Tighter paragraph spacing
    ============================================ */
 
-/* Control spacing between elements to match backend newlines */
+/* Control spacing between elements - REDUCED for tighter layout */
 .markdown-preview-container > * + * {
-  margin-top: 16px !important; /* Single newline gap = 16px */
+  margin-top: 8px !important; /* Single paragraph gap = 8px (was 16px) */
 }
 
-/* H2 (title) to first element: slightly more space */
+/* H2 (title) to first element: moderate space */
 .markdown-preview-container > h2 + *,
 .markdown-preview-container > .markdown-h2 + * {
-  margin-top: 20px !important;
+  margin-top: 12px !important; /* Was 20px */
 }
 
-/* List items: tighter internal spacing */
+/* List items: minimal internal spacing */
 .markdown-preview-container li + li {
-  margin-top: 6px !important;
+  margin-top: 4px !important; /* Was 6px */
 }
 
 /* Paragraphs inside lists: no extra spacing */
@@ -262,15 +262,20 @@
 /* H3 sections: proper breathing room */
 .markdown-preview-container > h3 + *,
 .markdown-preview-container > .markdown-h3 + * {
-  margin-top: 12px !important;
+  margin-top: 8px !important; /* Was 12px */
 }
 
-/* After list, before next section: more space */
+/* After list, before next section: moderate space */
 .markdown-preview-container > ul + h3,
 .markdown-preview-container > ol + h3,
 .markdown-preview-container > .markdown-ul + .markdown-h3,
 .markdown-preview-container > .markdown-ol + .markdown-h3 {
-  margin-top: 24px !important;
+  margin-top: 16px !important; /* Was 24px */
+}
+
+/* Collapse empty paragraphs */
+.markdown-preview-container p:empty {
+  display: none !important;
 }
 
 /* ============================================
