@@ -11,6 +11,7 @@
 
 import pineconeService from './pinecone.service';
 import prisma from '../config/database';
+import { generateMicroSummary } from './microSummaryGenerator.service';
 
 /**
  * Store document embeddings in Pinecone AND PostgreSQL
@@ -96,6 +97,38 @@ export const storeDocumentEmbeddings = async (
     console.log(`✅ [vectorEmbedding] Stored ${chunks.length} embeddings in Pinecone for document ${documentId}`);
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 4.5: Generate Micro-Summaries for each chunk (Phase 2 Optimization)
+    // ═══════════════════════════════════════════════════════════════════════════
+    console.log(`📝 [vectorEmbedding] Generating micro-summaries for ${chunks.length} chunks...`);
+
+    const documentType = detectDocumentType(document.mimeType, document.filename);
+    const microSummaries: Map<number, string> = new Map();
+
+    // Generate micro-summaries in parallel batches
+    const MICRO_BATCH_SIZE = 5;
+    for (let i = 0; i < chunks.length; i += MICRO_BATCH_SIZE) {
+      const batch = chunks.slice(i, i + MICRO_BATCH_SIZE);
+      const batchPromises = batch.map(async (chunk, batchIndex) => {
+        const chunkIndex = chunk.chunkIndex ?? chunk.pageNumber ?? (i + batchIndex);
+        const content = chunk.content || chunk.text || '';
+        const chunkType = chunk.metadata?.chunkType || 'general';
+        const sectionName = chunk.metadata?.section || chunk.metadata?.sectionName;
+
+        try {
+          const result = await generateMicroSummary(content, chunkType, documentType, sectionName);
+          microSummaries.set(chunkIndex, result.summary);
+          console.log(`  ✅ Chunk ${chunkIndex}: "${result.summary.substring(0, 50)}..."`);
+        } catch (error) {
+          console.warn(`  ⚠️ Chunk ${chunkIndex}: Failed to generate micro-summary`);
+          microSummaries.set(chunkIndex, '');
+        }
+      });
+      await Promise.all(batchPromises);
+    }
+
+    console.log(`✅ [vectorEmbedding] Generated ${microSummaries.size} micro-summaries`);
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // STEP 5: Store in DocumentEmbedding table (PostgreSQL backup for BM25)
     // ═══════════════════════════════════════════════════════════════════════════
     // Delete existing embeddings for this document
@@ -103,11 +136,12 @@ export const storeDocumentEmbeddings = async (
       where: { documentId },
     });
 
-    // Prepare data for PostgreSQL
+    // Prepare data for PostgreSQL with micro-summaries
     const embeddingRecords = chunks.map((chunk, index) => {
       const chunkIndex = chunk.chunkIndex ?? chunk.pageNumber ?? index;
       const content = chunk.content || chunk.text || '';
       const embedding = chunk.embedding || [];
+      const microSummary = microSummaries.get(chunkIndex) || null;
 
       return {
         documentId,
@@ -115,6 +149,8 @@ export const storeDocumentEmbeddings = async (
         content,
         embedding: JSON.stringify(embedding),
         metadata: JSON.stringify(chunk.metadata || {}),
+        microSummary,  // Store micro-summary in database
+        chunkType: chunk.metadata?.chunkType || null,
       };
     });
 
@@ -180,6 +216,38 @@ export const searchSimilar = async (
   console.warn('⚠️ [vectorEmbedding] searchSimilar() is deprecated - use pinecone.service.ts directly');
   return [];
 };
+
+/**
+ * Detect document type from mimeType and filename
+ * Used for micro-summary generation context
+ */
+function detectDocumentType(mimeType: string, filename: string): string {
+  const lower = (mimeType + ' ' + filename).toLowerCase();
+
+  if (lower.includes('pdf')) {
+    // Check filename for hints
+    if (/contract|agreement|lease|terms/i.test(filename)) return 'legal';
+    if (/medical|health|patient|diagnosis/i.test(filename)) return 'medical';
+    if (/financial|budget|revenue|invoice/i.test(filename)) return 'financial';
+    if (/report|analysis|study/i.test(filename)) return 'report';
+    return 'document';
+  }
+
+  if (lower.includes('spreadsheet') || lower.includes('excel') || lower.includes('xlsx') || lower.includes('csv')) {
+    return 'financial';
+  }
+
+  if (lower.includes('presentation') || lower.includes('powerpoint') || lower.includes('pptx')) {
+    return 'presentation';
+  }
+
+  if (lower.includes('word') || lower.includes('docx')) {
+    if (/contract|agreement|lease/i.test(filename)) return 'legal';
+    return 'document';
+  }
+
+  return 'general';
+}
 
 export default {
   storeDocumentEmbeddings,
