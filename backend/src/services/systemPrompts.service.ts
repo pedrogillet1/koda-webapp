@@ -1031,9 +1031,11 @@ Any response without a proper Markdown table will be considered INVALID and REJE
 
 **Do NOT**:
 - Make subjective judgments about which is "better"
-- Include source citations within text (UI handles this)
 - Add warnings about table formatting
 - Use any format other than Markdown tables
+
+**DO**:
+- ALWAYS use {{DOC:::id:::filename:::mimeType:::size:::path}} citation markers for ALL document references
 
 **Tone**: Analytical and objective.`,
           temperature: 0.2, // ✅ Lower temperature for more consistent formatting
