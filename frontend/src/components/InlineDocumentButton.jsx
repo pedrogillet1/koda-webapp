@@ -6,9 +6,13 @@ import { getFileIcon } from '../utils/iconMapper';
  *
  * Compact citation button - shows file icon and bold title
  * Matches "Show File" button style with larger icon and font
+ *
+ * Supports two variants:
+ * - 'default': Standard size for standalone display
+ * - 'inline': Smaller size for inline display within text
  */
 
-const InlineDocumentButton = ({ document, onClick, style = {} }) => {
+const InlineDocumentButton = ({ document, onClick, variant = 'default', style = {} }) => {
   const {
     documentId,
     documentName,
@@ -24,6 +28,9 @@ const InlineDocumentButton = ({ document, onClick, style = {} }) => {
 
   // Use fileSize or size
   const displaySize = fileSize || size;
+
+  // Variant-based sizing
+  const isInline = variant === 'inline';
 
   const handleClick = () => {
     if (onClick) {
@@ -44,14 +51,16 @@ const InlineDocumentButton = ({ document, onClick, style = {} }) => {
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: '10px',
-        padding: '8px 16px',
-        marginTop: '4px',
-        marginBottom: '4px',
-        marginRight: '8px',
+        gap: isInline ? '6px' : '10px',
+        padding: isInline ? '2px 8px' : '8px 16px',
+        marginTop: isInline ? '0' : '4px',
+        marginBottom: isInline ? '0' : '4px',
+        marginRight: isInline ? '4px' : '8px',
+        marginLeft: isInline ? '2px' : '0',
         backgroundColor: '#F9FAFB',
         border: '1px solid #E5E7EB',
-        borderRadius: '24px',  // More circular/pill-shaped
+        borderRadius: isInline ? '12px' : '24px',
+        verticalAlign: isInline ? 'middle' : 'baseline',
         cursor: 'pointer',
         transition: 'all 0.2s ease',
         fontFamily: 'inherit',
@@ -76,22 +85,23 @@ const InlineDocumentButton = ({ document, onClick, style = {} }) => {
         src={getFileIcon(displayName, mimeType)}
         alt="File icon"
         style={{
-          width: '24px',
-          height: '24px',
+          width: isInline ? '14px' : '24px',
+          height: isInline ? '14px' : '24px',
           objectFit: 'contain',
           flexShrink: 0
         }}
       />
 
-      {/* File Title - Bold, 15px per UI spec */}
+      {/* File Title - Bold, variant-aware sizing */}
       <span style={{
-        fontSize: '15px',
+        fontSize: isInline ? '13px' : '15px',
         fontWeight: '600',
         color: '#1a1a1a',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',
-        maxWidth: '220px'
+        maxWidth: isInline ? '150px' : '220px',
+        lineHeight: isInline ? '1.5' : 'normal'
       }}>
         {displayName}
       </span>

@@ -38,6 +38,7 @@ import StreamingMarkdown from './StreamingMarkdown';
 import StreamingWelcomeMessage from './StreamingWelcomeMessage';
 import { useToast } from '../context/ToastContext';
 import InlineDocumentButton from './InlineDocumentButton';
+import InlineFolderButton from './InlineFolderButton';
 import InlineDocumentList from './InlineDocumentList';
 import FolderButton from './FolderButton';
 import LoadMoreButton from './LoadMoreButton';
@@ -2785,6 +2786,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                             <InlineDocumentButton
                                                                                                 key={`doc-${idx}`}
                                                                                                 document={segment.content}
+                                                                                                variant="inline"
                                                                                                 onClick={(doc) => {
                                                                                                     console.log('[INLINE DOC] Opening preview:', doc);
                                                                                                     setPreviewDocument(doc);
@@ -2793,9 +2795,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                         );
                                                                                     } else if (segment.type === 'folder') {
                                                                                         return (
-                                                                                            <FolderButton
+                                                                                            <InlineFolderButton
                                                                                                 key={`folder-${idx}`}
                                                                                                 folder={segment.content}
+                                                                                                variant="inline"
                                                                                                 onClick={handleFolderClick}
                                                                                             />
                                                                                         );
