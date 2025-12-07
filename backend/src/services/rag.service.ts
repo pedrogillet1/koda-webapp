@@ -5358,8 +5358,17 @@ Can I help with something else?`;
   // Format conversation history for system prompt
   let conversationHistoryText = '';
   if (conversationHistory && conversationHistory.length > 0) {
-    conversationHistoryText = conversationHistory
-      .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+    // FIX #2 & #4: Compress assistant messages and limit history
+    // Limit to last 6 messages to reduce LLM repetition
+    const limitedHistory = conversationHistory.slice(-6);
+    conversationHistoryText = limitedHistory
+      .map(msg => {
+        if (msg.role === 'assistant') {
+          const firstLine = msg.content.split('\n')[0].substring(0, 150);
+          return `Assistant: ${firstLine}${msg.content.length > 150 ? '...' : ''}`;
+        }
+        return `User: ${msg.content}`;
+      })
       .join('\n\n');
   }
 
@@ -5490,8 +5499,17 @@ async function handleDocumentComparison(
   // Format conversation history for system prompt
   let conversationHistoryText = '';
   if (conversationHistory && conversationHistory.length > 0) {
-    conversationHistoryText = conversationHistory
-      .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+    // FIX #2 & #4: Compress assistant messages and limit history
+    // Limit to last 6 messages to reduce LLM repetition
+    const limitedHistory = conversationHistory.slice(-6);
+    conversationHistoryText = limitedHistory
+      .map(msg => {
+        if (msg.role === 'assistant') {
+          const firstLine = msg.content.split('\n')[0].substring(0, 150);
+          return `Assistant: ${firstLine}${msg.content.length > 150 ? '...' : ''}`;
+        }
+        return `User: ${msg.content}`;
+      })
       .join('\n\n');
   }
 
