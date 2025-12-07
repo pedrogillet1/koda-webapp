@@ -1,3 +1,6 @@
+// PERFORMANCE: Setup logging first (overrides console based on LOG_LEVEL)
+import './utils/setupLogging';
+
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';

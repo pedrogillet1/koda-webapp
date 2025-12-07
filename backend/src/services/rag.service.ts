@@ -125,7 +125,7 @@ import { hybridSearch, analyzeQueryIntent, type SearchFilters, type HybridSearch
 import { contextAwareIntentDetection, type ContextAwareIntentResult } from './contextAwareIntentDetection.service';
 
 // HIERARCHICAL INTENT CLASSIFICATION (Two-Stage: Heuristic + LLM)
-import { classifyIntent, shouldDecompose, decomposeQuery, type IntentResult } from './hierarchicalIntentClassifier.service';
+import { classifyIntent, shouldDecompose, decomposeQuery, type IntentResult, type SubQuestion } from './hierarchicalIntentClassifier.service';
 import { getPipelineConfig, planAnswerShape, buildPromptWithPlan, type PipelineConfig, type AnswerPlan } from './pipelineConfiguration.service';
 import { executeSubQuestion, assembleMultiPartAnswer, type SubQuestionResult, type MultiPartAnswer } from './queryExecutor.service';
 import { handleHierarchicalIntent, handleQueryDecomposition } from './hierarchicalIntentHandler.service';
@@ -3504,7 +3504,20 @@ export async function generateAnswerStream(
   // ============================================================================
 
   // ============================================================================
-  // STEP -1.7: HIERARCHICAL INTENT CLASSIFICATION (Two-Stage: Heuristic + LLM)  // ============================================================================  // REASON: Better intent classification for summarization, comparison, transformation  // WHY: 80% of queries use fast heuristic path (<10ms), 20% use LLM (~300ms)  // IMPACT: Enables intent-specific pipelines for better answer quality  const hierarchicalResult = await handleHierarchicalIntent(query, userId);  const { hierarchicalIntent, pipelineConfig, answerPlan } = hierarchicalResult;  // Handle clarification_needed intent (early return)  if (hierarchicalResult.handled && hierarchicalResult.clarificationMessage) {    if (onChunk) onChunk(hierarchicalResult.clarificationMessage);    if (onStage) onStage('complete', 'Complete');    return { sources: [] };  }
+  // STEP -1.7: HIERARCHICAL INTENT CLASSIFICATION (Two-Stage: Heuristic + LLM)
+  // ============================================================================
+  // REASON: Better intent classification for summarization, comparison, transformation
+  // WHY: 80% of queries use fast heuristic path (<10ms), 20% use LLM (~300ms)
+  // IMPACT: Enables intent-specific pipelines for better answer quality
+  const hierarchicalResult = await handleHierarchicalIntent(query, userId);
+  const { hierarchicalIntent, pipelineConfig, answerPlan } = hierarchicalResult;
+
+  // Handle clarification_needed intent (early return)
+  if (hierarchicalResult.handled && hierarchicalResult.clarificationMessage) {
+    if (onChunk) onChunk(hierarchicalResult.clarificationMessage);
+    if (onStage) onStage('complete', 'Complete');
+    return { sources: [] };
+  }
   // STEP -1.5: REFUSAL DETECTION (Actions we cannot perform)
   // ============================================================================
   // Handle requests that Koda cannot fulfill (email, calls, bookings, etc.)
@@ -4299,7 +4312,7 @@ Respond in the same language as the user's question.`;
   // STEP 7: Regular Queries - Standard RAG
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   console.log('ðŸ“š [ROUTER] â†’ REGULAR RAG (standard document retrieval)');
-  return await handleRegularQuery(userId, query, conversationId, onChunk, attachedDocumentId, conversationHistory, onStage, memoryPromptContext, isFirstMessage, detectedLanguage, ragConfig);
+  return await handleRegularQuery(userId, query, conversationId, onChunk, attachedDocumentId, conversationHistory, onStage, memoryPromptContext, isFirstMessage, detectedLanguage, ragConfig, hierarchicalIntent ?? undefined);
 }
 
 // ============================================================================
@@ -6944,7 +6957,8 @@ async function handleRegularQuery(
   memoryContext?: string,
   isFirstMessage?: boolean,  // ? NEW: Flag to control greeting logic
   detectedLanguage?: string,  // ? Cultural Context Engine: Language for multilingual support
-  ragConfig: RAGConfig = DEFAULT_RAG_CONFIG  // RAG feature toggles
+  ragConfig: RAGConfig = DEFAULT_RAG_CONFIG,
+  hierarchicalIntent?: IntentResult  // PERF: Pass intent to avoid redundant LLM decomposition  // RAG feature toggles
 ): Promise<{ sources: any[] }> {
 
   // â±ï¸ PERFORMANCE: Start timing with instrumentation
@@ -7036,7 +7050,23 @@ async function handleRegularQuery(
   // IMPACT: Fast for simple queries, accurate for complex queries
 
   perfTimer.mark('queryAnalysis');
-  const queryAnalysis = await analyzeQueryComplexity(query);
+  // PERF FIX: Reuse subQuestions from hierarchicalIntent if already decomposed (saves ~300ms LLM call)
+  let queryAnalysis: QueryAnalysis;
+
+  if (hierarchicalIntent?.subQuestions && hierarchicalIntent.subQuestions.length > 0) {
+    // Use decomposition from hierarchicalIntentClassifier (already done, no extra LLM call)
+    console.log('[PERF] Using subQuestions from hierarchicalIntent (saved ~300ms LLM call)');
+    queryAnalysis = {
+      isComplex: true,
+      queryType: hierarchicalIntent.primaryIntent === 'comparison' ? 'comparison' :
+                 hierarchicalIntent.primaryIntent === 'synthesis' ? 'cross_document' : 'sequential',
+      subQueries: hierarchicalIntent.subQuestions.map((sq: { question: string }) => sq.question),
+      originalQuery: query
+    };
+  } else {
+    // Fallback to analyzeQueryComplexity for queries without pre-decomposition
+    queryAnalysis = await analyzeQueryComplexity(query);
+  }
   perfTimer.measure('Query Complexity Analysis', 'queryAnalysis');
 
   if (queryAnalysis.isComplex) {
@@ -7355,6 +7385,17 @@ Provide a comprehensive answer addressing all parts of the query.`;
     complexity === 'medium' ? 'medium' : 'long';
   perfTimer.measure('Complexity Detection', 'complexityDetection');
 
+  // PERF FIX: Context budget based on query complexity (Phase 3.2)
+  // Simple queries need fewer chunks = faster LLM response + lower token cost
+  // Complex queries need more context for accurate synthesis
+  const contextBudget: Record<string, { retrievalTopK: number; maxChunksForLLM: number }> = {
+    simple: { retrievalTopK: 5, maxChunksForLLM: 3 },
+    medium: { retrievalTopK: 10, maxChunksForLLM: 8 },
+    complex: { retrievalTopK: 20, maxChunksForLLM: 15 }
+  };
+  const budget = contextBudget[complexity] || contextBudget.medium;
+  console.log(`📊 [CONTEXT BUDGET] complexity=${complexity} → retrievalTopK=${budget.retrievalTopK}, maxChunksForLLM=${budget.maxChunksForLLM}`);
+
   // ============================================================================
   // âœ… FIX: Use isFirstMessage parameter from controller
   // ============================================================================
@@ -7608,7 +7649,7 @@ Provide a comprehensive answer addressing all parts of the query.`;
 
     // ? FIX: Detect summary/aggregation queries and increase topK
     const isSummaryQuery = /(?:create|make|generate|summarize|summary|overview).*(?:report|summary|analysis|all|documents?|files?)/i.test(query);
-    const retrievalTopK = isSummaryQuery ? 20 : 5;
+    const retrievalTopK = isSummaryQuery ? Math.max(budget.retrievalTopK, 20) : budget.retrievalTopK;
     if (isSummaryQuery) {
       console.log(`?? [SUMMARY QUERY] Detected summary query, increasing topK to ${retrievalTopK}`);
     }
@@ -7676,22 +7717,21 @@ Provide a comprehensive answer addressing all parts of the query.`;
       // FIX #6: Use pre-computed embedding from parallel init
       const queryEmbedding = earlyEmbedding;
 
-      // âœ… FIX: Use retrievalTopK for summary queries
-      if (requestTimer) requestTimer.start('Pinecone Query (hybrid)');
-      rawResults = await pineconeIndex.query({
-        vector: queryEmbedding,
-        topK: Math.min(retrievalTopK, 20), // PERF FIX: Cap at 20 instead of 2x multiplier
-        filter,
-        includeMetadata: true,
-      });
-      if (requestTimer) requestTimer.end('Pinecone Query (hybrid)');
+      // PERF: Parallelize Pinecone + BM25 searches (saves ~500-1000ms)
+      if (requestTimer) requestTimer.start('Parallel: Pinecone + BM25 (hybrid)');
+      const [pineconeResult, bm25HybridResults] = await Promise.all([
+        pineconeIndex.query({
+          vector: queryEmbedding,
+          topK: Math.min(retrievalTopK, 20), // PERF FIX: Cap at 20 instead of 2x multiplier
+          filter,
+          includeMetadata: true,
+        }),
+        bm25RetrievalService.hybridSearch(query, [], userId, Math.min(retrievalTopK, 20)) // PERF FIX: Cap at 20
+      ]);
+      rawResults = pineconeResult;
+      if (requestTimer) requestTimer.end('Parallel: Pinecone + BM25 (hybrid)');
 
-      console.log(`ðŸ” [HYBRID] Vector results: ${rawResults.matches?.length || 0} chunks`);
-
-      // âœ… RRF MERGING: Get BM25 results and merge with RRF algorithm
-      if (requestTimer) requestTimer.start('BM25 Search (hybrid)');
-      const bm25HybridResults = await bm25RetrievalService.hybridSearch(query, [], userId, Math.min(retrievalTopK, 20)); // PERF FIX: Cap at 20
-      if (requestTimer) requestTimer.end('BM25 Search (hybrid)');
+      console.log(`[HYBRID] Vector results: ${rawResults.matches?.length || 0} chunks`);
 
       // Convert to format expected by mergeWithRRF
       const vectorResultsForRRF = (rawResults.matches || []).map((match: any) => ({
@@ -7728,26 +7768,39 @@ Provide a comprehensive answer addressing all parts of the query.`;
       // FIX #6: Use pre-computed embedding from parallel init
       const queryEmbedding = earlyEmbedding;
 
-      // 1. Vector search (increased topK for better RRF merging)
-      console.log('[DEBUG] Vector search');
-      if (requestTimer) requestTimer.start('Pinecone Query (vector+hybrid)');
-      rawResults = await pineconeIndex.query({
-        vector: queryEmbedding,
-        topK: 20, // PERF FIX: Reduced from 40 to 20 for 40% faster search
-        filter,
-        includeMetadata: true,
-      });
-      if (requestTimer) requestTimer.end('Pinecone Query (vector+hybrid)');
+      // 1. ✅ PERF: Parallelize Vector + BM25 searches (saves ~500-1000ms)
+      console.log('[DEBUG] Starting parallel Vector + BM25 search');
+      if (requestTimer) requestTimer.start('Parallel: Pinecone + BM25 (default hybrid)');
 
-      console.log(`[DEBUG] Vector results: ${rawResults.matches?.length || 0}`);
-
-      // 2. BM25 search with RRF merging
+      let bm25HybridResults: any[] = [];
       try {
-        console.log('[DEBUG] BM25 search with RRF merging');
-        if (requestTimer) requestTimer.start('BM25 Search + RRF');
+        const [pineconeResult, bm25Results] = await Promise.all([
+          pineconeIndex.query({
+            vector: queryEmbedding,
+            topK: 20, // PERF FIX: Reduced from 40 to 20 for 40% faster search
+            filter,
+            includeMetadata: true,
+          }),
+          bm25RetrievalService.hybridSearch(query, [], userId, 20) // PERF FIX: Reduced from 40 to 20
+        ]);
+        rawResults = pineconeResult;
+        bm25HybridResults = bm25Results;
+      } catch (parallelError) {
+        console.error('[ERROR] Parallel search failed, falling back to sequential:', parallelError);
+        rawResults = await pineconeIndex.query({
+          vector: queryEmbedding,
+          topK: 20,
+          filter,
+          includeMetadata: true,
+        });
+        bm25HybridResults = await bm25RetrievalService.hybridSearch(query, [], userId, 20);
+      }
+      if (requestTimer) requestTimer.end('Parallel: Pinecone + BM25 (default hybrid)');
 
-        // Get BM25 results independently (not merged yet)
-        const bm25HybridResults = await bm25RetrievalService.hybridSearch(query, [], userId, 20); // PERF FIX: Reduced from 40 to 20
+      console.log(`[DEBUG] Vector results: ${rawResults.matches?.length || 0}, BM25 results: ${bm25HybridResults.length}`);
+
+      // 2. Process BM25 results with RRF merging
+      try {
 
         // Convert to format expected by mergeWithRRF
         const vectorResultsForRRF = (rawResults.matches || []).map((match: any) => ({

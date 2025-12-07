@@ -100,7 +100,7 @@ const BASE_CONFIG: PipelineConfig = {
   routing: 'single',
   retrieval: {
     strategy: 'standard',
-    topK: 50,
+    topK: 20, // PERF FIX: Reduced from 50
   },
   reranking: {
     enabled: true,
@@ -129,7 +129,7 @@ export function getPipelineConfig(intent: IntentResult): PipelineConfig {
       config.routing = 'multi-document';
       config.retrieval = {
         strategy: 'per-dimension',
-        topK: 30,  // Per document
+        topK: 20,  // Per document // PERF FIX: Reduced from 30
         chunkTypeBoosts: CHUNK_TYPE_BOOSTS.comparison,
       };
       config.reranking = {
@@ -171,7 +171,7 @@ export function getPipelineConfig(intent: IntentResult): PipelineConfig {
       config.routing = 'single';
       config.retrieval = {
         strategy: 'purpose-relevant',
-        topK: 30,
+        topK: 20, // PERF FIX: Reduced from 30
         chunkTypeBoosts: CHUNK_TYPE_BOOSTS.purposeRelevant,
       };
       config.reranking = {
@@ -233,7 +233,7 @@ export function getPipelineConfig(intent: IntentResult): PipelineConfig {
       config.routing = 'all-documents';
       config.retrieval = {
         strategy: 'standard',
-        topK: 100,  // Need broad coverage
+        topK: 30,  // Need broad coverage // PERF FIX: Reduced from 100
       };
       config.reranking = {
         enabled: true,
