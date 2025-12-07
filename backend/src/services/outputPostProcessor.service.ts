@@ -27,6 +27,7 @@ export interface PostProcessingResult {
   rawLinksRemoved: number;
   duplicatesRemoved: number;
   emojisRemoved: number;
+  mojibakeFixed: number;
 }
 
 export interface PostProcessingOptions {
@@ -37,6 +38,7 @@ export interface PostProcessingOptions {
   ensureNumericCitations?: boolean;
   removeDuplicates?: boolean;
   removeAllEmojis?: boolean;
+  fixMojibake?: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -58,6 +60,7 @@ export async function postProcessAnswer(
     ensureNumericCitations = true,
     removeDuplicates = true,
     removeAllEmojis = false,
+    fixMojibake = true,
   } = options;
 
   let cleaned = answer;
@@ -67,6 +70,17 @@ export async function postProcessAnswer(
   let rawLinksRemoved = 0;
   let duplicatesRemoved = 0;
   let emojisRemoved = 0;
+  let mojibakeFixed = 0;
+
+  // Step 0: Fix UTF-8 Mojibake (run first to fix encoding issues)
+  if (fixMojibake) {
+    const mojibakeResult = repairMojibake(cleaned);
+    cleaned = mojibakeResult.text;
+    mojibakeFixed = mojibakeResult.count;
+    if (mojibakeResult.count > 0) {
+      console.log('[POST-PROCESS] Fixed', mojibakeResult.count, 'mojibake encoding issues');
+    }
+  }
 
   // Step 1: Remove "Source" or "Sources" section
   if (removeSourceSection) {
@@ -131,6 +145,7 @@ export async function postProcessAnswer(
     rawLinksRemoved,
     duplicatesRemoved,
     emojisRemoved,
+    mojibakeFixed,
   };
 }
 
@@ -267,6 +282,162 @@ function finalCleanup(text: string): string {
     .trim();
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UTF-8 MOJIBAKE DETECTION AND REPAIR
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Common UTF-8 mojibake patterns - stored as string pairs for safe TypeScript parsing
+ * These occur when UTF-8 text is misinterpreted as Latin-1 (ISO-8859-1)
+ * Using hex escapes for characters that would break string parsing
+ */
+const MOJIBAKE_MAP: Record<string, string> = {
+  // Portuguese lowercase - most common mojibake patterns
+  '\u00C3\u00A1': '\u00E1',  // Ã¡ -> á
+  '\u00C3\u00A0': '\u00E0',  // Ã  -> à
+  '\u00C3\u00A2': '\u00E2',  // Ã¢ -> â
+  '\u00C3\u00A3': '\u00E3',  // Ã£ -> ã
+  '\u00C3\u00A4': '\u00E4',  // Ã¤ -> ä
+  '\u00C3\u00A7': '\u00E7',  // Ã§ -> ç
+  '\u00C3\u00A9': '\u00E9',  // Ã© -> é
+  '\u00C3\u00A8': '\u00E8',  // Ã¨ -> è
+  '\u00C3\u00AA': '\u00EA',  // Ãª -> ê
+  '\u00C3\u00AB': '\u00EB',  // Ã« -> ë
+  '\u00C3\u00AD': '\u00ED',  // Ã­ -> í
+  '\u00C3\u00AC': '\u00EC',  // Ã¬ -> ì
+  '\u00C3\u00AE': '\u00EE',  // Ã® -> î
+  '\u00C3\u00AF': '\u00EF',  // Ã¯ -> ï
+  '\u00C3\u00B3': '\u00F3',  // Ã³ -> ó
+  '\u00C3\u00B2': '\u00F2',  // Ã² -> ò
+  '\u00C3\u00B4': '\u00F4',  // Ã´ -> ô
+  '\u00C3\u00B5': '\u00F5',  // Ãµ -> õ
+  '\u00C3\u00B6': '\u00F6',  // Ã¶ -> ö
+  '\u00C3\u00BA': '\u00FA',  // Ãº -> ú
+  '\u00C3\u00B9': '\u00F9',  // Ã¹ -> ù
+  '\u00C3\u00BB': '\u00FB',  // Ã» -> û
+  '\u00C3\u00BC': '\u00FC',  // Ã¼ -> ü
+  '\u00C3\u00B1': '\u00F1',  // Ã± -> ñ
+  '\u00C3\u00BD': '\u00FD',  // Ã½ -> ý
+  '\u00C3\u00BF': '\u00FF',  // Ã¿ -> ÿ
+
+  // Portuguese uppercase
+  '\u00C3\u0080': '\u00C0',  // Ã€ -> À
+  '\u00C3\u0082': '\u00C2',  // Ã‚ -> Â
+  '\u00C3\u0083': '\u00C3',  // Ãƒ -> Ã
+  '\u00C3\u0084': '\u00C4',  // Ã„ -> Ä
+  '\u00C3\u0087': '\u00C7',  // Ã‡ -> Ç
+  '\u00C3\u0088': '\u00C8',  // Ãˆ -> È
+  '\u00C3\u0089': '\u00C9',  // Ã‰ -> É
+  '\u00C3\u008A': '\u00CA',  // ÃŠ -> Ê
+  '\u00C3\u008B': '\u00CB',  // Ã‹ -> Ë
+  '\u00C3\u008C': '\u00CC',  // ÃŒ -> Ì
+  '\u00C3\u008E': '\u00CE',  // ÃŽ -> Î
+  '\u00C3\u0091': '\u00D1',  // Ã' -> Ñ
+  '\u00C3\u0092': '\u00D2',  // Ã' -> Ò
+  '\u00C3\u0093': '\u00D3',  // Ã" -> Ó
+  '\u00C3\u0094': '\u00D4',  // Ã" -> Ô
+  '\u00C3\u0095': '\u00D5',  // Ã• -> Õ
+  '\u00C3\u0096': '\u00D6',  // Ã– -> Ö
+  '\u00C3\u0099': '\u00D9',  // Ã™ -> Ù
+  '\u00C3\u009A': '\u00DA',  // Ãš -> Ú
+  '\u00C3\u009B': '\u00DB',  // Ã› -> Û
+  '\u00C3\u009C': '\u00DC',  // Ãœ -> Ü
+
+  // Special characters - dashes and quotes
+  '\u00E2\u0080\u0093': '\u2013',  // â€" -> en-dash
+  '\u00E2\u0080\u0094': '\u2014',  // â€" -> em-dash
+  '\u00E2\u0080\u0098': '\u2018',  // â€˜ -> left single quote
+  '\u00E2\u0080\u0099': '\u2019',  // â€™ -> right single quote
+  '\u00E2\u0080\u009C': '\u201C',  // â€œ -> left double quote
+  '\u00E2\u0080\u009D': '\u201D',  // â€ -> right double quote
+  '\u00E2\u0080\u00A6': '\u2026',  // â€¦ -> ellipsis
+  '\u00E2\u0080\u00A2': '\u2022',  // â€¢ -> bullet
+
+  // Symbols
+  '\u00C2\u00B0': '\u00B0',  // Â° -> degree
+  '\u00C2\u00A9': '\u00A9',  // Â© -> copyright
+  '\u00C2\u00AE': '\u00AE',  // Â® -> registered
+  '\u00E2\u0084\u00A2': '\u2122',  // â„¢ -> trademark
+  '\u00E2\u0082\u00AC': '\u20AC',  // â‚¬ -> euro
+  '\u00C2\u00A3': '\u00A3',  // Â£ -> pound
+  '\u00C2\u00A5': '\u00A5',  // Â¥ -> yen
+  '\u00C2\u00BD': '\u00BD',  // Â½ -> 1/2
+  '\u00C2\u00BC': '\u00BC',  // Â¼ -> 1/4
+  '\u00C2\u00BE': '\u00BE',  // Â¾ -> 3/4
+  '\u00C3\u0097': '\u00D7',  // Ã— -> multiplication
+  '\u00C3\u00B7': '\u00F7',  // Ã· -> division
+  '\u00C2\u00B1': '\u00B1',  // Â± -> plus-minus
+  '\u00C2\u00BF': '\u00BF',  // Â¿ -> inverted question
+  '\u00C2\u00A1': '\u00A1',  // Â¡ -> inverted exclamation
+  '\u00C2\u00AB': '\u00AB',  // Â« -> left guillemet
+  '\u00C2\u00BB': '\u00BB',  // Â» -> right guillemet
+  '\u00C2\u00A7': '\u00A7',  // Â§ -> section
+  '\u00C2\u00B6': '\u00B6',  // Â¶ -> pilcrow
+  '\u00C2\u00B7': '\u00B7',  // Â· -> middle dot
+  '\u00C2\u00BA': '\u00BA',  // Âº -> masculine ordinal
+  '\u00C2\u00AA': '\u00AA',  // Âª -> feminine ordinal
+
+  // Cleanup artifacts
+  '\u00C3\u0082\u00C2': '',  // Double-encoding artifact
+  '\u00C2\u00A0': ' ',       // Non-breaking space artifact
+};
+
+/**
+ * Detect if text contains mojibake patterns
+ * Returns true if likely mojibake is present
+ */
+function detectMojibake(text: string): boolean {
+  if (!text) return false;
+
+  // Check for any known mojibake pattern
+  for (const pattern of Object.keys(MOJIBAKE_MAP)) {
+    if (text.includes(pattern)) {
+      return true;
+    }
+  }
+
+  // Additional pattern: Ã followed by common Latin-1 byte values
+  if (/Ã[\u00A0-\u00BF\u00C0-\u00FF]/i.test(text)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Repair mojibake by replacing known bad patterns with correct UTF-8 characters
+ */
+function repairMojibake(text: string): { text: string; count: number } {
+  if (!text) return { text, count: 0 };
+
+  // Quick check - if no mojibake detected, return early
+  if (!detectMojibake(text)) {
+    return { text, count: 0 };
+  }
+
+  let cleaned = text;
+  let count = 0;
+
+  // Apply all replacements from the map
+  for (const [badPattern, goodChar] of Object.entries(MOJIBAKE_MAP)) {
+    if (cleaned.includes(badPattern)) {
+      const occurrences = cleaned.split(badPattern).length - 1;
+      count += occurrences;
+      cleaned = cleaned.split(badPattern).join(goodChar);
+    }
+  }
+
+  // Final cleanup: remove any remaining standalone Ã that are artifacts
+  const artifactPattern = /Ã(?=\s|$)/g;
+  const artifactMatches = cleaned.match(artifactPattern);
+  if (artifactMatches) {
+    count += artifactMatches.length;
+    cleaned = cleaned.replace(artifactPattern, '');
+  }
+
+  return { text: cleaned, count };
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // EMOJI REMOVAL
