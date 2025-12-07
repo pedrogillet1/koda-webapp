@@ -8745,6 +8745,58 @@ Provide a comprehensive answer addressing all parts of the query.`;
     perfTimer.measure('Adaptive Answer Generation', 'adaptiveAnswerGeneration');
     console.log(`â±ï¸ [PERF] Generation took ${Date.now() - startTime}ms`);
 
+    // ============================================================
+    // QUALITY ASSURANCE GATE
+    // ============================================================
+    console.log('[QA-GATE] Running quality assurance checks...');
+    const qaStartTime = Date.now();
+
+    try {
+      const qaResult = await runQualityAssurance(
+        fullResponse,
+        sortedChunks.slice(0, 5),
+        query,
+        {
+          enableGrounding: true,
+          enableCitations: true,
+          enableCompleteness: true,
+          enableFormatting: true,
+          strictMode: false
+        }
+      );
+
+      console.log('[QA-GATE] Quality scores:', {
+        overall: qaResult.score.overall.toFixed(2),
+        grounding: qaResult.score.grounding.toFixed(2),
+        citations: qaResult.score.citations.toFixed(2),
+        completeness: qaResult.score.completeness.toFixed(2),
+        formatting: qaResult.score.formatting.toFixed(2)
+      });
+
+      if (qaResult.issues.length > 0) {
+        console.log('[QA-GATE] Issues detected:', qaResult.issues);
+      }
+
+      if (qaResult.action === 'fail') {
+        console.log('[QA-GATE] FAILED - Critical quality issues');
+        fullResponse = "Desculpe, não consegui gerar uma resposta confiável com base nos documentos disponíveis. Por favor, reformule sua pergunta ou forneça mais contexto.";
+      } else if (qaResult.action === 'regenerate') {
+        console.log('[QA-GATE] REGENERATE - Quality below threshold');
+        console.warn('[QA-GATE] Regeneration not yet implemented, passing through with warning');
+      } else {
+        console.log('[QA-GATE] PASSED - Quality checks successful');
+      }
+
+      console.log(`[QA-GATE] Completed in ${Date.now() - qaStartTime}ms`);
+
+    } catch (qaError) {
+      console.error('[QA-GATE] Error during quality assurance:', qaError);
+    }
+
+    // ============================================================
+    // END QUALITY ASSURANCE GATE
+    // ============================================================
+
     // ============================================================================
     // NEW: CONFIDENCE SCORING - Calculate answer confidence
     // ============================================================================
