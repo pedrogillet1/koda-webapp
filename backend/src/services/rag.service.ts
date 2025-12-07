@@ -785,24 +785,6 @@ interface CachedIntent {
 
 const intentCache = new Map<string, CachedIntent>();
 const INTENT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-function getCachedIntent(query: string): any | null {
-  const normalizedQuery = query.toLowerCase().trim();
-  const cached = intentCache.get(normalizedQuery);
-
-  if (!cached) return null;
-
-  const age = Date.now() - cached.timestamp;
-  if (age > INTENT_CACHE_TTL) {
-    intentCache.delete(normalizedQuery);
-    console.log('ðŸ—‘ï¸ [INTENT CACHE] Expired cache entry removed');
-    return null;
-  }
-
-  console.log(`âš¡ [INTENT CACHE] Cache hit! (age: ${Math.round(age / 1000)}s)`);
-  return cached.result;
-}
-
 function cacheIntent(query: string, result: any): void {
   const normalizedQuery = query.toLowerCase().trim();
   intentCache.set(normalizedQuery, {
@@ -973,49 +955,6 @@ function buildDocumentContext(
   return context;
 }
 
-/**
- * Build conversation context from message history
- */
-function buildConversationContext(
-  conversationHistory?: Array<{ role: string; content: string }>,
-  maxTokens: number = 100000
-): string {
-
-  if (!conversationHistory || conversationHistory.length === 0) {
-    return '';
-  }
-
-  console.log(`ðŸ“š [CONTEXT] Building conversation history (${conversationHistory.length} messages)`);
-
-  let context = '## Conversation History\n\n';
-  let tokenCount = 0;
-
-  // Start from most recent and work backwards
-  const reversedHistory = [...conversationHistory].reverse();
-  const includedMessages = [];
-
-  for (const message of reversedHistory) {
-    const messageText = `**${message.role === 'user' ? 'User' : 'KODA'}**: ${message.content}\n\n`;
-
-    // Rough token estimation (1 token â‰ˆ 4 characters)
-    const messageTokens = messageText.length / 4;
-
-    if (tokenCount + messageTokens > maxTokens) {
-      console.log(`ðŸ“š [CONTEXT] Reached token limit, truncating history`);
-      break;
-    }
-
-    includedMessages.unshift(messageText); // Add to beginning to maintain order
-    tokenCount += messageTokens;
-  }
-
-  context += includedMessages.join('');
-
-  console.log(`ðŸ“š [CONTEXT] Built history with ${includedMessages.length} messages (~${Math.floor(tokenCount)} tokens)`);
-
-  return context;
-}
-
 // ============================================================================
 // STRUCTURED REASONING PROMPTS - Complex Query Analysis
 // ============================================================================
@@ -1061,103 +1000,6 @@ function detectQueryComplexity(query: string): 'simple' | 'medium' | 'complex' {
   // Default to medium
   return 'medium';
 }
-
-/**
- * Build structured reasoning prompt for better synthesis
- */
-function buildReasoningPrompt(query: string, complexity: 'simple' | 'medium' | 'complex'): string {
-
-  const baseInstructions = `
-Answer the user's question based on the provided documents and conversation history.
-
-**CRITICAL RULES:**
-1. Only use information from the provided documents
-2. Cite sources for every claim using document titles in **bold**
-3. If information is missing or unclear, state this explicitly
-4. If documents contradict each other, point this out clearly
-5. Use Markdown formatting (bold, lists, etc.)
-
-**CITATION REQUIREMENT (CRITICAL):**
-At the end of your answer, you MUST include a hidden citation block listing which documents you used:
-
----CITATIONS---
-documentId: abc123, pages: [1, 3, 5]
-documentId: def456, pages: [2]
----END_CITATIONS---
-
-Rules for citations:
-- Only list documents you actually referenced in your answer
-- Include the documentId exactly as provided in the context (e.g., "documentId: clm123abc")
-- List the page numbers you referenced (if available)
-- If you didn't use any documents, write: ---CITATIONS---\nNONE\n---END_CITATIONS---
-- This section will be hidden from the user, so don't mention it in your answer
-- Do NOT include inline citations like [pg 1] or (document.pdf, page 2) in your answer text
-- Do NOT include document names, filenames, or source references anywhere in your answer
-- Do NOT add "Sources:", "Source:", "References:", or similar sections to your answer
-- The sources will be displayed separately in a dedicated UI section - your answer should be clean text only
-`;
-
-  if (complexity === 'simple') {
-    return baseInstructions + `
-**TASK:** Provide a direct, concise answer to the question.
-
-**FORMAT:**
-- Start with the direct answer
-- Keep it brief (2-3 sentences)
-- DO NOT include document names, citations, or source references (sources are displayed separately)
-`;
-  }
-
-  if (complexity === 'medium') {
-    return baseInstructions + `
-**TASK:** Analyze the documents and provide a comprehensive answer.
-
-**REASONING PROCESS:**
-1. Identify relevant information in each document
-2. Compare information across documents if multiple sources exist
-3. Synthesize a coherent answer
-
-**FORMAT:**
-- Start with a clear summary answer
-- Provide supporting details
-- Use bullet points for multiple items
-- DO NOT include citations, source lists, or document names in your answer (sources are displayed separately)
-`;
-  }
-
-  // Complex
-  return baseInstructions + `
-**TASK:** Conduct a thorough multi-document analysis.
-
-**REASONING PROCESS:**
-1. **Identify**: List all relevant documents and their key information
-2. **Extract**: Pull out specific facts, figures, and claims from each document
-3. **Compare**: Identify similarities and differences across documents
-4. **Validate**: Check for contradictions or inconsistencies
-5. **Synthesize**: Combine information into a coherent answer
-
-**OUTPUT FORMAT:**
-## Summary
-[Brief 2-3 sentence answer]
-
-## Detailed Analysis
-[Comprehensive analysis]
-
-### Key Findings
-- Finding 1
-- Finding 2
-- [etc.]
-
-### Contradictions or Uncertainties
-[If any contradictions found, list them here]
-
-## Confidence Assessment
-[Rate confidence 0-100% and explain why]
-
-**IMPORTANT:** DO NOT include source lists, document names, citations, or references in your answer. Sources are displayed separately in a dedicated section.
-`;
-}
-
 // ============================================================================
 // HYBRID RAG SERVICE - Simple, Reliable, 95%+ Success Rate
 // ============================================================================
@@ -1389,84 +1231,6 @@ interface CitationSource {
   pages: number[];
   score: number;
   mimeType?: string;
-}
-
-function buildAnswerWithCitations(
-  answer: string,
-  retrievedChunks: any[]
-): { answer: string; sources: CitationSource[] } {
-  // Group chunks by document
-  const docMap = new Map<string, {
-    pages: Set<number>;
-    filename: string;
-    score: number;
-    mimeType?: string;
-  }>();
-
-  retrievedChunks.forEach(chunk => {
-    const docId = chunk.metadata?.documentId || chunk.documentId;
-    if (!docId) return;
-
-    if (!docMap.has(docId)) {
-      docMap.set(docId, {
-        pages: new Set(),
-        filename: chunk.metadata?.filename || chunk.filename || 'Unknown',
-        score: chunk.score || chunk.rerankScore || chunk.hybridScore || 0,
-        mimeType: chunk.metadata?.mimeType || chunk.mimeType
-      });
-    }
-
-    const docInfo = docMap.get(docId)!;
-    const pageNum = chunk.metadata?.page || chunk.pageNumber;
-    if (pageNum && typeof pageNum === 'number') {
-      docInfo.pages.add(pageNum);
-    }
-
-    // Keep highest score
-    const chunkScore = chunk.score || chunk.rerankScore || chunk.hybridScore || 0;
-    if (chunkScore > docInfo.score) {
-      docInfo.score = chunkScore;
-    }
-  });
-
-  // Build sources array
-  const sources: CitationSource[] = [];
-  docMap.forEach((info, docId) => {
-    const pageList = Array.from(info.pages).sort((a, b) => a - b);
-    sources.push({
-      documentId: docId,
-      documentName: info.filename,
-      pages: pageList,
-      score: info.score,
-      mimeType: info.mimeType
-    });
-  });
-
-  // Sort by score descending
-  sources.sort((a, b) => b.score - a.score);
-
-  // ✅ FIX: Sources NOT appended to answer - displayed in frontend dropdown only
-  if (sources.length > 0) {
-    // NOTE: sourceLines kept for backwards compatibility but NOT appended to answer
-    const sourceLines: string[] = ['', '---', '**Sources:**'];
-    sources.forEach(src => {
-      const pageStr = src.pages.length > 0
-        ? ` (pages ${src.pages.join(', ')})`
-        : '';
-      sourceLines.push(`â€¢ **${src.documentName}**${pageStr}`);
-    });
-
-    console.log(`ðŸ“Ž [CITATION BUILDER] Added ${sources.length} sources to answer`);
-    sources.forEach((src, idx) => {
-      const pagesStr = src.pages.length > 0 ? `pages ${src.pages.join(', ')}` : 'no page info';
-      console.log(`   ${idx + 1}. ${src.documentName} (${pagesStr})`);
-    });
-
-    // ✅ FIX: Return sources without appending to answer
-    return { answer, sources };
-  }
-
-  return { answer, sources };
 }
 
 // ============================================================================
@@ -4788,35 +4552,6 @@ function isDocumentMentioned(queryLower: string, documentName: string): boolean 
 
   return matched;
 }
-
-/**
- * Extract potential document names from query
- * Examples:
- * - "what is pedro1 about" â†’ ["pedro1"]
- * - "compare pedro1 and pedro2" â†’ ["pedro1", "pedro2"]
- * - "tell me about the marketing report" â†’ ["marketing", "report"]
- */
-function extractDocumentNames(query: string): string[] {
-  const words = query.toLowerCase()
-    .replace(/[^\w\s]/g, ' ')  // Remove punctuation
-    .split(/\s+/)
-    .filter(w => w.length > 2);  // Ignore short words like "is", "me"
-
-  console.log('ðŸ” [EXTRACT] All words:', words);
-
-  // Remove common question words AND file extensions
-  const stopWords = new Set([
-    'what', 'tell', 'about', 'the', 'and', 'compare', 'between',
-    'show', 'find', 'get', 'give', 'how', 'why', 'when', 'where',
-    'can', 'you', 'please', 'summary', 'summarize', 'does', 'talk',
-    'pdf', 'doc', 'docx', 'txt', 'xlsx', 'xls', 'pptx', 'ppt', 'csv'
-  ]);
-
-  const result = words.filter(w => !stopWords.has(w));
-  console.log('ðŸ” [EXTRACT] After filtering stop words:', result);
-  return result;
-}
-
 /**
  * Extract section references from query
  *
@@ -5014,100 +4749,6 @@ function generateQueryCacheKey(userId: string, query: string): string {
   const normalized = query.toLowerCase().trim().replace(/\s+/g, ' ');
   return `${userId}:${normalized}`;
 }
-
-/**
- * Find documents by name with caching
- */
-async function findDocumentsByNameCached(userId: string, names: string[]): Promise<string[]> {
-  if (names.length === 0) return [];
-
-  // Create cache key
-  const cacheKey = `${userId}:${names.sort().join(',')}`;
-
-  // Check cache
-  const cached = documentNameCache.get(cacheKey);
-  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-    console.log(`âœ… [CACHE HIT] Document name lookup for ${names.join(', ')}`);
-    return cached.documentIds;
-  }
-
-  console.log(`âŒ [CACHE MISS] Document name lookup for ${names.join(', ')}`);
-
-  // Query database
-  const documentIds = await findDocumentsByName(userId, names);
-
-  // Cache result
-  documentNameCache.set(cacheKey, {
-    documentIds,
-    timestamp: Date.now()
-  });
-
-  // Clean old cache entries (every 100 queries - probabilistic)
-  if (Math.random() < 0.01) {
-    const now = Date.now();
-    for (const [key, entry] of documentNameCache.entries()) {
-      if (now - entry.timestamp > CACHE_TTL) {
-        documentNameCache.delete(key);
-      }
-    }
-  }
-
-  return documentIds;
-}
-
-/**
- * Find documents matching potential names using fuzzy matching
- */
-async function findDocumentsByName(
-  userId: string,
-  potentialNames: string[]
-): Promise<string[]> {
-  if (potentialNames.length === 0) return [];
-
-  console.log('ðŸ” [DOC SEARCH] Looking for documents matching:', potentialNames);
-
-  try {
-    // Get all user's documents from database
-    const allDocs = await prisma.document.findMany({
-      where: { userId, status: { not: 'deleted' } },
-      select: { id: true, filename: true },
-    });
-
-    console.log(`ðŸ“„ [DOC SEARCH] Checking ${allDocs.length} documents`);
-
-    // Fuzzy match against potential names
-    const matchedDocIds: string[] = [];
-
-    for (const doc of allDocs) {
-      const docLower = doc.filename.toLowerCase();
-      const docWithoutExt = docLower.replace(/\.(pdf|docx?|txt|xlsx?|pptx?|csv)$/i, '');
-
-      console.log(`ðŸ“„ [DOC SEARCH] Checking document: "${doc.filename}" (lower: "${docLower}", without ext: "${docWithoutExt}")`);
-
-      for (const potentialName of potentialNames) {
-        const match1 = docLower.includes(potentialName);
-        const match2 = potentialName.includes(docWithoutExt);
-        const match3 = docWithoutExt.includes(potentialName);
-
-        console.log(`  ðŸ” Testing "${potentialName}": docLower.includes="${match1}", potentialName.includes(docWithoutExt)="${match2}", docWithoutExt.includes="${match3}"`);
-
-        // Check if document name contains the potential name OR vice versa
-        if (match1 || match2 || match3) {
-          matchedDocIds.push(doc.id);
-          console.log(`  âœ… [DOC SEARCH] MATCHED "${potentialName}" â†’ "${doc.filename}"`);
-          break;
-        }
-      }
-    }
-
-    return matchedDocIds;
-
-  } catch (error) {
-    console.error('âŒ [DOC SEARCH] Error:', error);
-    return [];
-  }
-}
-
 // ============================================================================
 // COMPARISON HANDLER - GUARANTEE Multi-Document Retrieval
 // ============================================================================
@@ -5966,32 +5607,6 @@ function enhanceQueryForEntities(query: string, entityInfo: { isEntity: boolean;
   return enhanced;
 }
 
-/**
- * âœ… NEW: Extract entities from chunk text
- * Looks for pattern: "[Entities: Entity1, Entity2] ..."
- */
-function extractEntitiesFromChunks(chunks: Array<{ text: string; metadata?: any }>): string[] {
-  const entities: Set<string> = new Set();
-
-  // Pattern to match: "[Entities: Carlyle, Lone Mountain Ranch]"
-  const entityPattern = /\[Entities:\s*([^\]]+)\]/gi;
-
-  for (const chunk of chunks) {
-    const text = chunk.text || '';
-    let match;
-
-    while ((match = entityPattern.exec(text)) !== null) {
-      const entityList = match[1].split(',').map(e => e.trim()).filter(e => e.length > 0);
-      entityList.forEach(entity => entities.add(entity));
-    }
-  }
-
-  if (entities.size > 0) {
-    console.log(`ðŸ“Š [ENTITY EXTRACT] Found ${entities.size} unique entities: ${Array.from(entities).join(', ')}`);
-  }
-
-  return Array.from(entities);
-}
 
 /**
  * Build formula context for LLM prompt
@@ -6783,109 +6398,6 @@ async function handleDomainKnowledgeQuery(
   } catch (error: any) {
     console.error(`? [DOMAIN] Error:`, error.message);
     return { handled: false };
-  }
-}
-
-// -------------------------------------------------------------------------------
-// CROSS-DOCUMENT SYNTHESIS HANDLER
-
-// -------------------------------------------------------------------------------
-// TERMINOLOGY INTELLIGENCE QUERY HANDLER
-// -------------------------------------------------------------------------------
-// PURPOSE: Answer "What is X?" with ChatGPT-level explanations
-// WHY: Transform "mentioned in 12 papers" ? full definition + formula + interpretation + stats
-// HOW: Detect terminology queries, extract from docs, aggregate values, format response
-// IMPACT: Academic-quality explanations grounded in user's documents
-
-async function handleTerminologyIntelligenceQuery(
-  userId: string,
-  query: string,
-  onChunk: (chunk: string) => void,
-  documentChunks?: Array<{ content: string; documentId: string; documentName?: string }>
-): Promise<{ handled: boolean; sources?: any[] }> {
-  // Detect if this is a terminology question
-  const { isTerm, term } = terminologyIntelligenceService.isTerminologyQuestion(query);
-
-  if (!isTerm || !term) {
-    return { handled: false };
-  }
-
-  console.log(`?? [TERMINOLOGY] Detected terminology query for: "${term}"`);
-
-  try {
-    // If we have document chunks, use them; otherwise we need to search for relevant chunks
-    let chunksToUse = documentChunks || [];
-
-    // If no chunks provided, search for relevant content
-    if (chunksToUse.length === 0) {
-      // Get relevant document chunks for this term from the user's documents
-      const searchResults = await searchDocumentsForTerm(userId, term);
-      chunksToUse = searchResults;
-    }
-
-    // Generate the terminology response
-    const response = await terminologyIntelligenceService.answerTerminologyQuestion(
-      userId,
-      term,
-      chunksToUse,
-      {
-        includeFormula: true,
-        includeInterpretation: true,
-        includeDocumentValues: true,
-      }
-    );
-
-    // Format as string and stream
-    const formattedResponse = terminologyIntelligenceService.formatAsString(response);
-
-    if (onChunk && formattedResponse) {
-      onChunk(formattedResponse);
-    }
-
-    console.log(`   ? Terminology response generated (confidence: ${response.confidence.toFixed(2)})`);
-
-    return {
-      handled: true,
-      sources: [], // Sources are embedded in the response
-    };
-  } catch (error: any) {
-    console.error(`? [TERMINOLOGY] Error:`, error.message);
-    return { handled: false };
-  }
-}
-
-// Helper function to search for relevant document chunks for a term
-async function searchDocumentsForTerm(
-  userId: string,
-  term: string
-): Promise<Array<{ content: string; documentId: string; documentName?: string }>> {
-  try {
-    // Ensure Pinecone is initialized
-    await initializePinecone();
-
-    // Generate embedding for the term
-    const termEmbeddingResult = await embeddingService.generateEmbedding(term);
-
-    // ðŸ”€ HYBRID RETRIEVAL: Use combined Vector + BM25 search
-    const hybridResults = await performHybridRetrieval(
-      term,
-      termEmbeddingResult.embedding,
-      userId,
-      20, // topK
-      { userId: userId }
-    );
-
-    // Transform hybrid results to document chunks format
-    return (hybridResults.matches || [])
-      .filter((match: any) => match.metadata)
-      .map((match: any) => ({
-        content: match.metadata.text || match.metadata.content || '',
-        documentId: match.metadata.documentId || 'unknown',
-        documentName: match.metadata.filename || match.metadata.documentName || 'Unknown',
-      }));
-  } catch (error) {
-    console.error('Error searching for term in documents:', error);
-    return [];
   }
 }
 // -------------------------------------------------------------------------------
@@ -8854,11 +8366,11 @@ Provide a comprehensive answer addressing all parts of the query.`;
     console.log('[MASTER-FORMATTER] Complete - Language:', formattedResult.language);
 
     // Legacy compatibility
-    const formatResult = { violations: [], fixedText: fullResponse };
+    const formatResult = { violations: [] as any[], fixedText: fullResponse };
 
     if (formatResult.violations.length > 0) {
       console.log(`âœï¸ [FORMAT] Fixed ${formatResult.violations.length} violations:`,
-        formatResult.violations.filter(v => v.severity === 'error').map(v => v.type).join(', '));
+        formatResult.violations.filter((v: any) => v.severity === 'error').map((v: any) => v.type).join(', '));
     }
     fullResponse = formatResult.fixedText || fullResponse;
 
@@ -10504,36 +10016,6 @@ async function handleFolderListingQuery(
     onChunk('I encountered an error while fetching your folders. Please try again.');
     return { sources: [] };
   }
-}
-
-/**
- * Build folder tree from flat folder list
- */
-function buildFolderTree(folders: any[]): any[] {
-  const folderMap = new Map();
-  const rootFolders: any[] = [];
-
-  // Create map of all folders
-  folders.forEach(folder => {
-    folderMap.set(folder.id, { ...folder, children: [] });
-  });
-
-  // Build tree structure
-  folders.forEach(folder => {
-    const folderNode = folderMap.get(folder.id);
-    if (folder.parentFolderId) {
-      const parent = folderMap.get(folder.parentFolderId);
-      if (parent) {
-        parent.children.push(folderNode);
-      } else {
-        rootFolders.push(folderNode);
-      }
-    } else {
-      rootFolders.push(folderNode);
-    }
-  });
-
-  return rootFolders;
 }
 
 /**
