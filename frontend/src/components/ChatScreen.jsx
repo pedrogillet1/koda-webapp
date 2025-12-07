@@ -5,11 +5,15 @@ import ChatHistory from './ChatHistory';
 import ChatInterface from './ChatInterface';
 import NotificationPanel from './NotificationPanel';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useAuth } from '../context/AuthContext';
+import { useOnboarding } from '../context/OnboardingContext';
 import chatService from '../services/chatService';
 
 const ChatScreen = () => {
     const location = useLocation();
     const isMobile = useIsMobile();
+    const { isAuthenticated } = useAuth();
+    const { open: openOnboarding } = useOnboarding();
     const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
     const [showMobileChatHistory, setShowMobileChatHistory] = useState(false);
     const initialConversationAddedRef = useRef(false); // Track if initial conversation was added to history
@@ -128,6 +132,24 @@ const ChatScreen = () => {
             initialConversationAddedRef.current = true; // Mark as handled to prevent duplicate checks
         }
     }, [currentConversation, updateConversationInList]); // Run when either becomes available
+
+    // Auto-open onboarding on first visit (desktop only)
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        if (isMobile || window.innerWidth < 1024) return;
+        if (!isAuthenticated) return;
+
+        const onboardingCompleted = localStorage.getItem('koda_onboarding_completed');
+        if (onboardingCompleted === 'true') return;
+
+        // Auto-open onboarding after a short delay
+        const timer = setTimeout(() => {
+            console.log('🚀 [ChatScreen] Auto-opening onboarding for first-time user');
+            openOnboarding(0, 'auto');
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [isMobile, isAuthenticated, openOnboarding]);
 
     const handleSelectConversation = (conversation) => {
         setCurrentConversation(conversation);

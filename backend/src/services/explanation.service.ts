@@ -107,9 +107,7 @@ class ExplanationService {
 
     const content = finalResponse.choices[0].message.content || 'I could not generate a response.';
 
-    if (sources.length > 0) {
-      return `${content}\n\n**Sources:**\n- ${sources.join('\n- ')}`;
-    }
+    // Sources are now shown as inline pill citations only - no text-based source section
     return content;
   }
 
@@ -157,18 +155,8 @@ class ExplanationService {
     const sources: string[] = [];
 
     if (claims.length > 0) {
-      // Get trusted domains from database
-      let trustedDomains: string[] = [];
-      try {
-        const trustedSources = await prisma.trustedSource.findMany({
-          where: { isActive: true },
-          orderBy: { priority: 'desc' },
-        });
-        trustedDomains = trustedSources.map((s) => s.domain);
-      } catch {
-        // Fallback to default trusted domains if table doesn't exist yet
-        trustedDomains = ['wikipedia.org', 'britannica.com', 'scholar.google.com'];
-      }
+      // Use default trusted domains (TrustedSource table removed)
+      const trustedDomains: string[] = ['wikipedia.org', 'britannica.com', 'scholar.google.com'];
 
       for (const claim of claims) {
         // Build search query with trusted domains
@@ -441,10 +429,7 @@ Provide your explanation now:`;
 
     let finalResponse = response.choices[0]?.message?.content || '';
 
-    // Append sources if available
-    if (sources.length > 0) {
-      finalResponse += `\n\n**Sources:**\n- ${sources.join('\n- ')}`;
-    }
+    // Sources are now shown as inline pill citations only - no text-based source section
 
     console.log('[ExplanationService] Pipeline complete, response length:', finalResponse.length);
 

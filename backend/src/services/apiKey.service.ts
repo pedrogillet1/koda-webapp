@@ -1,6 +1,6 @@
 import prisma from '../config/database';
 import crypto from 'crypto';
-import auditLogService, { AuditAction, AuditStatus } from './auditLog.service';
+import { auditLogService, AuditAction, AuditStatus } from './securityStubs.service';
 
 /**
  * API Key Management Service

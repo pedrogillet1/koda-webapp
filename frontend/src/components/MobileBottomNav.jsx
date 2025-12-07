@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 // Import icons - outline only
-import { ReactComponent as HouseIcon } from '../assets/Untitled design (10) 1.svg';
+import { ReactComponent as HouseIcon } from '../assets/House.svg';
 import { ReactComponent as FolderIcon } from '../assets/Folder.svg';
 import { ReactComponent as UploadIcon } from '../assets/Logout-white.svg';
 import { ReactComponent as MessageIcon } from '../assets/Message circle.svg';
@@ -154,9 +154,9 @@ const MobileBottomNav = () => {
             <div
               className="mobile-bottom-nav-item-icon"
               style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '50%',
+                width: active ? '36px' : 'auto',
+                height: active ? '36px' : 'auto',
+                borderRadius: active ? '50%' : '0',
                 background: active ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
                 display: 'flex',
                 alignItems: 'center',

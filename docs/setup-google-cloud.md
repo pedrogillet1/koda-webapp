@@ -128,14 +128,11 @@ node test-vision-api.js
 
 ### 10. Revoke Your Exposed API Key
 
-**IMPORTANT:** Since you shared your API key publicly, delete it:
+**IMPORTANT:** Never commit API keys to git. Always use environment variables:
 
-1. Go to: https://console.cloud.google.com/apis/credentials
-2. Find the API key: `AIzaSyCQ5cEZZG-zrog4r8wf7U5X32mQ3YFqUtc`
-3. Click the **⋮** (three dots) → **Delete**
-4. Confirm deletion
-
-You don't need that API key anymore - the service account handles everything!
+1. Store your API key in `.env` file (which is gitignored)
+2. Reference it via `process.env.GEMINI_API_KEY`
+3. If a key is ever leaked, rotate it immediately in Google Cloud Console
 
 ---
 

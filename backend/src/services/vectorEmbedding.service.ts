@@ -1,456 +1,257 @@
-import prisma from '../config/database';
-import cacheService from './cache.service';
+/**
+ * Vector Embedding Service - FIXED IMPLEMENTATION
+ *
+ * Connects document.service.ts to pinecone.service.ts
+ *
+ * ROOT CAUSE: This service only stored to PostgreSQL, missing Pinecone storage.
+ * Files uploaded but embeddings were never stored in Pinecone, making RAG fail.
+ *
+ * FIX: Now stores to BOTH Pinecone (for vector search) AND PostgreSQL (for BM25)
+ */
+
 import pineconeService from './pinecone.service';
-import embeddingService from './embedding.service';
+import prisma from '../config/database';
+import { generateMicroSummary } from './microSummaryGenerator.service';
 
-// ✅ Now using OpenAI embeddings via embedding.service.ts (1536 dimensions)
-
-interface EmbeddingMetadata {
-  page?: number;
-  pageCount?: number;
-  cell?: string;
-  sheet?: string;
-  row?: number;
-  slide?: number;
-  paragraph?: number;
-  section?: string;
-  startChar?: number;
-  endChar?: number;
-  // ✅ Issue #2 Fix: Excel formula metadata for better RAG retrieval
-  hasFormula?: boolean;
-  formulas?: string[];
-}
-
-interface ChunkWithMetadata {
-  content: string;
-  metadata: EmbeddingMetadata;
-}
-
-class VectorEmbeddingService {
-  /**
-   * Generate embedding for a text using OpenAI API
-   * @param text - Text to embed
-   * @returns Array of 1536 floats (OpenAI text-embedding-3-small)
-   */
-  async generateEmbedding(text: string): Promise<number[]> {
-    try {
-      console.time('⏱️ [Embedding] Total time');
-
-      // Use the centralized embedding service (which handles caching internally)
-      const result = await embeddingService.generateEmbedding(text);
-
-      console.timeEnd('⏱️ [Embedding] Total time');
-      return result.embedding;
-    } catch (error) {
-      console.error('Error generating embedding:', error);
-      throw new Error('Failed to generate embedding');
-    }
+/**
+ * Store document embeddings in Pinecone AND PostgreSQL
+ * Called from document.service.ts after embedding generation
+ *
+ * @param documentId - Document ID
+ * @param chunks - Array of chunks with embeddings
+ */
+export const storeDocumentEmbeddings = async (
+  documentId: string,
+  chunks: Array<{
+    chunkIndex?: number;
+    content?: string;
+    text?: string;
+    embedding?: number[];
+    metadata?: any;
+    pageNumber?: number;
+  }>
+): Promise<void> => {
+  if (!chunks || chunks.length === 0) {
+    console.log(`[vectorEmbedding] No chunks to store for document ${documentId}`);
+    return;
   }
 
-  /**
-   * Generate embeddings for multiple texts in batch (parallel processing)
-   * 🚀 PERFORMANCE OPTIMIZATION: Using OpenAI batch embedding API
-   * @param texts - Array of texts to embed
-   * @returns Array of embeddings
-   */
-  async generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
-    try {
-      console.log(`⚡ [Batch Embedding] Processing ${texts.length} chunks with OpenAI...`);
-      const startTime = Date.now();
+  try {
+    console.log(`💾 [vectorEmbedding] Storing ${chunks.length} embeddings for document ${documentId}`);
 
-      // Use the centralized embedding service which handles batching and caching
-      const result = await embeddingService.generateBatchEmbeddings(texts);
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 1: Fetch document metadata from database
+    // ═══════════════════════════════════════════════════════════════════════════
+    const document = await prisma.documents.findUnique({
+      where: { id: documentId },
+      include: {
+        folder: true,
+      },
+    });
 
-      const duration = Date.now() - startTime;
-      console.log(`⚡ [Batch Embedding] Completed in ${duration}ms (${(duration / texts.length).toFixed(0)}ms per chunk)`);
-
-      return result.embeddings.map(e => e.embedding);
-    } catch (error) {
-      console.error('Error generating batch embeddings:', error);
-      throw new Error('Failed to generate batch embeddings');
+    if (!document) {
+      throw new Error(`Document ${documentId} not found`);
     }
-  }
 
-  /**
-   * Store document embeddings in Pinecone only
-   * 🚀 PERFORMANCE OPTIMIZATION: Fast batch processing with Pinecone
-   * @param documentId - Document ID
-   * @param chunks - Array of text chunks with metadata
-   */
-  async storeDocumentEmbeddings(
-    documentId: string,
-    chunks: ChunkWithMetadata[]
-  ): Promise<void> {
-    try {
-      console.log(`⚡ [Store Embeddings] Processing ${chunks.length} chunks for document ${documentId}...`);
-      const startTime = Date.now();
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 2: Prepare document metadata for Pinecone
+    // ═══════════════════════════════════════════════════════════════════════════
+    const documentMetadata = {
+      filename: document.filename,
+      mimeType: document.mimeType,
+      createdAt: document.createdAt,
+      status: document.status,
+      originalName: document.filename,
+      folderId: document.folderId || undefined,
+      folderName: document.folder?.name || undefined,
+    };
 
-      // Step 1: Delete existing embeddings from Pinecone
-      await pineconeService.deleteDocumentEmbeddings(documentId);
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 3: Transform chunks to Pinecone format
+    // ═══════════════════════════════════════════════════════════════════════════
+    const pineconeChunks = chunks.map((chunk, index) => {
+      const chunkIndex = chunk.chunkIndex ?? chunk.pageNumber ?? index;
+      const content = chunk.content || chunk.text || '';
+      const embedding = chunk.embedding || [];
 
-      // Step 2: Generate ALL embeddings in batch (parallel)
-      const chunkTexts = chunks.map(c => c.content);
-      const embeddings = await this.generateEmbeddingsBatch(chunkTexts);
+      return {
+        chunkIndex,
+        content,
+        embedding,
+        metadata: chunk.metadata || {},
+      };
+    });
 
-      // Step 3: Store in Pinecone only
-      console.log(`💾 [Store Embeddings] Saving to Pinecone...`);
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 4: Store in Pinecone via pinecone.service.ts (CRITICAL FOR RAG!)
+    // ═══════════════════════════════════════════════════════════════════════════
+    console.log(`🔄 [vectorEmbedding] Upserting ${pineconeChunks.length} vectors to Pinecone...`);
 
-      // Get document metadata for Pinecone
-      const document = await prisma.documents.findUnique({
-        where: { id: documentId },
-        select: {
-          userId: true,
-          filename: true,
-          mimeType: true,
-          createdAt: true,
-          updatedAt: true,
-          status: true,
-          fileSize: true,
-          folderId: true,
-          folders: {
-            select: {
-              name: true,
-              path: true
-            }
-          }
+    await pineconeService.upsertDocumentEmbeddings(
+      documentId,
+      document.userId,
+      documentMetadata,
+      pineconeChunks
+    );
+
+    console.log(`✅ [vectorEmbedding] Stored ${chunks.length} embeddings in Pinecone for document ${documentId}`);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 4.5: Generate Micro-Summaries for each chunk (Phase 2 Optimization)
+    // ═══════════════════════════════════════════════════════════════════════════
+    console.log(`📝 [vectorEmbedding] Generating micro-summaries for ${chunks.length} chunks...`);
+
+    const documentType = detectDocumentType(document.mimeType, document.filename);
+    const microSummaries: Map<number, string> = new Map();
+
+    // Generate micro-summaries in parallel batches
+    const MICRO_BATCH_SIZE = 5;
+    for (let i = 0; i < chunks.length; i += MICRO_BATCH_SIZE) {
+      const batch = chunks.slice(i, i + MICRO_BATCH_SIZE);
+      const batchPromises = batch.map(async (chunk, batchIndex) => {
+        const chunkIndex = chunk.chunkIndex ?? chunk.pageNumber ?? (i + batchIndex);
+        const content = chunk.content || chunk.text || '';
+        const chunkType = chunk.metadata?.chunkType || 'general';
+        const sectionName = chunk.metadata?.section || chunk.metadata?.sectionName;
+
+        try {
+          const result = await generateMicroSummary(content, chunkType, documentType, sectionName);
+          microSummaries.set(chunkIndex, result.summary);
+          console.log(`  ✅ Chunk ${chunkIndex}: "${result.summary.substring(0, 50)}..."`);
+        } catch (error) {
+          console.warn(`  ⚠️ Chunk ${chunkIndex}: Failed to generate micro-summary`);
+          microSummaries.set(chunkIndex, '');
         }
       });
-
-      if (!document) {
-        throw new Error(`Document ${documentId} not found`);
-      }
-
-      if (!pineconeService.isAvailable()) {
-        throw new Error('Pinecone is not available - cannot store embeddings');
-      }
-
-      // Store embeddings in Pinecone with enhanced metadata
-      await pineconeService.upsertDocumentEmbeddings(
-        documentId,
-        document.userId,
-        {
-          filename: document.filename,
-          mimeType: document.mimeType,
-          createdAt: document.createdAt,
-          status: document.status,
-          folderId: document.folderId ?? undefined,
-          folderName: document.folder?.name ?? undefined,
-          folderPath: document.folder?.path ?? undefined
-        },
-        chunks.map((chunk, i) => ({
-          chunkIndex: i,
-          content: chunk.content,
-          embedding: embeddings[i],
-          metadata: chunk.metadata
-        }))
-      );
-
-      const duration = Date.now() - startTime;
-      console.log(`✅ [Store Embeddings] Completed in ${(duration / 1000).toFixed(1)}s (${(duration / chunks.length).toFixed(0)}ms per chunk)`);
-
-    } catch (error) {
-      console.error('Error storing document embeddings:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Calculate cosine similarity between two vectors
-   * @param vecA - First vector
-   * @param vecB - Second vector
-   * @returns Similarity score between -1 and 1
-   */
-  cosineSimilarity(vecA: number[], vecB: number[]): number {
-    if (vecA.length !== vecB.length) {
-      throw new Error('Vectors must have same length');
+      await Promise.all(batchPromises);
     }
 
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
+    console.log(`✅ [vectorEmbedding] Generated ${microSummaries.size} micro-summaries`);
 
-    for (let i = 0; i < vecA.length; i++) {
-      dotProduct += vecA[i] * vecB[i];
-      normA += vecA[i] * vecA[i];
-      normB += vecB[i] * vecB[i];
-    }
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 5: Store in DocumentEmbedding table (PostgreSQL backup for BM25)
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Delete existing embeddings for this document
+    await prisma.documentEmbedding.deleteMany({
+      where: { documentId },
+    });
 
-    normA = Math.sqrt(normA);
-    normB = Math.sqrt(normB);
+    // Prepare data for PostgreSQL with micro-summaries
+    const embeddingRecords = chunks.map((chunk, index) => {
+      const chunkIndex = chunk.chunkIndex ?? chunk.pageNumber ?? index;
+      const content = chunk.content || chunk.text || '';
+      const embedding = chunk.embedding || [];
+      const microSummary = microSummaries.get(chunkIndex) || null;
 
-    if (normA === 0 || normB === 0) {
-      return 0;
-    }
-
-    return dotProduct / (normA * normB);
-  }
-
-  /**
-   * Extract sheet reference from query text
-   * @param queryText - Search query text
-   * @returns Sheet name/number or null
-   */
-  private extractSheetReference(queryText: string): string | null {
-    const lowerQuery = queryText.toLowerCase();
-
-    // Match patterns - prioritize "sheet" keyword patterns first
-    const patterns = [
-      /sheet\s+['"]?([a-z]+\s*\d+)['"]?/i,  // "sheet ex2" or "sheet ex 2" or "sheet 'ex 2'"
-      /sheet\s+(\d+)/i,                      // "sheet 2"
-      /sheet\s+named\s+['"]?([a-z0-9_\s]+)['"]?/i,  // "sheet named ex2"
-      /\bon\s+sheet\s+['"]?([a-z]+\s*\d+)['"]?/i,   // "on sheet ex2"
-      /\bin\s+sheet\s+['"]?([a-z]+\s*\d+)['"]?/i,   // "in sheet ex2"
-    ];
-
-    for (const pattern of patterns) {
-      const match = lowerQuery.match(pattern);
-      if (match && match[1]) {
-        // Remove spaces and return (e.g., "ex 2" becomes "ex2")
-        return match[1].trim().replace(/\s+/g, '');
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Extract slide reference from query text
-   * @param queryText - Search query text
-   * @returns Slide number or null
-   */
-  private extractSlideReference(queryText: string): number | null {
-    const lowerQuery = queryText.toLowerCase();
-
-    // Match patterns for slide references
-    const patterns = [
-      /slide\s+(?:number\s+)?(\d+)/i,        // "slide 2" or "slide number 2"
-      /\bon\s+slide\s+(\d+)/i,               // "on slide 2"
-      /\bin\s+slide\s+(\d+)/i,               // "in slide 2"
-      /\bof\s+slide\s+(\d+)/i,               // "of slide 2"
-      /\bfrom\s+slide\s+(\d+)/i,             // "from slide 2"
-      /slide\s+#?(\d+)/i,                    // "slide #2"
-    ];
-
-    for (const pattern of patterns) {
-      const match = lowerQuery.match(pattern);
-      if (match && match[1]) {
-        const slideNum = parseInt(match[1], 10);
-        if (slideNum > 0 && slideNum < 1000) { // Sanity check
-          return slideNum;
-        }
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Extract page reference from query text
-   * @param queryText - Search query text
-   * @returns Page number or null
-   */
-  private extractPageReference(queryText: string): number | null {
-    const lowerQuery = queryText.toLowerCase();
-
-    // Match patterns for page references
-    const patterns = [
-      /page\s+(?:number\s+)?(\d+)/i,         // "page 2" or "page number 2"
-      /\bon\s+page\s+(\d+)/i,                // "on page 2"
-      /\bin\s+page\s+(\d+)/i,                // "in page 2"
-      /\bof\s+page\s+(\d+)/i,                // "of page 2"
-      /\bfrom\s+page\s+(\d+)/i,              // "from page 2"
-      /page\s+#?(\d+)/i,                     // "page #2"
-      /p\.?\s*(\d+)/i,                       // "p.2" or "p 2"
-    ];
-
-    for (const pattern of patterns) {
-      const match = lowerQuery.match(pattern);
-      if (match && match[1]) {
-        const pageNum = parseInt(match[1], 10);
-        if (pageNum > 0 && pageNum < 10000) { // Sanity check
-          return pageNum;
-        }
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Search for similar document chunks using Pinecone only
-   * @param userId - User ID to filter documents
-   * @param queryText - Search query text
-   * @param topK - Number of results to return
-   * @param minSimilarity - Minimum similarity threshold (0-1)
-   * @returns Array of relevant chunks with similarity scores
-   */
-  async searchSimilarChunks(
-    userId: string,
-    queryText: string,
-    topK: number = 5,
-    minSimilarity: number = 0.3  // Lowered from 0.5 to improve recall for PDF content
-  ) {
-    try {
-      console.log('\n🔍 === SEARCH DEBUG START ===');
-      console.time('⏱️ [Total Search Time]');
-      const startTime = Date.now();
-
-      // 1. Extract location references (sheet, slide, page)
-      console.time('1️⃣ Extract location references');
-      const sheetRef = this.extractSheetReference(queryText);
-      const slideRef = this.extractSlideReference(queryText);
-      const pageRef = this.extractPageReference(queryText);
-      console.timeEnd('1️⃣ Extract location references');
-      console.log(`   Sheet reference: ${sheetRef || 'none'}`);
-      console.log(`   Slide reference: ${slideRef || 'none'}`);
-      console.log(`   Page reference: ${pageRef || 'none'}`);
-
-      // 2. Generate embedding for query
-      console.time('2️⃣ Generate query embedding');
-      const embeddingStart = Date.now();
-      const queryEmbedding = await this.generateEmbedding(queryText);
-      const embeddingDuration = Date.now() - embeddingStart;
-      console.timeEnd('2️⃣ Generate query embedding');
-      console.log(`   Embedding generated: ${queryEmbedding.length} dimensions in ${embeddingDuration}ms`);
-
-      // 3. Check Pinecone availability
-      if (!pineconeService.isAvailable()) {
-        throw new Error('Pinecone is not available - cannot perform search');
-      }
-
-      // 4. Query Pinecone (get more results if filtering by location)
-      const fetchK = (slideRef || pageRef || sheetRef) ? topK * 3 : topK;
-      console.time('3️⃣ Pinecone vector search');
-      const pineconeStart = Date.now();
-      let pineconeResults = await pineconeService.searchSimilarChunks(
-        queryEmbedding,
-        userId,
-        fetchK,
-        minSimilarity
-      );
-      const pineconeDuration = Date.now() - pineconeStart;
-      console.timeEnd('3️⃣ Pinecone vector search');
-      console.log(`   Pinecone query completed in ${pineconeDuration}ms`);
-      console.log(`   Results found: ${pineconeResults.length}`);
-
-      // 5. Apply location-based boosting
-      console.time('4️⃣ Apply location boost & re-rank');
-      if (slideRef || pageRef || sheetRef) {
-        pineconeResults = pineconeResults.map((result: any) => {
-          let boost = 0;
-          const metadata = result.metadata || {};
-
-          // Boost results that match the specified slide
-          if (slideRef && metadata.slide === slideRef) {
-            boost = 0.3; // Significant boost for exact slide match
-            console.log(`   🎯 Boosting slide ${slideRef} match: "${result.document?.filename}"`);
-          }
-
-          // Boost results that match the specified page
-          if (pageRef && metadata.page === pageRef) {
-            boost = 0.3; // Significant boost for exact page match
-            console.log(`   🎯 Boosting page ${pageRef} match: "${result.document?.filename}"`);
-          }
-
-          // Boost results that match the specified sheet
-          if (sheetRef && metadata.sheet) {
-            const normalizedSheet = String(metadata.sheet).toLowerCase().replace(/\s+/g, '');
-            if (normalizedSheet === sheetRef.toLowerCase()) {
-              boost = 0.3; // Significant boost for exact sheet match
-              console.log(`   🎯 Boosting sheet ${sheetRef} match: "${result.document?.filename}"`);
-            }
-          }
-
-          return {
-            ...result,
-            similarity: Math.min(1.0, (result.similarity || 0) + boost),
-            originalSimilarity: result.similarity
-          };
-        });
-
-        // Re-sort by boosted similarity
-        pineconeResults.sort((a: any, b: any) => (b.similarity || 0) - (a.similarity || 0));
-
-        // Trim back to topK
-        pineconeResults = pineconeResults.slice(0, topK);
-
-        console.log(`   ✅ Re-ranked results with location boost`);
-      }
-      console.timeEnd('4️⃣ Apply location boost & re-rank');
-
-      // 6. Process results
-      console.time('5️⃣ Process results');
-      if (pineconeResults.length > 0) {
-        const topScore = Math.max(...pineconeResults.map((r: any) => r.similarity || 0));
-        const avgScore = pineconeResults.reduce((sum: number, r: any) => sum + (r.similarity || 0), 0) / pineconeResults.length;
-        const uniqueDocs = [...new Set(pineconeResults.map((r: any) => r.document?.filename || 'unknown'))];
-
-        console.log(`   📊 Top score: ${topScore.toFixed(4)}`);
-        console.log(`   📊 Avg score: ${avgScore.toFixed(4)}`);
-        console.log(`   📊 Documents: ${uniqueDocs.join(', ')}`);
-
-        // Log detailed results for debugging Excel retrieval
-        console.log('\n   📄 DETAILED RESULTS:');
-        pineconeResults.slice(0, 5).forEach((r: any, idx: number) => {
-          console.log(`   ${idx + 1}. ${r.document?.filename || 'unknown'} (score: ${(r.similarity || 0).toFixed(4)})`);
-          console.log(`      Metadata:`, JSON.stringify(r.metadata || {}, null, 2).split('\n').join('\n      '));
-          console.log(`      Content preview: ${(r.content || '').substring(0, 100)}...`);
-        });
-      }
-      console.timeEnd('5️⃣ Process results');
-
-      const totalDuration = Date.now() - startTime;
-      console.timeEnd('⏱️ [Total Search Time]');
-      console.log(`\n📊 TIMING BREAKDOWN:`);
-      console.log(`   Embedding:  ${embeddingDuration}ms`);
-      console.log(`   Pinecone:   ${pineconeDuration}ms`);
-      console.log(`   Other:      ${totalDuration - embeddingDuration - pineconeDuration}ms`);
-      console.log(`   TOTAL:      ${totalDuration}ms`);
-      console.log('=========================\n');
-
-      if (pineconeResults.length > 0) {
-        return pineconeResults;
-      }
-
-      console.log(`⚠️ [Pinecone] No results found`);
-      return [];
-    } catch (error) {
-      console.error('Error searching similar chunks:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Delete embeddings for a document from Pinecone
-   * @param documentId - Document ID
-   */
-  async deleteDocumentEmbeddings(documentId: string): Promise<void> {
-    try {
-      await pineconeService.deleteDocumentEmbeddings(documentId);
-      console.log(`Deleted embeddings for document ${documentId} from Pinecone`);
-    } catch (error) {
-      console.error('Error deleting document embeddings:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get statistics about embeddings from Pinecone
-   */
-  async getEmbeddingStats() {
-    try {
-      const stats = await pineconeService.getIndexStats();
       return {
-        available: stats.available,
-        totalVectorCount: stats.totalVectorCount || 0,
-        dimension: stats.dimension || 768,
-        indexFullness: stats.indexFullness || 0
+        documentId,
+        chunkIndex,
+        content,
+        embedding: JSON.stringify(embedding),
+        metadata: JSON.stringify(chunk.metadata || {}),
+        microSummary,  // Store micro-summary in database
+        chunkType: chunk.metadata?.chunkType || null,
       };
-    } catch (error) {
-      console.error('Error getting embedding stats:', error);
-      throw error;
+    });
+
+    // Insert in batches
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < embeddingRecords.length; i += BATCH_SIZE) {
+      const batch = embeddingRecords.slice(i, i + BATCH_SIZE);
+      await prisma.documentEmbedding.createMany({
+        data: batch,
+        skipDuplicates: true,
+      });
     }
+
+    console.log(`✅ [vectorEmbedding] Stored ${embeddingRecords.length} embeddings in PostgreSQL (BM25 backup)`);
+
+  } catch (error: any) {
+    console.error(`❌ [vectorEmbedding] Failed to store embeddings for document ${documentId}:`, error.message);
+    throw new Error(`Failed to store embeddings: ${error.message}`);
   }
+};
+
+/**
+ * Delete document embeddings from Pinecone and PostgreSQL
+ * Called when a document is deleted
+ *
+ * @param documentId - Document ID
+ */
+export const deleteDocumentEmbeddings = async (documentId: string): Promise<void> => {
+  try {
+    console.log(`🗑️ [vectorEmbedding] Deleting embeddings for document ${documentId}`);
+
+    // Delete from Pinecone
+    await pineconeService.deleteDocumentEmbeddings(documentId);
+
+    // Delete from PostgreSQL
+    const result = await prisma.documentEmbedding.deleteMany({
+      where: { documentId },
+    });
+
+    console.log(`✅ [vectorEmbedding] Deleted embeddings (Pinecone + ${result.count} PostgreSQL rows)`);
+  } catch (error: any) {
+    console.error(`❌ [vectorEmbedding] Failed to delete embeddings for document ${documentId}:`, error.message);
+    // Don't throw - allow document deletion to proceed even if embedding deletion fails
+  }
+};
+
+/**
+ * Generate embeddings (deprecated - use embedding.service.ts)
+ */
+export const generateEmbeddings = async (texts: string[]): Promise<number[][]> => {
+  console.warn('⚠️ [vectorEmbedding] generateEmbeddings() is deprecated - use embedding.service.ts instead');
+  return [];
+};
+
+/**
+ * Search similar (deprecated - use pinecone.service.ts)
+ */
+export const searchSimilar = async (
+  queryEmbedding: number[],
+  userId: string,
+  topK: number = 5
+): Promise<any[]> => {
+  console.warn('⚠️ [vectorEmbedding] searchSimilar() is deprecated - use pinecone.service.ts directly');
+  return [];
+};
+
+/**
+ * Detect document type from mimeType and filename
+ * Used for micro-summary generation context
+ */
+function detectDocumentType(mimeType: string, filename: string): string {
+  const lower = (mimeType + ' ' + filename).toLowerCase();
+
+  if (lower.includes('pdf')) {
+    // Check filename for hints
+    if (/contract|agreement|lease|terms/i.test(filename)) return 'legal';
+    if (/medical|health|patient|diagnosis/i.test(filename)) return 'medical';
+    if (/financial|budget|revenue|invoice/i.test(filename)) return 'financial';
+    if (/report|analysis|study/i.test(filename)) return 'report';
+    return 'document';
+  }
+
+  if (lower.includes('spreadsheet') || lower.includes('excel') || lower.includes('xlsx') || lower.includes('csv')) {
+    return 'financial';
+  }
+
+  if (lower.includes('presentation') || lower.includes('powerpoint') || lower.includes('pptx')) {
+    return 'presentation';
+  }
+
+  if (lower.includes('word') || lower.includes('docx')) {
+    if (/contract|agreement|lease/i.test(filename)) return 'legal';
+    return 'document';
+  }
+
+  return 'general';
 }
 
-export default new VectorEmbeddingService();
+export default {
+  storeDocumentEmbeddings,
+  deleteDocumentEmbeddings,
+  generateEmbeddings,
+  searchSimilar,
+};

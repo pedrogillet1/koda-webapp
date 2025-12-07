@@ -40,7 +40,7 @@ const NotificationRow = ({ notification, onMarkAsRead }) => {
       case 'warning':
         return { iconBg: '#FEF3C7', iconColor: '#D97706' };
       case 'security':
-        return { iconBg: '#EEF2FF', iconColor: '#4F46E5' };
+        return { iconBg: '#4F46E5', iconColor: '#4F46E5' };
       default:
         return { iconBg: '#DBEAFE', iconColor: '#2563EB' };
     }
@@ -67,8 +67,8 @@ const NotificationRow = ({ notification, onMarkAsRead }) => {
       case 'security':
         return (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 22C12 22 20 18 20 12V5L12 2L4 5V12C4 18 12 22 12 22Z" stroke={typeStyles.iconColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M9 12L11 14L15 10" stroke={typeStyles.iconColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M12 22C12 22 20 18 20 12V5L12 2L4 5V12C4 18 12 22 12 22Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M9 12L11 14L15 10" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         );
       default:

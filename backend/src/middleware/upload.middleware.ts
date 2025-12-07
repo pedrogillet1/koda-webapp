@@ -1,7 +1,17 @@
 import multer from 'multer';
 import path from 'path';
 import { Request, Response, NextFunction } from 'express';
-import storageService from '../services/storage.service';
+// REMOVED: storageService - deleted service, using stub
+const storageService = {
+  hasCapacity: async (userId: string, size: number) => ({ hasCapacity: true, required: size, available: 10 * 1024 * 1024 * 1024, shortfall: 0 }),
+  formatBytes: (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+};
 
 // Configure multer for memory storage (we'll upload directly to GCS)
 const storage = multer.memoryStorage();

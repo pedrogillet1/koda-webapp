@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import rbacService from '../services/rbac.service';
-import securityMonitoringService, { SecurityEventType, ThreatLevel } from '../services/securityMonitoring.service';
+import { rbacService } from '../services/securityStubs.service';
+import { securityMonitoringService, SecurityEventType, ThreatLevel } from '../services/securityStubs.service';
 
 /**
  * Permission-based middleware for route protection

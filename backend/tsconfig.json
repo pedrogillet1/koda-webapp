@@ -34,6 +34,7 @@
     "src/__tests__/**/*",
     "src/services_backup*/**/*",
     "src/scripts/**/*",
-    "src/services/_archive/**/*"
+    "src/services/_archive/**/*",
+    "src/services/integration-pending/**/*"
   ]
 }

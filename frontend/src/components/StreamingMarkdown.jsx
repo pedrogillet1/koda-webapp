@@ -1,7 +1,10 @@
 import React, { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import './StreamingAnimation.css';
+import './SpacingUtilities.css';
+import './MarkdownStyles.css';
 
 /**
  * ✨ StreamingMarkdown Component
@@ -45,16 +48,7 @@ const StreamingMarkdown = ({
 
     // Tables
     table: ({ node, ...props }) => (
-      <table
-        className="markdown-table"
-        style={{
-          borderCollapse: 'collapse',
-          width: '100%',
-          marginTop: '12px',
-          marginBottom: '12px'
-        }}
-        {...props}
-      />
+      <table className="markdown-table" {...props} />
     ),
     thead: ({ node, ...props }) => <thead {...props} />,
     tbody: ({ node, ...props }) => <tbody {...props} />,
@@ -81,172 +75,63 @@ const StreamingMarkdown = ({
       />
     ),
 
-    // Headings
+    // Headings - no inline margins, let CSS control spacing
     h1: ({ node, ...props }) => (
-      <h1
-        className="markdown-h1"
-        style={{
-          fontSize: '2em',
-          fontWeight: '700',
-          marginTop: '24px',
-          marginBottom: '16px',
-          lineHeight: '1.3'
-        }}
-        {...props}
-      />
+      <h1 className="markdown-h1" {...props} />
     ),
     h2: ({ node, ...props }) => (
-      <h2
-        className="markdown-h2"
-        style={{
-          fontSize: '1.5em',
-          fontWeight: '600',
-          marginTop: '20px',
-          marginBottom: '12px',
-          lineHeight: '1.4'
-        }}
-        {...props}
-      />
+      <h2 className="markdown-h2" {...props} />
     ),
     h3: ({ node, ...props }) => (
-      <h3
-        className="markdown-h3"
-        style={{
-          fontSize: '1.25em',
-          fontWeight: '600',
-          marginTop: '16px',
-          marginBottom: '8px',
-          lineHeight: '1.4'
-        }}
-        {...props}
-      />
+      <h3 className="markdown-h3" {...props} />
     ),
     h4: ({ node, ...props }) => <h4 className="markdown-h4" {...props} />,
     h5: ({ node, ...props}) => <h5 className="markdown-h5" {...props} />,
     h6: ({ node, ...props }) => <h6 className="markdown-h6" {...props} />,
 
-    // Paragraphs
+    // Paragraphs - no inline margins, let CSS control spacing
     p: ({ node, ...props }) => (
-      <p
-        className="markdown-paragraph"
-        style={{
-          marginTop: '8px',
-          marginBottom: '8px',
-          lineHeight: '1.6'
-        }}
-        {...props}
-      />
+      <p className="markdown-paragraph" {...props} />
     ),
 
-    // Lists
+    // Bold text
+    strong: ({ node, ...props }) => (
+      <strong style={{ fontWeight: 600 }} {...props} />
+    ),
+
+    // Lists - no inline margins, let CSS control spacing
     ul: ({ node, ...props }) => (
-      <ul
-        className="markdown-ul"
-        style={{
-          marginTop: '8px',
-          marginBottom: '8px',
-          paddingLeft: '24px',
-          listStyleType: 'disc'
-        }}
-        {...props}
-      />
+      <ul className="markdown-ul" {...props} />
     ),
     ol: ({ node, ...props }) => (
-      <ol
-        className="markdown-ol"
-        style={{
-          marginTop: '8px',
-          marginBottom: '8px',
-          paddingLeft: '24px'
-        }}
-        {...props}
-      />
+      <ol className="markdown-ol" {...props} />
     ),
     li: ({ node, ...props }) => (
-      <li
-        style={{
-          marginTop: '4px',
-          marginBottom: '4px'
-        }}
-        {...props}
-      />
+      <li className="markdown-li" {...props} />
     ),
 
-    // Code
+    // Code - keep non-margin styles
     code: ({ node, inline, ...props }) =>
       inline ? (
-        <code
-          className="markdown-inline-code"
-          style={{
-            backgroundColor: '#f3f4f6',
-            padding: '2px 6px',
-            borderRadius: '4px',
-            fontSize: '0.9em',
-            fontFamily: 'monospace'
-          }}
-          {...props}
-        />
+        <code className="markdown-inline-code" {...props} />
       ) : (
-        <code
-          className="markdown-code-block"
-          style={{
-            display: 'block',
-            backgroundColor: '#1e1e1e',
-            color: '#d4d4d4',
-            padding: '16px',
-            borderRadius: '8px',
-            fontSize: '0.9em',
-            fontFamily: 'monospace',
-            overflowX: 'auto',
-            marginTop: '12px',
-            marginBottom: '12px'
-          }}
-          {...props}
-        />
+        <code className="markdown-code-block" {...props} />
       ),
 
     // Blockquotes
     blockquote: ({ node, ...props }) => (
-      <blockquote
-        className="markdown-blockquote"
-        style={{
-          borderLeft: '4px solid #10a37f',
-          paddingLeft: '16px',
-          marginLeft: '0',
-          marginTop: '12px',
-          marginBottom: '12px',
-          color: '#6b7280',
-          fontStyle: 'italic'
-        }}
-        {...props}
-      />
+      <blockquote className="markdown-blockquote" {...props} />
     ),
 
     // Horizontal rules
     hr: ({ node, ...props }) => (
-      <hr
-        className="markdown-hr"
-        style={{
-          border: 'none',
-          borderTop: '1px solid #e5e7eb',
-          marginTop: '16px',
-          marginBottom: '16px'
-        }}
-        {...props}
-      />
+      <hr className="markdown-hr" {...props} />
     ),
 
     // Images
     img: ({ node, ...props }) => (
       <img
         className="markdown-image"
-        style={{
-          maxWidth: '100%',
-          height: 'auto',
-          borderRadius: '8px',
-          marginTop: '12px',
-          marginBottom: '12px'
-        }}
         {...props}
         alt={props.alt || ''}
       />
@@ -256,29 +141,38 @@ const StreamingMarkdown = ({
   // Merge custom components with defaults
   const components = { ...defaultComponents, ...customComponents };
 
+  // Normalize content to remove excessive whitespace that causes large gaps
+  const normalizedContent = useMemo(() => {
+    if (!content) return '';
+    return content
+      .replace(/\n{3,}/g, '\n\n')  // 3+ newlines → 2 (single paragraph break)
+      .replace(/[ \t]+$/gm, '')    // Remove trailing whitespace
+      .replace(/\r\n/g, '\n');     // Consistent line endings
+  }, [content]);
+
   // Memoize the markdown rendering for performance
   const renderedMarkdown = useMemo(() => {
     return (
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw]}
         components={components}
       >
-        {content}
+        {normalizedContent}
       </ReactMarkdown>
     );
-  }, [content, components]);
+  }, [normalizedContent, components]);
 
   return (
     <div
       className={`markdown-preview-container ${isStreaming ? 'streaming' : ''} ${className}`}
       style={{
-        color: '#323232',
-        fontSize: '16px',
+        color: '#171717',
+        fontSize: '14px',
         fontFamily: 'Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        fontWeight: '500',
-        lineHeight: '24px',
+        fontWeight: '400',
+        lineHeight: '1.4',
         width: '100%',
-        whiteSpace: 'pre-wrap',
         wordWrap: 'break-word',
         overflowWrap: 'break-word'
       }}

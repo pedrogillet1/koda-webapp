@@ -13,12 +13,24 @@
  * Strategy 4: Acknowledge gap gracefully (final fallback)
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import prisma from '../config/database';
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// ═══════════════════════════════════════════════════════════════════════════
+// MIGRATION: Anthropic → Gemini
+// ═══════════════════════════════════════════════════════════════════════════
+const GEMINI_API_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || '';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+
+let genAI: GoogleGenerativeAI | null = null;
+let geminiModel: GenerativeModel | null = null;
+
+if (GEMINI_API_KEY) {
+  genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  geminiModel = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+} else {
+  console.warn('[GracefulDegradation] No Gemini API key found');
+}
 
 interface FallbackResponse {
   type: 'partial' | 'suggestion' | 'alternative' | 'graceful';
@@ -42,7 +54,7 @@ export class GracefulDegradationService {
   async handleFailedQuery(
     userId: string,
     query: string,
-    retrievedChunks: Array<{ content?: string; metadata?: any; score?: number }>
+    retrievedChunks: Array<{ content?: string; metadata?: any; document_metadata?: any; score?: number }>
   ): Promise<FallbackResponse> {
 
     console.log(`🔄 [FALLBACK] Handling failed query: "${query}"`);
@@ -110,7 +122,7 @@ export class GracefulDegradationService {
    */
   private async findRelatedInformation(
     query: string,
-    chunks: Array<{ content?: string; metadata?: any; score?: number }>
+    chunks: Array<{ content?: string; metadata?: any; document_metadata?: any; score?: number }>
   ): Promise<{ content: string } | null> {
 
     // Check for marginally relevant chunks (score 0.3-0.6)
@@ -147,13 +159,20 @@ If there's nothing useful, respond with "NONE".
 
 Otherwise, provide a brief summary (2-3 sentences) of the related information.`;
 
-      const response = await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 500,
-        messages: [{ role: 'user', content: prompt }],
+      if (!geminiModel) {
+        console.log('⚠️  [STRATEGY 1] Gemini model not initialized');
+        return null;
+      }
+
+      const result = await geminiModel.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 500,
+        }
       });
 
-      const content = response.content[0].type === 'text' ? response.content[0].text : '';
+      const content = result.response.text() || '';
 
       if (content.trim() === 'NONE' || content.length < 20) {
         console.log('⚠️  [STRATEGY 1] LLM found no useful related information');
@@ -216,13 +235,20 @@ Be specific and actionable. Examples:
 Respond as a JSON array:
 ["suggestion 1", "suggestion 2", "suggestion 3"]`;
 
-      const response = await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 300,
-        messages: [{ role: 'user', content: prompt }],
+      if (!geminiModel) {
+        console.log('⚠️  [STRATEGY 2] Gemini model not initialized');
+        return [];
+      }
+
+      const result = await geminiModel.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 300,
+        }
       });
 
-      const content = response.content[0].type === 'text' ? response.content[0].text : '';
+      const content = result.response.text() || '';
 
       // Remove markdown code blocks if present
       let jsonContent = content.trim();
@@ -253,7 +279,7 @@ Respond as a JSON array:
    */
   private async generateAlternativeQueries(
     query: string,
-    chunks: Array<{ content?: string; metadata?: any }>
+    chunks: Array<{ content?: string; metadata?: any; document_metadata?: any }>
   ): Promise<string[]> {
 
     if (chunks.length === 0) {
@@ -275,13 +301,20 @@ Make them specific and actionable.
 Respond as a JSON array:
 ["alternative 1", "alternative 2", "alternative 3"]`;
 
-      const response = await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 300,
-        messages: [{ role: 'user', content: prompt }],
+      if (!geminiModel) {
+        console.log('⚠️  [STRATEGY 3] Gemini model not initialized');
+        return [];
+      }
+
+      const result = await geminiModel.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 300,
+        }
       });
 
-      const content = response.content[0].type === 'text' ? response.content[0].text : '';
+      const content = result.response.text() || '';
 
       // Remove markdown code blocks if present
       let jsonContent = content.trim();

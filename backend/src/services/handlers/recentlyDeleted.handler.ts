@@ -49,10 +49,10 @@ class RecentlyDeletedHandler {
     }
 
     // Get deleted documents
-    const deletedDocs = await prisma.documents.findMany({
+    const deletedDocs = await prisma.document.findMany({
       where,
       include: {
-        folders: {
+        folder: {
           select: {
             name: true
           }
@@ -78,7 +78,7 @@ class RecentlyDeletedHandler {
       id: doc.id,
       filename: doc.filename,
       deletedAt: doc.updatedAt, // updatedAt represents when it was deleted
-      folderName: doc.folders?.name,
+      folderName: doc.folder?.name,
       fileSize: doc.fileSize,
       mimeType: doc.mimeType
     }));

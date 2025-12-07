@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import SearchIcon from './icons/SearchIcon';
-import UploadIcon from './icons/UploadIcon';
+import { ReactComponent as UploadIconMenu } from '../assets/Logout-black.svg';
 import NotificationCenter from './NotificationCenter';
 import { useIsMobile, useMobileBreakpoints } from '../hooks/useIsMobile';
 
@@ -77,7 +77,7 @@ const Header = () => {
           display: 'flex',
           cursor: 'pointer'
         }}>
-          <UploadIcon />
+          <UploadIconMenu style={{width: 20, height: 20}} />
         </div>
 
         {/* Notifications */}
@@ -105,7 +105,7 @@ const Header = () => {
                 <div style={{height: 52, justifyContent: 'flex-start', alignItems: 'flex-start', gap: 6, display: 'inline-flex'}}>
                     <div style={{height: 52, paddingLeft: 18, paddingRight: 18, paddingTop: 10, paddingBottom: 10, background: '#F5F5F5', boxShadow: '0px 0px 8px 1px rgba(0, 0, 0, 0.02)', overflow: 'hidden', borderRadius: 100, outline: '1px #E6E6EC solid', outlineOffset: '-1px', justifyContent: 'center', alignItems: 'center', gap: 6, display: 'flex'}}>
                         <div style={{justifyContent: 'flex-start', alignItems: 'center', gap: 8, display: 'flex'}}>
-                            <UploadIcon />
+                            <UploadIconMenu style={{width: 20, height: 20}} />
                             <div style={{color: '#32302C', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: 24, wordWrap: 'break-word'}}>{t('documents.uploadDocument')}</div>
                         </div>
                     </div>

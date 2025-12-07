@@ -1,15 +1,61 @@
 /**
  * Language Detection Service - Enhanced for Multilingual Support
  * Detects language and handles greetings in multiple languages
- * Supports: English, Portuguese (pt), Spanish (es), French (fr)
+ * Supports: English, Portuguese (pt), Spanish (es)
  */
 
 /**
  * Detect language from user input
  * Uses keyword-based detection for common patterns
+ * ✅ FIX: English is the default, only switch if strong non-English signals
+ * ✅ FIX #2: Single-word greetings are now detected correctly
  */
 export function detectLanguage(text: string): string {
   const lowerText = text.toLowerCase().trim();
+
+  // ✅ FIX #2: Check for single-word greetings FIRST (these need special handling)
+  // Single-word greetings should immediately return the correct language
+  const greetingLanguageMap: Record<string, string> = {
+    // Portuguese greetings
+    'olá': 'pt', 'ola': 'pt', 'oi': 'pt', 'e aí': 'pt', 'eai': 'pt',
+    'bom dia': 'pt', 'boa tarde': 'pt', 'boa noite': 'pt', 'tudo bem': 'pt',
+    // Spanish greetings
+    'hola': 'es', 'buenos días': 'es', 'buenos dias': 'es',
+    'buenas tardes': 'es', 'buenas noches': 'es', 'qué tal': 'es', 'que tal': 'es',
+    // French greetings
+    'bonjour': 'fr', 'bonsoir': 'fr', 'salut': 'fr', 'coucou': 'fr', 'ça va': 'fr',
+  };
+
+  // Check if the text is a greeting (with optional punctuation)
+  const cleanText = lowerText.replace(/[!?.]+$/, '').trim();
+  if (greetingLanguageMap[cleanText]) {
+    const detectedLang = greetingLanguageMap[cleanText];
+    console.log(`🌐 [LANG] Detected ${detectedLang} from greeting: "${cleanText}"`);
+    return detectedLang;
+  }
+
+  // ✅ FIX: Check for explicit English patterns first
+  // If the text is clearly English, return early
+  const strongEnglishPatterns = [
+    /\bwhat\s+is\b/i,
+    /\bhow\s+(many|much|is|are|does|do)\b/i,
+    /\bwhy\s+(is|are|does|do)\b/i,
+    /\bwhat\s+are\b/i,
+    /\bwhich\s+(is|are|property|properties)\b/i,
+    /\bshould\s+i\b/i,
+    /\bcan\s+(you|i)\b/i,
+    /\bif\s+i\s+have\b/i,
+    /\bbased\s+on\b/i,
+    /\baccording\s+to\b/i,
+    /\bplease\b/i,
+    /\bthe\s+(total|average|sum|revenue|investment|budget)\b/i,
+    /\b(calculate|compare|analyze|explain|show|find|get)\b/i,
+  ];
+
+  // If query matches strong English patterns, return English
+  if (strongEnglishPatterns.some(pattern => pattern.test(lowerText))) {
+    return 'en';
+  }
 
   // Helper function to count matches
   const countMatches = (text: string, words: string[]): number => {
@@ -60,41 +106,22 @@ export function detectLanguage(text: string): string {
     'ñ', '¿', '¡'
   ];
 
-  // French patterns (comprehensive list)
-  const frenchPatterns = [
-    // Greetings
-    'bonjour', 'bonsoir', 'salut', 'merci', 's\'il vous plaît', 'sil vous plait',
-    'comment allez-vous', 'comment vas-tu', 'ça va', 'ca va',
-    // Question words
-    'combien', 'quels', 'quelles', 'quel', 'quelle', 'où', 'quand', 'comment', 'pourquoi', 'qui',
-    // Common verbs
-    'avoir', 'être', 'etre', 'pouvoir', 'vouloir', 'faire',
-    'montrer', 'expliquer', 'chercher', 'trouver', 'aider',
-    // File/document terms
-    'fichier', 'fichiers', 'document', 'documents', 'dossier', 'dossiers',
-    // Actions
-    'créer', 'creer', 'supprimer', 'déplacer', 'deplacer', 'renommer',
-    // Common words
-    'sur', 'pour', 'ceci', 'cela', 'ce', 'cette', 'mon', 'ma', 'mes',
-    'non', 'oui', 'très', 'tres', 'plus', 'moins', 'aussi',
-    // French-specific characters
-    'è', 'ê', 'ë', 'ç', 'î', 'ï', 'ô', 'û', 'ù', 'œ'
-  ];
-
   // Count matches for each language
   const ptCount = countMatches(lowerText, portuguesePatterns);
   const esCount = countMatches(lowerText, spanishPatterns);
-  const frCount = countMatches(lowerText, frenchPatterns);
 
-  // Return language with most matches
-  if (ptCount > esCount && ptCount > frCount && ptCount > 0) {
+  // ✅ FIX: Require MINIMUM of 2 strong matches to switch from English
+  // This prevents false positives from partial word matches
+  const MIN_MATCHES_FOR_LANGUAGE_SWITCH = 2;
+
+  // Return language with most matches, only if above threshold
+  if (ptCount > esCount && ptCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
+    console.log(`🌐 [LANG] Detected Portuguese (${ptCount} matches)`);
     return 'pt';
   }
-  if (esCount > ptCount && esCount > frCount && esCount > 0) {
+  if (esCount > ptCount && esCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
+    console.log(`🌐 [LANG] Detected Spanish (${esCount} matches)`);
     return 'es';
-  }
-  if (frCount > ptCount && frCount > esCount && frCount > 0) {
-    return 'fr';
   }
 
   // Default to English
@@ -116,6 +143,20 @@ export function createLanguageInstruction(language: string): string {
 }
 
 /**
+ * Get human-readable language name from code
+ */
+export function getLanguageName(languageCode: string): string {
+  const names: Record<string, string> = {
+    en: 'English',
+    pt: 'Portuguese',
+    es: 'Spanish',
+    fr: 'French',
+  };
+
+  return names[languageCode] || 'English';
+}
+
+/**
  * Detect if query is a greeting in any supported language
  */
 export function isGreeting(query: string): boolean {
@@ -129,10 +170,7 @@ export function isGreeting(query: string): boolean {
     /^(olá|oi|ola|bom dia|boa tarde|boa noite|e aí|e ai|eai|tudo bem|como vai|como está|como estas)[\s!?]*$/i,
 
     // Spanish
-    /^(hola|buenos días|buenos dias|buenas tardes|buenas noches|qué tal|que tal|cómo estás|como estas|saludos)[\s!?]*$/i,
-
-    // French
-    /^(bonjour|bonsoir|salut|coucou|comment allez-vous|comment vas-tu|ça va|ca va)[\s!?]*$/i
+    /^(hola|buenos días|buenos dias|buenas tardes|buenas noches|qué tal|que tal|cómo estás|como estas|saludos)[\s!?]*$/i
   ];
 
   return greetingPatterns.some(pattern => pattern.test(lowerQuery));
@@ -146,7 +184,7 @@ export function getLocalizedGreeting(language: string): string {
     en: 'Hello! I\'m KODA, your intelligent document assistant. How can I help you today?',
     pt: 'Olá! Sou a KODA, sua assistente inteligente de documentos. Como posso ajudá-lo hoje?',
     es: '¡Hola! Soy KODA, tu asistente inteligente de documentos. ¿Cómo puedo ayudarte hoy?',
-    fr: 'Bonjour! Je suis KODA, votre assistante intelligente de documents. Comment puis-je vous aider aujourd\'hui?'
+    fr: 'Bonjour! Je suis KODA, votre assistant intelligent de documents. Comment puis-je vous aider aujourd\'hui?'
   };
 
   return greetings[language] || greetings.en;
@@ -160,26 +198,22 @@ export function getLocalizedError(errorType: string, language: string): string {
     no_documents: {
       en: 'I couldn\'t find any relevant documents to answer your question.',
       pt: 'Não consegui encontrar nenhum documento relevante para responder sua pergunta.',
-      es: 'No pude encontrar ningún documento relevante para responder a tu pregunta.',
-      fr: 'Je n\'ai pas pu trouver de documents pertinents pour répondre à votre question.'
+      es: 'No pude encontrar ningún documento relevante para responder a tu pregunta.'
     },
     general_error: {
       en: 'Something went wrong while processing your question. Could you try rephrasing it or asking something else?',
       pt: 'Algo deu errado ao processar sua pergunta. Você poderia reformulá-la ou perguntar outra coisa?',
-      es: 'Algo salió mal al procesar tu pregunta. ¿Podrías reformularla o preguntar otra cosa?',
-      fr: 'Quelque chose s\'est mal passé lors du traitement de votre question. Pourriez-vous la reformuler ou poser une autre question?'
+      es: 'Algo salió mal al procesar tu pregunta. ¿Podrías reformularla o preguntar otra cosa?'
     },
     file_not_found: {
       en: 'I couldn\'t find the file you\'re looking for.',
       pt: 'Não consegui encontrar o arquivo que você está procurando.',
-      es: 'No pude encontrar el archivo que estás buscando.',
-      fr: 'Je n\'ai pas pu trouver le fichier que vous recherchez.'
+      es: 'No pude encontrar el archivo que estás buscando.'
     },
     no_context: {
       en: 'I don\'t have enough context to answer that question.',
       pt: 'Não tenho contexto suficiente para responder essa pergunta.',
-      es: 'No tengo suficiente contexto para responder esa pregunta.',
-      fr: 'Je n\'ai pas assez de contexte pour répondre à cette question.'
+      es: 'No tengo suficiente contexto para responder esa pregunta.'
     }
   };
 
@@ -216,7 +250,7 @@ export function getLocalizedCapabilities(language: string): string {
 - Preguntas de conocimiento general`,
 
     fr: `Je peux vous aider avec:
-- Répondre à des questions sur vos documents
+- Répondre aux questions sur vos documents
 - Trouver et localiser des fichiers
 - Résumer le contenu des documents
 - Extraire des informations spécifiques
@@ -258,13 +292,6 @@ const CULTURAL_PROFILES: Record<string, CulturalContext> = {
     systemPrompt:
       'Eres KODA, un asistente de IA servicial y eficiente. Tu tono debe ser amigable. Utiliza la moneda EUR para ejemplos financieros.',
     tone: 'friendly',
-    currency: 'EUR',
-  },
-  fr: {
-    languageCode: 'fr',
-    systemPrompt:
-      'Vous êtes KODA, un assistant IA serviable et efficace. Votre ton doit être poli et professionnel. Utilisez la monnaie EUR pour les exemples financiers.',
-    tone: 'formal',
     currency: 'EUR',
   },
 };

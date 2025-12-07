@@ -110,17 +110,17 @@ class FolderSummaryService {
    * Get all folders with summaries for a user
    */
   async getUserFolderIndex(userId: string): Promise<FolderInfo[]> {
-    const folders = await prisma.folders.findMany({
+    const folders = await prisma.folder.findMany({
       where: { userId },
       include: {
         _count: {
           select: { documents: true }
         },
-        folders: {
+        subfolders: {
           select: {
             id: true,
             name: true,
-            folders: {
+            subfolders: {
               select: {
                 id: true,
                 name: true,
@@ -136,7 +136,7 @@ class FolderSummaryService {
       name: folder.name,
       path: folder.path || this.buildFolderPath(folder),
       summary: folder.description || 'No summary',
-      documentCount: folder._count.documents,
+      documentCount: (folder as any)._count?.documents || 0,
     }));
   }
 
@@ -159,7 +159,7 @@ class FolderSummaryService {
    * Get comprehensive folder index with document details
    */
   async getUserFolderIndexWithDocs(userId: string): Promise<FolderWithDocs[]> {
-    const folders = await prisma.folders.findMany({
+    const folders = await prisma.folder.findMany({
       where: { userId },
       include: {
         documents: {
@@ -169,11 +169,11 @@ class FolderSummaryService {
             mimeType: true,
           },
         },
-        folders: {
+        subfolders: {
           select: {
             id: true,
             name: true,
-            folders: {
+            subfolders: {
               select: {
                 id: true,
                 name: true,
@@ -188,9 +188,9 @@ class FolderSummaryService {
       id: folder.id,
       name: folder.name,
       path: folder.path || this.buildFolderPath(folder),
-      documentCount: folder.documents.length,
+      documentCount: (folder as any).document?.length || 0,
       summary: folder.description || 'No summary',
-      documents: folder.documents,
+      documents: (folder as any).document || [],
     }));
   }
 
@@ -198,7 +198,7 @@ class FolderSummaryService {
    * Backfill summaries for all folders without summaries
    */
   async backfillMissingSummaries(userId: string): Promise<number> {
-    const foldersWithoutSummaries = await prisma.folders.findMany({
+    const foldersWithoutSummaries = await prisma.folder.findMany({
       where: {
         userId,
         description: null,

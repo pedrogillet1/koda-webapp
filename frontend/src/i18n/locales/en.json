@@ -1076,6 +1076,16 @@
     "previewNotAvailable": "Preview Not Available",
     "unsavedChanges": "Unsaved changes"
   },
+  "excelPreview": {
+    "documentNotAvailable": "Document not available",
+    "invalidPreviewType": "Invalid preview type",
+    "failedToLoad": "Failed to load Excel preview",
+    "loading": "Loading Excel preview...",
+    "previewNotAvailable": "Preview Not Available",
+    "downloadNotAvailable": "Download not available",
+    "downloadSuccess": "Excel file downloaded successfully",
+    "downloadFailed": "Failed to download Excel file"
+  },
   "uploadHub": {
     "library": "Library",
     "chooseCategory": "Choose a category for your document"

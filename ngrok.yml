@@ -4,8 +4,8 @@ tunnels:
   koda-frontend:
     proto: http
     addr: 3000
-    domain: koda-frontend.ngrok.app
+    domain: kodaweb-frontend.ngrok.app
   koda-backend:
     proto: http
-    addr: 5000
-    domain: koda-backend.ngrok.app
+    addr: 5001
+    domain: kodaweb-backend.ngrok.app

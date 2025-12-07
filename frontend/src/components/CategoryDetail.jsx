@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
@@ -141,6 +142,7 @@ const CategoryDetail = () => {
   const [showNotificationsPopup, setShowNotificationsPopup] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState(null);
   const [dropdownDirection, setDropdownDirection] = useState('down'); // 'up' or 'down'
+  const [docDropdownPosition, setDocDropdownPosition] = useState({ top: 0, right: 0 });
   const [dropdownMenuPosition, setDropdownMenuPosition] = useState({ top: 0, left: 0 });
   const [renamingDocId, setRenamingDocId] = useState(null);
   const [newFileName, setNewFileName] = useState('');
@@ -150,6 +152,7 @@ const CategoryDetail = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showNewDropdown, setShowNewDropdown] = useState(false);
   const [openFolderMenuId, setOpenFolderMenuId] = useState(null);
+  const [folderMenuPosition, setFolderMenuPosition] = useState({ top: 0, right: 0 });
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedDocumentForCategory, setSelectedDocumentForCategory] = useState(null);
   const [availableCategories, setAvailableCategories] = useState([]);
@@ -165,6 +168,7 @@ const CategoryDetail = () => {
   const [itemToRename, setItemToRename] = useState(null);
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [moveModalDoc, setMoveModalDoc] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [successCount, setSuccessCount] = useState(0);
   const fileInputRef = React.useRef(null);
@@ -242,6 +246,11 @@ const CategoryDetail = () => {
     clearSelection,
     isSelected
   } = useDocumentSelection();
+
+  // ✅ Helper function to calculate document count for each folder
+  const getDocumentCountByFolder = (folderId) => {
+    return contextDocuments.filter(doc => doc.folderId === folderId).length;
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -502,9 +511,12 @@ const CategoryDetail = () => {
   // Handle add to category
   const handleAddToCategory = (doc) => {
     // ✅ Use folders from context instead of API call (eliminates 500-1000ms delay)
-    const availableFolders = contextFolders.filter(f =>
-      f.name?.toLowerCase() !== 'recently added'
-    );
+    const availableFolders = contextFolders
+      .filter(f => f.name?.toLowerCase() !== 'recently added')
+      .map(folder => ({
+        ...folder,
+        documentCount: getDocumentCountByFolder(folder.id)
+      }));
     // ✅ Batch state updates together
     setSelectedDocumentForCategory(doc);
     setAvailableCategories(availableFolders);
@@ -1057,29 +1069,184 @@ const CategoryDetail = () => {
       <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />
 
       <div style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column' }}>
-        {/* Header with Breadcrumb, Search, and Controls */}
+        {/* Header with Breadcrumb and Title */}
         <div data-category-header="true" className="category-header mobile-sticky-header" style={{
           background: 'white',
-          padding: isMobile ? '16px 16px 16px 70px' : '20px 32px',
-          borderBottom: '1px solid #E5E7EB'
+          padding: isMobile && isSelectMode ? 0 : (isMobile ? '12px 16px 12px 70px' : '20px 32px'),
+          paddingTop: isMobile && isSelectMode ? 0 : (isMobile ? 'max(env(safe-area-inset-top), 12px)' : '20px'),
+          borderBottom: isMobile && isSelectMode ? 'none' : '1px solid #E5E7EB',
+          flexShrink: 0
         }}>
-          {/* Main Header Row */}
+          {/* Mobile Select Mode: Two-row layout */}
+          {isMobile && isSelectMode ? (
+            <>
+              {/* Row 1: Title with border-bottom */}
+              <div style={{
+                padding: '12px 16px 12px 70px',
+                paddingTop: 'max(env(safe-area-inset-top), 12px)',
+                borderBottom: '1px solid #E5E7EB',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <h1 style={{
+                  fontSize: 22,
+                  fontWeight: '600',
+                  color: '#111827',
+                  fontFamily: 'Plus Jakarta Sans',
+                  margin: 0,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: 'calc(100vw - 140px)'
+                }}>
+                  {currentFolderName || formatCategoryName(categoryName)}
+                </h1>
+              </div>
+              {/* Row 2: Action buttons */}
+              <div style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid #E5E7EB',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8
+              }}>
+                {/* Delete Button */}
+                <button
+                  onClick={() => {
+                    if (selectedDocuments.size === 0) return;
+                    setItemToDelete({
+                      type: 'bulk-documents',
+                      ids: Array.from(selectedDocuments),
+                      count: selectedDocuments.size,
+                      name: `${selectedDocuments.size} document${selectedDocuments.size > 1 ? 's' : ''}`
+                    });
+                    setShowDeleteModal(true);
+                  }}
+                  disabled={selectedDocuments.size === 0}
+                  style={{
+                    height: 38,
+                    paddingLeft: 12,
+                    paddingRight: 12,
+                    background: selectedDocuments.size > 0 ? '#FEE2E2' : '#F5F5F5',
+                    borderRadius: 100,
+                    border: '1px solid #E6E6EC',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                    cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed',
+                    opacity: selectedDocuments.size > 0 ? 1 : 0.5,
+                    whiteSpace: 'nowrap',
+                    flex: 1,
+                    minWidth: 0
+                  }}
+                >
+                  <TrashCanIcon style={{ width: 16, height: 16 }} />
+                  {selectedDocuments.size > 0 && (
+                    <span style={{
+                      color: '#D92D20',
+                      fontSize: 13,
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontWeight: '600'
+                    }}>
+                      ({selectedDocuments.size})
+                    </span>
+                  )}
+                </button>
+
+                {/* Move Button with + icon */}
+                <button
+                  onClick={() => {
+                    if (selectedDocuments.size === 0) return;
+                    const availableFolders = contextFolders
+                      .filter(f => f.name?.toLowerCase() !== 'recently added' && f.id !== currentFolderId)
+                      .map(folder => ({
+                        ...folder,
+                        documentCount: getDocumentCountByFolder(folder.id)
+                      }));
+                    setAvailableCategories(availableFolders);
+                    setShowCategoryModal(true);
+                  }}
+                  disabled={selectedDocuments.size === 0}
+                  style={{
+                    height: 38,
+                    paddingLeft: 12,
+                    paddingRight: 12,
+                    background: 'white',
+                    borderRadius: 100,
+                    border: '1px solid #E6E6EC',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                    cursor: selectedDocuments.size > 0 ? 'pointer' : 'not-allowed',
+                    opacity: selectedDocuments.size > 0 ? 1 : 0.5,
+                    whiteSpace: 'nowrap',
+                    flex: 1,
+                    minWidth: 0
+                  }}
+                >
+                  {/* Plus icon */}
+                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9 3.75V14.25M3.75 9H14.25" stroke="#32302C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span style={{
+                    color: '#32302C',
+                    fontSize: 13,
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '600'
+                  }}>
+                    {selectedDocuments.size > 0 ? `(${selectedDocuments.size})` : ''}
+                  </span>
+                </button>
+
+                {/* Cancel Button */}
+                <button
+                  onClick={() => {
+                    clearSelection();
+                    toggleSelectMode();
+                  }}
+                  style={{
+                    height: 38,
+                    paddingLeft: 12,
+                    paddingRight: 12,
+                    background: 'white',
+                    borderRadius: 100,
+                    border: '1px solid #E6E6EC',
+                    cursor: 'pointer',
+                    fontFamily: 'Plus Jakarta Sans',
+                    fontWeight: '600',
+                    fontSize: 13,
+                    color: '#111827',
+                    whiteSpace: 'nowrap',
+                    flex: 1,
+                    minWidth: 0
+                  }}
+                >
+                  {t('common.cancel')}
+                </button>
+              </div>
+            </>
+          ) : (
+          /* Normal mode layout */
           <div style={{
             display: 'flex',
             justifyContent: isMobile ? 'center' : 'space-between',
             alignItems: isMobile ? 'center' : 'flex-start',
             gap: isMobile ? 12 : 24,
             flexWrap: 'wrap',
-            flexDirection: isMobile && isSelectMode ? 'column' : 'row'
+            flexDirection: 'row'
           }}>
             {/* Left: Breadcrumb and Title */}
-            <div style={{ flex: 1, minWidth: 0, width: isMobile && isSelectMode ? '100%' : 'auto' }}>
-              {/* Real Breadcrumb Navigation - Hide on mobile in select mode */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {/* Real Breadcrumb Navigation */}
               <div style={{
                 fontSize: 13,
                 color: '#6B7280',
                 marginBottom: 8,
-                display: isMobile && isSelectMode ? 'none' : 'flex',
+                display: 'flex',
                 alignItems: 'center',
                 gap: 8,
                 flexWrap: 'nowrap',
@@ -1188,7 +1355,8 @@ const CategoryDetail = () => {
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  maxWidth: isMobile ? 'calc(100vw - 140px)' : 'none'
+                  maxWidth: isMobile ? 'calc(100vw - 140px)' : 'calc(100vw - 500px)',
+                  minWidth: 0
                 }}>
                   {currentFolderName || formatCategoryName(categoryName)}
                 </h1>
@@ -1197,7 +1365,7 @@ const CategoryDetail = () => {
 
             {/* Right: Search, View Toggle, New Button OR Delete/Move buttons */}
             <div style={{
-              display: 'flex',
+              display: isMobile && !isSelectMode ? 'none' : 'flex',
               alignItems: 'center',
               gap: isMobile ? 8 : 12,
               flexShrink: 0,
@@ -1257,9 +1425,12 @@ const CategoryDetail = () => {
                     onClick={() => {
                       if (selectedDocuments.size === 0) return;
                       // ✅ Use folders from context (instant - 0ms)
-                      const availableFolders = contextFolders.filter(f =>
-                        f.name?.toLowerCase() !== 'recently added' && f.id !== currentFolderId
-                      );
+                      const availableFolders = contextFolders
+                        .filter(f => f.name?.toLowerCase() !== 'recently added' && f.id !== currentFolderId)
+                        .map(folder => ({
+                          ...folder,
+                          documentCount: getDocumentCountByFolder(folder.id)
+                        }));
                       setAvailableCategories(availableFolders);
                       setShowCategoryModal(true);
                     }}
@@ -1664,12 +1835,174 @@ const CategoryDetail = () => {
             )}
             </div>
           </div>
+          )}
         </div>
+
+        {/* Mobile Tab Bar - Search + Select + New */}
+        {isMobile && !isSelectMode && (
+          <div className="mobile-tab-bar" style={{
+            padding: '12px 16px',
+            paddingBottom: '12px',
+            background: 'white',
+            borderBottom: '1px solid #E5E7EB',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            flexShrink: 0,
+            overflow: 'hidden'
+          }}>
+            {/* Search Bar */}
+            <div style={{
+              flex: 1,
+              minWidth: 0,
+              height: 40,
+              paddingLeft: 12,
+              paddingRight: 12,
+              background: '#F5F5F5',
+              borderRadius: 100,
+              border: '1px #E6E6EC solid',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}>
+              <SearchIcon style={{ width: 18, height: 18, color: '#6B7280', flexShrink: 0 }} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t('common.searchPlaceholder')}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  border: 'none',
+                  outline: 'none',
+                  background: 'transparent',
+                  color: '#32302C',
+                  fontSize: 14,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '500',
+                  lineHeight: '20px'
+                }}
+              />
+            </div>
+            {/* Select Button */}
+            <button
+              onClick={toggleSelectMode}
+              style={{
+                height: 40,
+                paddingLeft: 12,
+                paddingRight: 12,
+                background: 'white',
+                borderRadius: 100,
+                border: '1px solid #E6E6EC',
+                cursor: 'pointer',
+                fontFamily: 'Plus Jakarta Sans',
+                fontWeight: '600',
+                fontSize: 14,
+                color: '#111827',
+                whiteSpace: 'nowrap',
+                flexShrink: 0
+              }}
+            >
+              {t('common.select')}
+            </button>
+            {/* New Button */}
+            <div style={{ position: 'relative', flexShrink: 0 }} data-new-dropdown-mobile>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowNewDropdown(!showNewDropdown);
+                }}
+                style={{
+                  height: 40,
+                  paddingLeft: 10,
+                  paddingRight: 10,
+                  background: 'white',
+                  borderRadius: 100,
+                  border: '1px solid #E6E6EC',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  flexShrink: 0
+                }}
+              >
+                <VectorIcon style={{ width: 14, height: 13 }} />
+                <span style={{
+                  color: '#32302C',
+                  fontSize: 14,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '500'
+                }}>{t('common.new')}</span>
+              </button>
+              {showNewDropdown && (
+                <div style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 0,
+                  background: 'white',
+                  boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.12)',
+                  borderRadius: 12,
+                  border: '1px #E6E6EC solid',
+                  zIndex: 100,
+                  minWidth: 200
+                }}>
+                  <div style={{ padding: 4 }}>
+                    {/* Upload a Document */}
+                    <div
+                      onClick={() => {
+                        setShowUploadModal(true);
+                        setShowNewDropdown(false);
+                      }}
+                      style={{
+                        padding: '12px 16px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        borderRadius: 8
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <LogoutIcon style={{ width: 20, height: 20 }} />
+                      <span style={{ fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#32302C' }}>
+                        {t('common.uploadDocument')}
+                      </span>
+                    </div>
+                    {/* Create Folder */}
+                    <div
+                      onClick={() => {
+                        setShowCreateFolderModal(true);
+                        setShowNewDropdown(false);
+                      }}
+                      style={{
+                        padding: '12px 16px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        borderRadius: 8
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <FolderSvgIcon style={{ width: 20, height: 20 }} />
+                      <span style={{ fontSize: 15, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', color: '#32302C' }}>
+                        {t('common.createFolder')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Content Area with Folder Grid + Document List */}
         <div className="category-content scrollable-content" style={{
           flex: 1,
-          padding: isMobile ? 16 : 24,
+          padding: isMobile ? '12px 16px 100px 16px' : 24,
           paddingBottom: isMobile ? 100 : 24,
           overflowY: 'auto',
           background: '#F5F5F5',
@@ -1693,8 +2026,8 @@ const CategoryDetail = () => {
                   </h2>
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-                    gap: 16
+                    gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(180px, 1fr))',
+                    gap: isMobile ? 12 : 16
                   }}>
                     {subFolders.map((folder) => (
                       <div
@@ -1710,13 +2043,15 @@ const CategoryDetail = () => {
                         style={{
                           background: dropTargetId === folder.id ? '#EFF6FF' : 'white',
                           border: dropTargetId === folder.id ? '2px dashed #3B82F6' : '1px solid #E6E6EC',
-                          borderRadius: 16,
-                          padding: 16,
+                          borderRadius: isMobile ? 12 : 16,
+                          padding: isMobile ? 12 : 16,
                           cursor: 'pointer',
                           transition: 'all 0.2s',
                           position: 'relative',
                           opacity: draggedItem?.type === 'folder' && draggedItem?.id === folder.id ? 0.5 : 1,
-                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
+                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                          minWidth: 0,
+                          overflow: 'visible'
                         }}
                         onMouseEnter={(e) => {
                           if (dropTargetId !== folder.id) {
@@ -1737,7 +2072,15 @@ const CategoryDetail = () => {
                             data-folder-menu-id={folder.id}
                             onClick={(e) => {
                               e.stopPropagation();
+                              console.log('🟢 [FOLDER MENU] Three dots clicked for folder:', folder.name, folder.id);
+                              console.log('🟢 [FOLDER MENU] Current openFolderMenuId:', openFolderMenuId);
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setFolderMenuPosition({
+                                top: rect.bottom + 4,
+                                right: window.innerWidth - rect.right
+                              });
                               setOpenFolderMenuId(openFolderMenuId === folder.id ? null : folder.id);
+                              console.log('🟢 [FOLDER MENU] Setting openFolderMenuId to:', openFolderMenuId === folder.id ? null : folder.id);
                             }}
                             style={{
                               width: 28,
@@ -1761,60 +2104,37 @@ const CategoryDetail = () => {
                             <DotsIcon style={{width: 24, height: 24, pointerEvents: 'auto'}} />
                           </button>
 
-                          {/* Dropdown Menu */}
-                          {openFolderMenuId === folder.id && (
+                          {/* Dropdown Menu - Using Portal to escape overflow constraints */}
+                          {(() => {
+                            const shouldShow = openFolderMenuId === folder.id;
+                            console.log('🟡 [FOLDER MENU RENDER] Checking if should show menu for', folder.name, ':', shouldShow, '(openFolderMenuId:', openFolderMenuId, 'folder.id:', folder.id, ')');
+                            return shouldShow;
+                          })() && ReactDOM.createPortal(
                             <div
                               data-dropdown
                               onClick={(e) => e.stopPropagation()}
                               style={{
-                              position: 'absolute',
-                              top: '100%',
-                              right: 0,
-                              marginTop: 4,
+                              position: 'fixed',
+                              top: folderMenuPosition.top,
+                              right: folderMenuPosition.right,
                               background: 'white',
                               boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
                               borderRadius: 12,
                               border: '1px solid #E6E6EC',
                               minWidth: 150,
-                              zIndex: 999991,
+                              zIndex: 999999,
                               overflow: 'hidden',
                               padding: 8
                             }}>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  navigate(`/category/${folder.name?.toLowerCase().replace(/\s+/g, '-')}`);
-                                }}
-                                style={{
-                                  width: '100%',
-                                  padding: '10px 14px',
-                                  background: 'none',
-                                  border: 'none',
-                                  textAlign: 'left',
-                                  fontSize: 14,
-                                  fontFamily: 'Plus Jakarta Sans',
-                                  fontWeight: '500',
-                                  color: '#32302C',
-                                  cursor: 'pointer',
-                                  borderRadius: 6,
-                                  transition: 'background 0.2s',
-                                  display: 'flex',
-                                  alignItems: 'center'
-                                }}
-                                onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
-                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                              >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 10, flexShrink: 0 }}>
-                                  <path d="M22 19C22 19.5304 21.7893 20.0391 21.4142 20.4142C21.0391 20.7893 20.5304 21 20 21H4C3.46957 21 2.96086 20.7893 2.58579 20.4142C2.21071 20.0391 2 19.5304 2 19V5C2 4.46957 2.21071 3.96086 2.58579 3.58579C2.96086 3.21071 3.46957 3 4 3H9L11 6H20C20.5304 6 21.0391 6.21071 21.4142 6.58579C21.7893 6.96086 22 7.46957 22 8V19Z" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                </svg>
-                                {t('common.open')}
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  console.log('✏️ [FOLDER EDIT] Button clicked for folder:', folder.name);
                                   setItemToRename({ type: 'folder', id: folder.id, name: folder.name });
                                   setShowRenameModal(true);
                                   setOpenFolderMenuId(null);
+                                  console.log('✏️ [FOLDER EDIT] Rename modal state set to true');
                                 }}
                                 style={{
                                   width: '100%',
@@ -1830,7 +2150,9 @@ const CategoryDetail = () => {
                                   borderRadius: 6,
                                   transition: 'background 0.2s',
                                   display: 'flex',
-                                  alignItems: 'center'
+                                  alignItems: 'center',
+                                  pointerEvents: 'auto',
+                                  zIndex: 999999
                                 }}
                                 onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
@@ -1839,18 +2161,32 @@ const CategoryDetail = () => {
                                   <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                                   <path d="M18.5 2.50001C18.8978 2.10219 19.4374 1.87869 20 1.87869C20.5626 1.87869 21.1022 2.10219 21.5 2.50001C21.8978 2.89784 22.1213 3.4374 22.1213 4.00001C22.1213 4.56262 21.8978 5.10219 21.5 5.50001L12 15L8 16L9 12L18.5 2.50001Z" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                                 </svg>
-                                {t('common.rename')}
+                                {t('common.edit')}
                               </button>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  e.preventDefault();
+                                  console.log('🔵 [FOLDER MOVE] Button clicked for folder:', folder.name);
                                   // ✅ Use folders from context (instant - 0ms)
-                                  setSelectedDocumentForCategory({ type: 'folder', id: folder.id, name: folder.name });
-                                  const availableFolders = contextFolders.filter(f =>
-                                    f.name?.toLowerCase() !== 'recently added'
-                                  );
+                                  // Set folder with proper structure for modal display
+                                  setSelectedDocumentForCategory({
+                                    type: 'folder',
+                                    id: folder.id,
+                                    name: folder.name,
+                                    filename: folder.name, // Add filename for display
+                                    isFolder: true // Flag to identify folders in modal
+                                  });
+                                  const availableFolders = contextFolders
+                                    .filter(f => f.name?.toLowerCase() !== 'recently added')
+                                    .map(folder => ({
+                                      ...folder,
+                                      documentCount: getDocumentCountByFolder(folder.id)
+                                    }));
+                                  console.log('🔵 [FOLDER MOVE] Available folders:', availableFolders.length);
                                   setAvailableCategories(availableFolders);
                                   setShowCategoryModal(true);
+                                  console.log('🔵 [FOLDER MOVE] Modal state set to true');
                                   setOpenFolderMenuId(null);
                                 }}
                                 style={{
@@ -1867,14 +2203,16 @@ const CategoryDetail = () => {
                                   borderRadius: 6,
                                   transition: 'background 0.2s',
                                   display: 'flex',
-                                  alignItems: 'center'
+                                  alignItems: 'center',
+                                  pointerEvents: 'auto',
+                                  zIndex: 999999
                                 }}
                                 onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                               >
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 10, flexShrink: 0 }}>
+                                  <path d="M12 5V19" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                                   <path d="M5 12H19" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                  <path d="M12 5L19 12L12 19" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                                 </svg>
                                 {t('common.move')}
                               </button>
@@ -1910,7 +2248,8 @@ const CategoryDetail = () => {
                                 </svg>
                                 {t('common.delete')}
                               </button>
-                            </div>
+                            </div>,
+                            document.body
                           )}
                         </div>
 
@@ -1919,21 +2258,29 @@ const CategoryDetail = () => {
                           onClick={() => navigate(`/folder/${folder.id}`)}
                           style={{
                             width: '100%',
-                            height: 120,
+                            height: isMobile ? 80 : 120,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            marginBottom: 12,
+                            marginBottom: isMobile ? 8 : 12,
                             position: 'relative'
                           }}
                         >
-                          <FolderThumbnail />
+                          <img
+                            src={folderIcon}
+                            alt="Folder"
+                            style={{
+                              width: isMobile ? 60 : 100,
+                              height: isMobile ? 60 : 100,
+                              filter: 'drop-shadow(0 6px 12px rgba(0, 0, 0, 0.25))'
+                            }}
+                          />
                         </div>
 
                         {/* Folder Info */}
                         <div
                           onClick={() => navigate(`/folder/${folder.id}`)}
-                          style={{ textAlign: 'center' }}
+                          style={{ textAlign: 'center', width: '100%', overflow: 'hidden' }}
                         >
                           <h3 style={{
                             fontSize: 14,
@@ -1964,7 +2311,7 @@ const CategoryDetail = () => {
               )}
 
               {/* Documents Section (Table or Grid) */}
-              <div style={{ background: "white", borderRadius: 20, border: "2px solid #E6E6EC", padding: 24 }}>
+              <div style={{ background: "white", borderRadius: isMobile ? 16 : 20, border: "2px solid #E6E6EC", padding: isMobile ? 16 : 24, overflow: 'hidden', width: '100%', boxSizing: 'border-box' }}>
                 <h2 style={{
                   fontSize: 18,
                   fontWeight: '600',
@@ -2318,7 +2665,7 @@ const CategoryDetail = () => {
                   </div>
                 ) : (
                   // List View - Card-based layout matching Documents page
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0, width: '100%' }}>
                     {/* Table Header - Hidden on mobile */}
                     {!isMobile && (
                     <div style={{
@@ -2379,14 +2726,17 @@ const CategoryDetail = () => {
                         style={isMobile ? {
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 14,
-                          padding: 14,
+                          gap: 12,
+                          padding: 10,
                           borderRadius: 14,
-                          background: isSelected(doc.id) ? '#E8E8EC' : '#F5F5F5',
+                          background: isSelected(doc.id) ? '#E8E8EC' : 'white',
+                          border: '1px solid #E6E6EC',
                           cursor: 'pointer',
                           marginBottom: 8,
                           position: 'relative',
-                          zIndex: openDropdownId === doc.id ? 99999 : 1
+                          zIndex: openDropdownId === doc.id ? 99999 : 1,
+                          minHeight: 72,
+                          boxSizing: 'border-box'
                         } : {
                           display: 'grid',
                           gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
@@ -2421,7 +2771,7 @@ const CategoryDetail = () => {
                             <img
                               src={getFileIcon(doc)}
                               alt="File icon"
-                              style={{ width: 48, height: 48, flexShrink: 0, imageRendering: '-webkit-optimize-contrast', objectFit: 'contain' }}
+                              style={{ width: 40, height: 40, flexShrink: 0, imageRendering: '-webkit-optimize-contrast', objectFit: 'contain' }}
                             />
                             <div style={{ flex: 1, overflow: 'hidden' }}>
                               <div style={{ color: '#32302C', fontSize: 14, fontFamily: 'Plus Jakarta Sans', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -2430,6 +2780,153 @@ const CategoryDetail = () => {
                               <div style={{ color: '#6C6B6E', fontSize: 12, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', marginTop: 5 }}>
                                 {formatFileSize(doc.fileSize)} • {new Date(doc.createdAt).toLocaleDateString()}
                               </div>
+                            </div>
+                            {/* Mobile Actions Button */}
+                            <div style={{ flexShrink: 0 }} data-dropdown>
+                              <button
+                                data-dropdown-id={`mobile-list-${doc.id}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (openDropdownId === doc.id) {
+                                    setOpenDropdownId(null);
+                                  } else {
+                                    setDropdownDirection('down');
+                                    setOpenDropdownId(doc.id);
+                                  }
+                                }}
+                                style={{
+                                  width: 32,
+                                  height: 32,
+                                  background: 'transparent',
+                                  borderRadius: '50%',
+                                  border: 'none',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'pointer',
+                                  padding: 0
+                                }}
+                              >
+                                <DotsIcon style={{width: 24, height: 24}} />
+                              </button>
+                              {openDropdownId === doc.id && (
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    top: 'auto',
+                                    right: 12,
+                                    bottom: 'auto',
+                                    marginTop: 4,
+                                    background: 'white',
+                                    borderRadius: 12,
+                                    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                                    border: '1px solid #E5E7EB',
+                                    padding: 8,
+                                    zIndex: 100000,
+                                    minWidth: 180
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    onClick={() => { handleDownload(doc); setOpenDropdownId(null); }}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 6,
+                                      width: '100%',
+                                      padding: '8px 14px',
+                                      background: 'transparent',
+                                      border: 'none',
+                                      borderRadius: 6,
+                                      cursor: 'pointer',
+                                      fontSize: 14,
+                                      fontFamily: 'Plus Jakarta Sans',
+                                      fontWeight: '500',
+                                      color: '#32302C',
+                                      transition: 'background 0.2s ease'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                  >
+                                    <DownloadIcon style={{width: 16, height: 16}} />
+                                    {t('common.download')}
+                                  </button>
+                                  <button
+                                    onClick={() => { setRenamingDocId(doc.id); setNewFileName(doc.filename.replace(/\.[^/.]+$/, '')); setOpenDropdownId(null); }}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 6,
+                                      width: '100%',
+                                      padding: '8px 14px',
+                                      background: 'transparent',
+                                      border: 'none',
+                                      borderRadius: 6,
+                                      cursor: 'pointer',
+                                      fontSize: 14,
+                                      fontFamily: 'Plus Jakarta Sans',
+                                      fontWeight: '500',
+                                      color: '#32302C',
+                                      transition: 'background 0.2s ease'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                  >
+                                    <EditIcon style={{width: 16, height: 16}} />
+                                    {t('common.rename')}
+                                  </button>
+                                  <button
+                                    onClick={() => { setMoveModalDoc(doc); setOpenDropdownId(null); }}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 6,
+                                      width: '100%',
+                                      padding: '8px 14px',
+                                      background: 'transparent',
+                                      border: 'none',
+                                      borderRadius: 6,
+                                      cursor: 'pointer',
+                                      fontSize: 14,
+                                      fontFamily: 'Plus Jakarta Sans',
+                                      fontWeight: '500',
+                                      color: '#32302C',
+                                      transition: 'background 0.2s ease'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                  >
+                                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <path d="M10.6263 4.1665C10.6263 3.82133 10.3465 3.5415 10.0013 3.5415C9.65612 3.5415 9.3763 3.82133 9.3763 4.1665V9.37484H4.16797C3.82279 9.37484 3.54297 9.65466 3.54297 9.99984C3.54297 10.345 3.82279 10.6248 4.16797 10.6248H9.3763V15.8332C9.3763 16.1783 9.65612 16.4582 10.0013 16.4582C10.3465 16.4582 10.6263 16.1783 10.6263 15.8332V10.6248H15.8346C16.1798 10.6248 16.4596 10.345 16.4596 9.99984C16.4596 9.65466 16.1798 9.37484 15.8346 9.37484H10.6263V4.1665Z" fill="#32302C"/>
+                                    </svg>
+                                    {t('common.move')}
+                                  </button>
+                                  <button
+                                    onClick={() => { handleDelete(doc.id, 'document'); setOpenDropdownId(null); }}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 6,
+                                      width: '100%',
+                                      padding: '8px 14px',
+                                      background: 'transparent',
+                                      border: 'none',
+                                      borderRadius: 6,
+                                      cursor: 'pointer',
+                                      fontSize: 14,
+                                      fontFamily: 'Plus Jakarta Sans',
+                                      fontWeight: '500',
+                                      color: '#D92D20',
+                                      transition: 'background 0.2s ease'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = '#FEF3F2'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                  >
+                                    <TrashCanIcon style={{width: 16, height: 16}} />
+                                    {t('common.delete')}
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </>
                         ) : (
@@ -2482,8 +2979,8 @@ const CategoryDetail = () => {
                         <div style={{ color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{formatFileSize(doc.fileSize)}</div>
                         {/* Date Column */}
                         <div style={{ color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans' }}>{new Date(doc.createdAt).toLocaleDateString()}</div>
-                        {/* Actions - Hidden on mobile */}
-                        {!isMobile && <div style={{ position: 'relative' }} data-dropdown>
+                        {/* Actions */}
+                        <div style={{ position: 'relative' }} data-dropdown>
                           <button
                             data-dropdown-id={`list-${doc.id}`}
                             onClick={(e) => {
@@ -2495,8 +2992,12 @@ const CategoryDetail = () => {
                                 const dropdownHeight = 200;
                                 const spaceBelow = window.innerHeight - buttonRect.bottom;
                                 const spaceAbove = buttonRect.top;
-                                // Open upward if not enough space below and more space above
-                                setDropdownDirection(spaceBelow < dropdownHeight && spaceAbove > spaceBelow ? 'up' : 'down');
+                                const openUpward = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+                                setDropdownDirection(openUpward ? 'up' : 'down');
+                                setDocDropdownPosition({
+                                  top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
+                                  right: window.innerWidth - buttonRect.right
+                                });
                                 setOpenDropdownId(doc.id);
                               }
                             }}
@@ -2518,21 +3019,19 @@ const CategoryDetail = () => {
                             <DotsIcon style={{width: 24, height: 24, pointerEvents: 'auto'}} />
                           </button>
 
-                              {openDropdownId === doc.id && (
+                              {openDropdownId === doc.id && ReactDOM.createPortal(
                                 <div
                                   data-dropdown
                                   onClick={(e) => e.stopPropagation()}
                                   style={{
-                                    position: 'absolute',
-                                    right: 0,
-                                    ...(dropdownDirection === 'up'
-                                      ? { bottom: '100%', marginBottom: 4 }
-                                      : { top: '100%', marginTop: 4 }),
+                                    position: 'fixed',
+                                    top: docDropdownPosition.top,
+                                    right: docDropdownPosition.right,
                                     background: 'white',
                                     border: '1px solid #E6E6EC',
                                     borderRadius: 12,
                                     boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                                    zIndex: 99999,
+                                    zIndex: 999999,
                                     minWidth: 160,
                                     overflow: 'hidden',
                                     padding: 8
@@ -2542,6 +3041,7 @@ const CategoryDetail = () => {
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleDownload(doc);
+                                      setOpenDropdownId(null);
                                     }}
                                     style={{
                                       display: 'flex',
@@ -2571,6 +3071,7 @@ const CategoryDetail = () => {
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleRename(doc);
+                                      setOpenDropdownId(null);
                                     }}
                                     style={{
                                       display: 'flex',
@@ -2600,6 +3101,7 @@ const CategoryDetail = () => {
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleAddToCategory(doc);
+                                      setOpenDropdownId(null);
                                     }}
                                     style={{
                                       display: 'flex',
@@ -2629,6 +3131,7 @@ const CategoryDetail = () => {
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleDelete(doc.id);
+                                      setOpenDropdownId(null);
                                     }}
                                     style={{
                                       display: 'flex',
@@ -2653,9 +3156,10 @@ const CategoryDetail = () => {
                                     <TrashCanIcon style={{width: 20, height: 20}} />
                                     {t('common.delete')}
                                   </button>
-                                </div>
+                                </div>,
+                                document.body
                               )}
-                        </div>}
+                        </div>
                         </>
                         )}
                       </div>
@@ -2767,6 +3271,11 @@ const CategoryDetail = () => {
                 }}>
                   <img
                     src={(() => {
+                      // Check if it's a folder first
+                      if (selectedDocumentForCategory.isFolder) {
+                        return folderIcon;
+                      }
+                      // Otherwise, determine file type icon
                       const filename = selectedDocumentForCategory.filename.toLowerCase();
                       if (filename.match(/\.(pdf)$/)) return pdfIcon;
                       if (filename.match(/\.(jpg|jpeg)$/)) return jpgIcon;
@@ -2780,7 +3289,7 @@ const CategoryDetail = () => {
                       if (filename.match(/\.(mp3)$/)) return mp3Icon;
                       return docIcon;
                     })()}
-                    alt="File icon"
+                    alt={selectedDocumentForCategory.isFolder ? "Folder icon" : "File icon"}
                     style={{
                       width: 40,
                       height: 40,
@@ -2809,7 +3318,10 @@ const CategoryDetail = () => {
                       fontFamily: 'Plus Jakarta Sans',
                       fontWeight: '400'
                     }}>
-                      {((selectedDocumentForCategory.fileSize || 0) / 1024 / 1024).toFixed(2)} MB
+                      {selectedDocumentForCategory.isFolder
+                        ? `${contextFolders.filter(f => f.parentFolderId === selectedDocumentForCategory.id).length + contextDocuments.filter(d => d.folderId === selectedDocumentForCategory.id).length} Files`
+                        : `${((selectedDocumentForCategory.fileSize || 0) / 1024 / 1024).toFixed(2)} MB`
+                      }
                     </div>
                   </div>
                 </div>

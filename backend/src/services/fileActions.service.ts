@@ -10,13 +10,16 @@
  */
 
 import prisma from '../config/database';
-import type { documents, folders } from '@prisma/client';
-import { llmIntentDetectorService } from './llmIntentDetector.service';
+import type { Document, Folder } from '@prisma/client';
+// ✅ FIX #6: Simple Intent Detection (replaces LLM-based intentDetection.service)
+import { detectIntent as detectSimpleIntent, toLegacyIntent } from './simpleIntentDetection.service';
 import { findBestMatch } from 'string-similarity';
 import fuzzyMatchService from './fuzzy-match.service';
 import { emitDocumentEvent, emitFolderEvent } from './websocket.service';
 import semanticFileMatcher from './semanticFileMatcher.service'; // ✅ FIX #7: Import semantic matcher
 import clarificationService from './clarification.service'; // ✅ P0 Feature: Smart clarification with grouping
+import { generateDynamicResponse } from './dynamicResponseGenerator.service'; // ✅ Dynamic LLM-based responses
+import { createLoadMoreMarker } from '../utils/inlineDocumentInjector'; // ✅ UI: Load more button instead of text
 
 /**
  * Enhanced fuzzy matching using our dedicated service
@@ -40,9 +43,9 @@ function fuzzyMatchName(searchName: string, actualName: string): boolean {
 /**
  * Language Detection Function
  * Detects user's language from query to provide localized responses
- * Supports: English (EN), Portuguese (PT), Spanish (ES)
+ * Supports: English (EN), Portuguese (PT), Spanish (ES), French (FR)
  */
-function detectLanguage(query: string): 'pt' | 'es' | 'en' {
+function detectLanguage(query: string): 'pt' | 'es' | 'fr' | 'en' {
   const lowerQuery = query.toLowerCase();
 
   // Portuguese indicators
@@ -53,9 +56,14 @@ function detectLanguage(query: string): 'pt' | 'es' | 'en' {
   const esWords = ['muéstrame', 'muestra', 'archivo', 'carpeta', 'mover', 'renombrar', 'eliminar', 'crear', 'abrir', 'aquí está', 'necesito', 'quiero', 'dónde está', 'enseña', 'déjame ver'];
   const esCount = esWords.filter(word => lowerQuery.includes(word)).length;
 
+  // French indicators
+  const frWords = ['montre', 'montrer', 'fichier', 'dossier', 'déplacer', 'renommer', 'supprimer', 'créer', 'ouvrir', 'voici', 'besoin', 'veux', 'où est', 'afficher', 'laisse-moi voir'];
+  const frCount = frWords.filter(word => lowerQuery.includes(word)).length;
+
   // Return language with highest match count
-  if (ptCount > esCount && ptCount > 0) return 'pt';
-  if (esCount > ptCount && esCount > 0) return 'es';
+  if (ptCount > esCount && ptCount > frCount && ptCount > 0) return 'pt';
+  if (esCount > ptCount && esCount > frCount && esCount > 0) return 'es';
+  if (frCount > ptCount && frCount > esCount && frCount > 0) return 'fr';
   return 'en'; // Default to English
 }
 
@@ -408,58 +416,68 @@ function detectShowFileIntent(query: string): ShowFilePatternResult | null {
 
 /**
  * Multilingual Message Templates
- * All file action responses in 3 languages (EN, PT, ES)
+ * All file action responses in 4 languages (EN, PT, ES, FR)
  */
 const messages = {
   hereIsFile: {
     en: "Here's the file:",
     pt: "Aqui está o arquivo:",
-    es: "Aquí está el archivo:"
+    es: "Aquí está el archivo:",
+    fr: "Voici le fichier:"
   },
   fileNotFound: {
     en: (filename: string) => `I couldn't find a file named "${filename}". Please check the name and try again.`,
     pt: (filename: string) => `Não consegui encontrar um arquivo chamado "${filename}". Por favor, verifique o nome e tente novamente.`,
-    es: (filename: string) => `No pude encontrar un archivo llamado "${filename}". Por favor, verifica el nombre e intenta de nuevo.`
+    es: (filename: string) => `No pude encontrar un archivo llamado "${filename}". Por favor, verifica el nombre e intenta de nuevo.`,
+    fr: (filename: string) => `Je n'ai pas pu trouver un fichier nommé "${filename}". Veuillez vérifier le nom et réessayer.`
   },
   multipleFilesFound: {
     en: (count: number, filename: string) => `I found **${count} files** matching "${filename}". Which one would you like to see?`,
     pt: (count: number, filename: string) => `Encontrei **${count} arquivos** correspondentes a "${filename}". Qual deles você quer ver?`,
-    es: (count: number, filename: string) => `Encontré **${count} archivos** que coinciden con "${filename}". ¿Cuál quieres ver?`
+    es: (count: number, filename: string) => `Encontré **${count} archivos** que coinciden con "${filename}". ¿Cuál quieres ver?`,
+    fr: (count: number, filename: string) => `J'ai trouvé **${count} fichiers** correspondant à "${filename}". Lequel voulez-vous voir?`
   },
   folderCreated: {
     en: (folderName: string) => `Folder "${folderName}" created successfully.`,
     pt: (folderName: string) => `Pasta "${folderName}" criada com sucesso.`,
-    es: (folderName: string) => `Carpeta "${folderName}" creada exitosamente.`
+    es: (folderName: string) => `Carpeta "${folderName}" creada exitosamente.`,
+    fr: (folderName: string) => `Dossier "${folderName}" créé avec succès.`
   },
   folderAlreadyExists: {
     en: (folderName: string) => `Folder "${folderName}" already exists.`,
     pt: (folderName: string) => `A pasta "${folderName}" já existe.`,
-    es: (folderName: string) => `La carpeta "${folderName}" ya existe.`
+    es: (folderName: string) => `La carpeta "${folderName}" ya existe.`,
+    fr: (folderName: string) => `Le dossier "${folderName}" existe déjà.`
   },
   fileMoved: {
     en: (filename: string, folderName: string) => `File "${filename}" moved to "${folderName}" successfully.`,
     pt: (filename: string, folderName: string) => `Arquivo "${filename}" movido para "${folderName}" com sucesso.`,
-    es: (filename: string, folderName: string) => `Archivo "${filename}" movido a "${folderName}" exitosamente.`
+    es: (filename: string, folderName: string) => `Archivo "${filename}" movido a "${folderName}" exitosamente.`,
+    fr: (filename: string, folderName: string) => `Fichier "${filename}" déplacé vers "${folderName}" avec succès.`
   },
   fileRenamed: {
     en: (oldName: string, newName: string) => `File renamed from "${oldName}" to "${newName}" successfully.`,
     pt: (oldName: string, newName: string) => `Arquivo renomeado de "${oldName}" para "${newName}" com sucesso.`,
-    es: (oldName: string, newName: string) => `Archivo renombrado de "${oldName}" a "${newName}" exitosamente.`
+    es: (oldName: string, newName: string) => `Archivo renombrado de "${oldName}" a "${newName}" exitosamente.`,
+    fr: (oldName: string, newName: string) => `Fichier renommé de "${oldName}" à "${newName}" avec succès.`
   },
   fileDeleted: {
     en: (filename: string) => `File "${filename}" deleted successfully.`,
     pt: (filename: string) => `Arquivo "${filename}" deletado com sucesso.`,
-    es: (filename: string) => `Archivo "${filename}" eliminado exitosamente.`
+    es: (filename: string) => `Archivo "${filename}" eliminado exitosamente.`,
+    fr: (filename: string) => `Fichier "${filename}" supprimé avec succès.`
   },
   folderNotFound: {
     en: (folderName: string) => `Folder "${folderName}" not found.`,
     pt: (folderName: string) => `Pasta "${folderName}" não encontrada.`,
-    es: (folderName: string) => `Carpeta "${folderName}" no encontrada.`
+    es: (folderName: string) => `Carpeta "${folderName}" no encontrada.`,
+    fr: (folderName: string) => `Dossier "${folderName}" introuvable.`
   },
   fileNotFoundShort: {
     en: (filename: string) => `File "${filename}" not found.`,
     pt: (filename: string) => `Arquivo "${filename}" não encontrado.`,
-    es: (filename: string) => `Archivo "${filename}" no encontrado.`
+    es: (filename: string) => `Archivo "${filename}" no encontrado.`,
+    fr: (filename: string) => `Fichier "${filename}" introuvable.`
   },
   hereIsFolder: {
     en: (name: string, fileCount: number, subfolderCount: number) =>
@@ -467,12 +485,15 @@ const messages = {
     pt: (name: string, fileCount: number, subfolderCount: number) =>
       `Aqui está a pasta **${name}** com ${fileCount} arquivo${fileCount !== 1 ? 's' : ''} e ${subfolderCount} subpasta${subfolderCount !== 1 ? 's' : ''}.`,
     es: (name: string, fileCount: number, subfolderCount: number) =>
-      `Aquí está la carpeta **${name}** con ${fileCount} archivo${fileCount !== 1 ? 's' : ''} y ${subfolderCount} subcarpeta${subfolderCount !== 1 ? 's' : ''}.`
+      `Aquí está la carpeta **${name}** con ${fileCount} archivo${fileCount !== 1 ? 's' : ''} y ${subfolderCount} subcarpeta${subfolderCount !== 1 ? 's' : ''}.`,
+    fr: (name: string, fileCount: number, subfolderCount: number) =>
+      `Voici le dossier **${name}** avec ${fileCount} fichier${fileCount !== 1 ? 's' : ''} et ${subfolderCount} sous-dossier${subfolderCount !== 1 ? 's' : ''}.`
   },
   multipleFoldersFound: {
     en: (count: number, folderName: string) => `I found **${count} folders** matching "${folderName}". Which one would you like to see?`,
     pt: (count: number, folderName: string) => `Encontrei **${count} pastas** correspondentes a "${folderName}". Qual delas você quer ver?`,
-    es: (count: number, folderName: string) => `Encontré **${count} carpetas** que coinciden con "${folderName}". ¿Cuál quieres ver?`
+    es: (count: number, folderName: string) => `Encontré **${count} carpetas** que coinciden con "${folderName}". ¿Cuál quieres ver?`,
+    fr: (count: number, folderName: string) => `J'ai trouvé **${count} dossiers** correspondant à "${folderName}". Lequel voulez-vous voir?`
   }
 };
 
@@ -577,11 +598,13 @@ class FileActionsService {
       }
 
       // ═══════════════════════════════════════════════════════════════════════════
-      // FALLBACK: Use LLM for complex queries (create_folder, move, rename, etc.)
+      // FALLBACK: Use simple pattern-based intent detection
       // ═══════════════════════════════════════════════════════════════════════════
-      console.log(`🤖 [parseFileAction] Using LLM for intent detection...`);
-      const intentResult = await llmIntentDetectorService.detectIntent(query);
-      console.log(`📊 [parseFileAction] Intent detected:`, JSON.stringify(intentResult, null, 2));
+      // ✅ FIX #6: Simple intent detection (<10ms vs 3-6s LLM)
+      console.log(`⚡ [parseFileAction] Using simple pattern-based intent detection...`);
+      const simpleResult = detectSimpleIntent(query);
+      const intentResult = toLegacyIntent(simpleResult);
+      console.log(`⚡ [parseFileAction] Intent detected: ${intentResult.intent} [pattern/${simpleResult.detectionTimeMs}ms]`);
 
       // Map LLM intent to file actions
       const fileActionIntents = [
@@ -728,9 +751,9 @@ class FileActionsService {
   private async findDocumentWithFuzzyMatch(
     filename: string,
     userId: string
-  ): Promise<documents | null> {
+  ): Promise<Document | null> {
     // STEP 1: Try exact match first (fastest)
-    let document = await prisma.documents.findFirst({
+    let document = await prisma.document.findFirst({
       where: {
         filename: filename,
         userId: userId,
@@ -742,7 +765,7 @@ class FileActionsService {
 
     // STEP 2: Get all documents for fast local matching
     // ⚡ PERFORMANCE: Do all fast local operations before calling external APIs
-    const allDocuments = await prisma.documents.findMany({
+    const allDocuments = await prisma.document.findMany({
       where: {
         userId: userId,
         status: { not: 'deleted' },
@@ -779,10 +802,10 @@ class FileActionsService {
       0.5 // 50% similarity threshold
     );
 
-    if (fuzzyMatch) {
-      document = fuzzyMatch.document;
-      console.log(`🎯 Enhanced fuzzy match: "${filename}" → "${document.filename}" (score: ${fuzzyMatch.score.toFixed(3)})`);
-      return document;
+    if (fuzzyMatch && fuzzyMatch.document) {
+      const matchedDoc = fuzzyMatch.document;
+      console.log(`🎯 Enhanced fuzzy match: "${filename}" → "${matchedDoc.filename}" (score: ${fuzzyMatch.score.toFixed(3)})`);
+      return matchedDoc;
     }
 
     // STEP 5: Try string-similarity fallback (fast, local)
@@ -807,7 +830,7 @@ class FileActionsService {
 
       if (semanticResult) {
         console.log(`🧠 Semantic match (last resort): "${filename}" → "${semanticResult.filename}" (confidence: ${semanticResult.confidence})`);
-        document = await prisma.documents.findUnique({
+        document = await prisma.document.findUnique({
           where: { id: semanticResult.documentId },
         });
 
@@ -831,7 +854,7 @@ class FileActionsService {
       console.log(`📁 [CREATE_FOLDER] Creating folder: "${params.folderName}" (Language: ${lang})`);
 
       // Check if folder already exists
-      const existingFolder = await prisma.folders.findFirst({
+      const existingFolder = await prisma.folder.findFirst({
         where: {
           userId: params.userId,
           name: params.folderName,
@@ -842,13 +865,19 @@ class FileActionsService {
       if (existingFolder) {
         return {
           success: false,
-          message: messages.folderAlreadyExists[lang](params.folderName),
+          message: await generateDynamicResponse({
+            action: 'create_folder',
+            success: false,
+            language: lang,
+            details: { folderName: params.folderName },
+            userQuery: query
+          }),
           error: 'FOLDER_EXISTS'
         };
       }
 
       // Create folder
-      const folder = await prisma.folders.create({
+      const folder = await prisma.folder.create({
         data: {
           userId: params.userId,
           name: params.folderName,
@@ -868,14 +897,26 @@ class FileActionsService {
 
       return {
         success: true,
-        message: messages.folderCreated[lang](params.folderName),
+        message: await generateDynamicResponse({
+          action: 'create_folder',
+          success: true,
+          language: lang,
+          details: { folderName: params.folderName },
+          userQuery: query
+        }),
         data: { folder }
       };
     } catch (error: any) {
       console.error('❌ Create folder failed:', error);
       return {
         success: false,
-        message: 'Failed to create folder',
+        message: await generateDynamicResponse({
+          action: 'create_folder',
+          success: false,
+          language: detectLanguage(query),
+          details: { errorMessage: error.message },
+          userQuery: query
+        }),
         error: error.message
       };
     }
@@ -891,7 +932,7 @@ class FileActionsService {
       console.log(`📦 [MOVE_FILE] Moving file (Language: ${lang})`);
 
       // Verify document exists and belongs to user
-      const document = await prisma.documents.findFirst({
+      const document = await prisma.document.findFirst({
         where: {
           id: params.documentId,
           userId: params.userId,
@@ -901,13 +942,19 @@ class FileActionsService {
       if (!document) {
         return {
           success: false,
-          message: messages.fileNotFoundShort[lang](params.documentId),
+          message: await generateDynamicResponse({
+            action: 'move_file',
+            success: false,
+            language: lang,
+            details: { filename: params.documentId },
+            userQuery: query
+          }),
           error: 'DOCUMENT_NOT_FOUND'
         };
       }
 
       // Verify target folder exists and belongs to user
-      const targetFolder = await prisma.folders.findFirst({
+      const targetFolder = await prisma.folder.findFirst({
         where: {
           id: params.targetFolderId,
           userId: params.userId,
@@ -917,13 +964,19 @@ class FileActionsService {
       if (!targetFolder) {
         return {
           success: false,
-          message: messages.folderNotFound[lang](params.targetFolderId),
+          message: await generateDynamicResponse({
+            action: 'move_file',
+            success: false,
+            language: lang,
+            details: { folderName: params.targetFolderId },
+            userQuery: query
+          }),
           error: 'FOLDER_NOT_FOUND'
         };
       }
 
       // Move document
-      const updatedDocument = await prisma.documents.update({
+      const updatedDocument = await prisma.document.update({
         where: { id: params.documentId },
         data: { folderId: params.targetFolderId }
       });
@@ -938,14 +991,26 @@ class FileActionsService {
 
       return {
         success: true,
-        message: messages.fileMoved[lang](document.filename, targetFolder.name),
+        message: await generateDynamicResponse({
+          action: 'move_file',
+          success: true,
+          language: lang,
+          details: { filename: document.filename, targetFolder: targetFolder.name },
+          userQuery: query
+        }),
         data: { document: updatedDocument }
       };
     } catch (error: any) {
       console.error('❌ Move file failed:', error);
       return {
         success: false,
-        message: 'Failed to move file',
+        message: await generateDynamicResponse({
+          action: 'move_file',
+          success: false,
+          language: detectLanguage(query),
+          details: { errorMessage: error.message },
+          userQuery: query
+        }),
         error: error.message
       };
     }
@@ -961,7 +1026,7 @@ class FileActionsService {
       console.log(`✏️ [RENAME_FILE] Renaming file (Language: ${lang})`);
 
       // Verify document exists and belongs to user
-      const document = await prisma.documents.findFirst({
+      const document = await prisma.document.findFirst({
         where: {
           id: params.documentId,
           userId: params.userId,
@@ -971,13 +1036,19 @@ class FileActionsService {
       if (!document) {
         return {
           success: false,
-          message: messages.fileNotFoundShort[lang](params.documentId),
+          message: await generateDynamicResponse({
+            action: 'rename_file',
+            success: false,
+            language: lang,
+            details: { filename: params.documentId },
+            userQuery: query
+          }),
           error: 'DOCUMENT_NOT_FOUND'
         };
       }
 
       // Rename document
-      const updatedDocument = await prisma.documents.update({
+      const updatedDocument = await prisma.document.update({
         where: { id: params.documentId },
         data: { filename: params.newFilename }
       });
@@ -992,14 +1063,26 @@ class FileActionsService {
 
       return {
         success: true,
-        message: messages.fileRenamed[lang](document.filename, params.newFilename),
+        message: await generateDynamicResponse({
+          action: 'rename_file',
+          success: true,
+          language: lang,
+          details: { oldName: document.filename, newName: params.newFilename },
+          userQuery: query
+        }),
         data: { document: updatedDocument }
       };
     } catch (error: any) {
       console.error('❌ Rename file failed:', error);
       return {
         success: false,
-        message: 'Failed to rename file',
+        message: await generateDynamicResponse({
+          action: 'rename_file',
+          success: false,
+          language: detectLanguage(query),
+          details: { errorMessage: error.message },
+          userQuery: query
+        }),
         error: error.message
       };
     }
@@ -1015,7 +1098,7 @@ class FileActionsService {
       console.log(`🗑️ [DELETE_FILE] Deleting file (Language: ${lang})`);
 
       // Verify document exists and belongs to user
-      const document = await prisma.documents.findFirst({
+      const document = await prisma.document.findFirst({
         where: {
           id: params.documentId,
           userId: params.userId,
@@ -1025,13 +1108,19 @@ class FileActionsService {
       if (!document) {
         return {
           success: false,
-          message: messages.fileNotFoundShort[lang](params.documentId),
+          message: await generateDynamicResponse({
+            action: 'delete_file',
+            success: false,
+            language: lang,
+            details: { filename: params.documentId },
+            userQuery: query
+          }),
           error: 'DOCUMENT_NOT_FOUND'
         };
       }
 
       // Delete document (soft delete by updating status)
-      await prisma.documents.update({
+      await prisma.document.update({
         where: { id: params.documentId },
         data: { status: 'deleted' }
       });
@@ -1046,14 +1135,26 @@ class FileActionsService {
 
       return {
         success: true,
-        message: messages.fileDeleted[lang](document.filename),
+        message: await generateDynamicResponse({
+          action: 'delete_file',
+          success: true,
+          language: lang,
+          details: { filename: document.filename },
+          userQuery: query
+        }),
         data: { documentId: params.documentId }
       };
     } catch (error: any) {
       console.error('❌ Delete file failed:', error);
       return {
         success: false,
-        message: 'Failed to delete file',
+        message: await generateDynamicResponse({
+          action: 'delete_file',
+          success: false,
+          language: detectLanguage(query),
+          details: { errorMessage: error.message },
+          userQuery: query
+        }),
         error: error.message
       };
     }
@@ -1117,14 +1218,14 @@ class FileActionsService {
           console.log(`🔍 [SHOW_FILE] Topic-based search detected: "${topic}"`);
 
           // Search by topic in filename, summary, or extracted text
-          const topicSearchResults = await prisma.documents.findMany({
+          const topicSearchResults = await prisma.document.findMany({
             where: {
               userId: params.userId,
               status: { not: 'deleted' },
               OR: [
                 { filename: { contains: topic, mode: 'insensitive' } },
-                { document_metadata: { summary: { contains: topic, mode: 'insensitive' } } },
-                { document_metadata: { extractedText: { contains: topic, mode: 'insensitive' } } },
+                { metadata: { summary: { contains: topic, mode: 'insensitive' } } },
+                { metadata: { extractedText: { contains: topic, mode: 'insensitive' } } },
               ]
             },
             take: 5,
@@ -1158,7 +1259,7 @@ class FileActionsService {
               clarification.options.forEach((option: any) => {
                 const docIds = option.document_metadata?.documentIds || [];
                 clarifyMessage += `\n\n**${option.label}** (${option.count || docIds.length} files)`;
-                docIds.slice(0, 3).forEach((docId, i) => {
+                docIds.slice(0, 3).forEach((docId: string, i: number) => {
                   const doc = topicSearchResults.find(d => d.id === docId);
                   if (doc) clarifyMessage += `\n  ${i + 1}. ${doc.filename}`;
                 });
@@ -1203,14 +1304,14 @@ class FileActionsService {
 
       if (!document) {
         // Try searching by content keywords
-        const searchResults = await prisma.documents.findMany({
+        const searchResults = await prisma.document.findMany({
           where: {
             userId: params.userId,
             status: { not: 'deleted' },
             OR: [
               { filename: { contains: params.filename } },
               {
-                document_metadata: {
+                metadata: {
                   extractedText: { contains: params.filename }
                 }
               }
@@ -1251,7 +1352,7 @@ class FileActionsService {
             clarification.options.forEach((option: any) => {
               const docIds = option.document_metadata?.documentIds || [];
               clarifyMessage += `\n\n**${option.label}** (${option.count || docIds.length} files)`;
-              docIds.slice(0, 3).forEach((docId, i) => {
+              docIds.slice(0, 3).forEach((docId: string, i: number) => {
                 const doc = searchResults.find(d => d.id === docId);
                 if (doc) clarifyMessage += `\n  ${i + 1}. ${doc.filename} (${(doc.fileSize / 1024).toFixed(2)} KB)`;
               });
@@ -1352,7 +1453,7 @@ class FileActionsService {
       // Get folder contents (files + subfolders)
       const [files, subfolders] = await Promise.all([
         // Get all files in this folder
-        prisma.documents.findMany({
+        prisma.document.findMany({
           where: {
             userId: params.userId,
             folderId: folder.id,
@@ -1370,7 +1471,7 @@ class FileActionsService {
         }),
 
         // Get all subfolders
-        prisma.folders.findMany({
+        prisma.folder.findMany({
           where: {
             userId: params.userId,
             parentFolderId: folder.id
@@ -1392,14 +1493,14 @@ class FileActionsService {
       const subfoldersWithCounts = await Promise.all(
         subfolders.map(async (sf) => {
           const [fileCount, subfolderCount] = await Promise.all([
-            prisma.documents.count({
+            prisma.document.count({
               where: {
                 userId: params.userId,
                 folderId: sf.id,
                 status: { not: 'deleted' }
               }
             }),
-            prisma.folders.count({
+            prisma.folder.count({
               where: {
                 userId: params.userId,
                 parentFolderId: sf.id
@@ -1458,7 +1559,7 @@ class FileActionsService {
   /**
    * Find document by filename with fuzzy matching
    */
-  async findDocumentByName(userId: string, filename: string): Promise<documents | null> {
+  async findDocumentByName(userId: string, filename: string): Promise<Document | null> {
     // ✅ FIX: Use fuzzy matching to handle typos
     return await this.findDocumentWithFuzzyMatch(filename, userId);
   }
@@ -1466,9 +1567,9 @@ class FileActionsService {
   /**
    * Find folder by name with fuzzy matching (case-insensitive)
    */
-  async findFolderByName(userId: string, folderName: string): Promise<folders | null> {
+  async findFolderByName(userId: string, folderName: string): Promise<Folder | null> {
     // Try exact match first
-    let folder = await prisma.folders.findFirst({
+    let folder = await prisma.folder.findFirst({
       where: {
         userId,
         name: folderName
@@ -1478,7 +1579,7 @@ class FileActionsService {
     if (folder) return folder;
 
     // Try case-insensitive match
-    folder = await prisma.folders.findFirst({
+    folder = await prisma.folder.findFirst({
       where: {
         userId,
         name: {
@@ -1491,7 +1592,7 @@ class FileActionsService {
     if (folder) return folder;
 
     // Try fuzzy match
-    const allFolders = await prisma.folders.findMany({
+    const allFolders = await prisma.folder.findMany({
       where: { userId },
     });
 
@@ -1554,7 +1655,7 @@ class FileActionsService {
           console.error(`❌ [MOVE FILE] File not found: "${params.filename}"`);
 
           // List all user documents for debugging
-          const allDocs = await prisma.documents.findMany({
+          const allDocs = await prisma.document.findMany({
             where: { userId, status: { not: 'deleted' } },
             select: { filename: true },
             take: 10
@@ -1581,7 +1682,7 @@ class FileActionsService {
           console.error(`❌ [MOVE FILE] Folder not found: "${params.targetFolder}"`);
 
           // List all user folders for debugging
-          const allFolders = await prisma.folders.findMany({
+          const allFolders = await prisma.folder.findMany({
             where: { userId },
             select: { name: true },
             take: 10
@@ -1609,34 +1710,52 @@ class FileActionsService {
       }
 
       case 'renameFile': {
-        // SMART DETECTION: Check if it's a folder first, then file
-        // This allows "rename pedro1 to pedro2" to work for both files and folders
+        // SMART DETECTION: Check file extension to determine if it's a file or folder
+        // If name has file extension (.pdf, .xlsx, etc.), treat as file FIRST
+        const hasFileExtension = /\.\w{2,5}$/i.test(params.oldFilename);
 
-        // First, try to find a folder with this name
-        const folder = await this.findFolderByName(userId, params.oldFilename);
-        if (folder) {
-          // It's a folder - rename the folder
-          console.log(`   📁 Detected folder rename: ${params.oldFilename} → ${params.newFilename}`);
-          return await this.renameFolder(userId, folder.id, params.newFilename);
-        }
-
-        // Not a folder, try to find a file
-        const document = await this.findDocumentByName(userId, params.oldFilename);
-        if (document) {
-          // It's a file - rename the file
-          console.log(`   📄 Detected file rename: ${params.oldFilename} → ${params.newFilename}`);
-          return await this.renameFile({
-            userId,
-            documentId: document.id,
-            newFilename: params.newFilename
-          }, query);
+        if (hasFileExtension) {
+          // Has extension - try file FIRST
+          console.log(`   📄 Detected file extension in: ${params.oldFilename}`);
+          const document = await this.findDocumentByName(userId, params.oldFilename);
+          if (document) {
+            console.log(`   📄 Renaming file: ${params.oldFilename} → ${params.newFilename}`);
+            return await this.renameFile({
+              userId,
+              documentId: document.id,
+              newFilename: params.newFilename
+            }, query);
+          }
+          // File not found with extension, maybe it's a folder with dots in name
+          const folder = await this.findFolderByName(userId, params.oldFilename);
+          if (folder) {
+            console.log(`   📁 Fallback to folder rename: ${params.oldFilename} → ${params.newFilename}`);
+            return await this.renameFolder(userId, folder.id, params.newFilename);
+          }
+        } else {
+          // No extension - try folder FIRST (original behavior)
+          const folder = await this.findFolderByName(userId, params.oldFilename);
+          if (folder) {
+            console.log(`   📁 Detected folder rename: ${params.oldFilename} → ${params.newFilename}`);
+            return await this.renameFolder(userId, folder.id, params.newFilename);
+          }
+          // Not a folder, try to find a file
+          const document = await this.findDocumentByName(userId, params.oldFilename);
+          if (document) {
+            console.log(`   📄 Fallback to file rename: ${params.oldFilename} → ${params.newFilename}`);
+            return await this.renameFile({
+              userId,
+              documentId: document.id,
+              newFilename: params.newFilename
+            }, query);
+          }
         }
 
         // Neither file nor folder found - provide helpful error
         const lang = detectLanguage(query);
 
         // Try to find similar files for suggestions
-        const allDocuments = await prisma.documents.findMany({
+        const allDocuments = await prisma.document.findMany({
           where: {
             userId: userId,
             status: { not: 'deleted' },
@@ -1667,33 +1786,50 @@ class FileActionsService {
       }
 
       case 'deleteFile': {
-        // SMART DETECTION: Check if it's a folder first, then file
-        // This allows "delete pedro1" to work for both files and folders
+        // SMART DETECTION: Check file extension to determine if it's a file or folder
+        // If name has file extension (.pdf, .xlsx, etc.), treat as file FIRST
+        const hasFileExtension = /\.\w{2,5}$/i.test(params.filename);
 
-        // First, try to find a folder with this name
-        const folder = await this.findFolderByName(userId, params.filename);
-        if (folder) {
-          // It's a folder - delete the folder
-          console.log(`   📁 Detected folder delete: ${params.filename}`);
-          return await this.deleteFolder(userId, folder.id);
-        }
-
-        // Not a folder, try to find a file
-        const document = await this.findDocumentByName(userId, params.filename);
-        if (document) {
-          // It's a file - delete the file
-          console.log(`   📄 Detected file delete: ${params.filename}`);
-          return await this.deleteFile({
-            userId,
-            documentId: document.id
-          }, query);
+        if (hasFileExtension) {
+          // Has extension - try file FIRST
+          console.log(`   📄 Detected file extension in: ${params.filename}`);
+          const document = await this.findDocumentByName(userId, params.filename);
+          if (document) {
+            console.log(`   📄 Deleting file: ${params.filename}`);
+            return await this.deleteFile({
+              userId,
+              documentId: document.id
+            }, query);
+          }
+          // File not found with extension, maybe it's a folder with dots in name
+          const folder = await this.findFolderByName(userId, params.filename);
+          if (folder) {
+            console.log(`   📁 Fallback to folder delete: ${params.filename}`);
+            return await this.deleteFolder(userId, folder.id);
+          }
+        } else {
+          // No extension - try folder FIRST (original behavior)
+          const folder = await this.findFolderByName(userId, params.filename);
+          if (folder) {
+            console.log(`   📁 Detected folder delete: ${params.filename}`);
+            return await this.deleteFolder(userId, folder.id);
+          }
+          // Not a folder, try to find a file
+          const document = await this.findDocumentByName(userId, params.filename);
+          if (document) {
+            console.log(`   📄 Fallback to file delete: ${params.filename}`);
+            return await this.deleteFile({
+              userId,
+              documentId: document.id
+            }, query);
+          }
         }
 
         // Neither file nor folder found - provide helpful error
         const lang = detectLanguage(query);
 
         // Try to find similar files for suggestions
-        const allDocuments = await prisma.documents.findMany({
+        const allDocuments = await prisma.document.findMany({
           where: {
             userId: userId,
             status: { not: 'deleted' },
@@ -1771,7 +1907,7 @@ class FileActionsService {
    */
   async renameFolder(userId: string, folderId: string, newName: string): Promise<FileActionResult> {
     try {
-      const folder = await prisma.folders.findFirst({
+      const folder = await prisma.folder.findFirst({
         where: { id: folderId, userId }
       });
 
@@ -1783,7 +1919,7 @@ class FileActionsService {
         };
       }
 
-      await prisma.folders.update({
+      await prisma.folder.update({
         where: { id: folderId },
         data: { name: newName }
       });
@@ -1807,7 +1943,7 @@ class FileActionsService {
    */
   async deleteFolder(userId: string, folderId: string): Promise<FileActionResult> {
     try {
-      const folder = await prisma.folders.findFirst({
+      const folder = await prisma.folder.findFirst({
         where: { id: folderId, userId },
         include: {
           _count: {
@@ -1827,7 +1963,7 @@ class FileActionsService {
       }
 
       // Soft delete all documents in the folder
-      await prisma.documents.updateMany({
+      await prisma.document.updateMany({
         where: {
           folderId: folderId,
           userId: userId
@@ -1836,7 +1972,7 @@ class FileActionsService {
       });
 
       // Delete the folder
-      await prisma.folders.delete({
+      await prisma.folder.delete({
         where: { id: folderId }
       });
 
@@ -1894,7 +2030,7 @@ class FileActionsService {
   async findDuplicates(userId: string, criteria?: string): Promise<FileActionResult> {
     try {
       // Simple implementation: Find files with same filename
-      const documents = await prisma.documents.findMany({
+      const documents = await prisma.document.findMany({
         where: { userId },
         select: { id: true, filename: true, fileSize: true }
       });
@@ -1944,7 +2080,7 @@ class FileActionsService {
       if (folderName) {
         const normalizedFolderName = folderName.toLowerCase().replace(/[-_]+/g, ' ').trim();
 
-        const folders = await prisma.folders.findMany({
+        const folders = await prisma.folder.findMany({
           where: { userId },
           select: { id: true, name: true }
         });
@@ -1991,14 +2127,14 @@ class FileActionsService {
       }
 
       // Fetch documents
-      const documents = await prisma.documents.findMany({
+      const documents = await prisma.document.findMany({
         where,
         select: {
           id: true,
           filename: true,
           fileSize: true,
           createdAt: true,
-          folders: {
+          folder: {
             select: {
               id: true,
               name: true
@@ -2006,7 +2142,7 @@ class FileActionsService {
           }
         },
         orderBy: [
-          { folders: { name: 'asc' } },
+          { folder: { name: 'asc' } },
           { filename: 'asc' }
         ],
         take: 100
@@ -2061,7 +2197,12 @@ class FileActionsService {
       }
 
       if (documents.length >= 100) {
-        response += `\n*Showing first 100 files. Use filters to narrow results.*`;
+        // Use LoadMore marker instead of text - renders as button in frontend
+        response += '\n' + createLoadMoreMarker({
+          remainingCount: 0, // Unknown without additional query
+          totalCount: documents.length,
+          loadedCount: 100
+        });
       }
 
       return {
@@ -2093,7 +2234,7 @@ class FileActionsService {
       if (folderName) {
         const normalizedFolderName = folderName.toLowerCase().replace(/[-_]+/g, ' ').trim();
 
-        const folders = await prisma.folders.findMany({
+        const folders = await prisma.folder.findMany({
           where: { userId },
           select: { id: true, name: true }
         });
@@ -2110,7 +2251,7 @@ class FileActionsService {
       }
 
       // Fetch all documents
-      const documents = await prisma.documents.findMany({
+      const documents = await prisma.document.findMany({
         where,
         select: {
           id: true,

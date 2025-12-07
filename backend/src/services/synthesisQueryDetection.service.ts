@@ -1,182 +1,150 @@
 /**
  * Synthesis Query Detection Service
  *
- * PURPOSE: Detect queries that require cross-document synthesis
- * WHY: Enable intelligent responses that aggregate across documents
- * HOW: Pattern matching for methodology, trend, and aggregation queries
+ * Detects queries that require cross-document analysis, theme extraction,
+ * or synthesis across multiple documents.
  *
- * This service works alongside the main intent.service.ts to detect
- * queries that need special handling for cross-document synthesis.
+ * Examples:
+ * - "Analyze the key themes across all my documents"
+ * - "List all the main topics from my documents"
+ * - "What are the common themes?"
+ * - "Summarize all my documents"
+ * - "What topics do my documents cover?"
  */
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// TYPES
-// ═══════════════════════════════════════════════════════════════════════════════
-
-export type SynthesisQueryType =
-  | 'methodology'      // "What approaches do my papers use?"
-  | 'comparison'       // "Compare the methods across documents"
-  | 'trend'            // "How have approaches changed over time?"
-  | 'pattern'          // "What patterns exist across my documents?"
-  | 'aggregation'      // "Summarize findings across all papers"
-  | 'none';
-
 export interface SynthesisQueryResult {
+  isSynthesis: boolean;
   isSynthesisQuery: boolean;
-  type: SynthesisQueryType;
-  topic?: string;
+  type: 'theme_analysis' | 'topic_extraction' | 'cross_document_summary' | 'trend_analysis' | '';
+  topic: string;
   confidence: number;
-  reasoning?: string;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// PATTERNS
-// ═══════════════════════════════════════════════════════════════════════════════
-
+/**
+ * Patterns that indicate synthesis queries
+ */
 const SYNTHESIS_PATTERNS = {
-  methodology: [
-    // "What approaches/methods/methodologies"
-    /what (?:are )?(?:the )?(?:main|primary|key|different|various) (?:approaches|methods|methodologies|techniques)/i,
-    /(?:how many|which) (?:approaches|methods|methodologies|techniques)/i,
-    /what (?:approaches|methods|methodologies|techniques) (?:are|do|does)/i,
-    /(?:approaches|methods|methodologies|techniques) (?:used|employed|applied)/i,
-    /(?:summarize|overview|summary) (?:of )?(?:the )?(?:approaches|methods|methodologies)/i,
-    /what (?:are )?(?:the )?(?:research )?methods? (?:in|across|used)/i,
-    // Portfolio/finance specific
-    /what (?:optimization|investment|trading) (?:methods?|approaches?|strategies?)/i,
-    /what (?:machine learning|ml|ai) (?:methods?|models?|approaches?)/i,
+  // Theme analysis
+  theme_analysis: [
+    /(?:analyze|identify|find|extract|list|show|what are).*(?:key|main|common|recurring|major).*(?:themes?|patterns?|trends?)/i,
+    /(?:themes?|patterns?).*(?:across|in|from).*(?:all|my|the).*documents?/i,
+    /what.*themes?.*(?:do|can).*(?:you|i).*(?:see|find|identify)/i,
+    /(?:common|recurring|major).*themes?/i,
+    // Portuguese patterns
+    /(?:analisar|identificar|encontrar|extrair|listar|mostrar|quais são).*(?:principais|comuns|recorrentes).*(?:temas?|padrões?|tendências?)/i,
+    /(?:temas?|padrões?).*(?:através|em|de).*(?:todos?|meus?|os?).*documentos?/i,
+    // Spanish patterns
+    /(?:analizar|identificar|encontrar|extraer|listar|mostrar|cuáles son).*(?:principales|comunes|recurrentes).*(?:temas?|patrones?|tendencias?)/i,
   ],
-  comparison: [
-    /compare (?:the )?(?:approaches|methods|methodologies|techniques)/i,
-    /(?:differences?|similarities?) (?:between|among|in) (?:the )?(?:approaches|methods)/i,
-    /how (?:do|does) (?:the )?(?:approaches|methods) (?:differ|compare)/i,
+
+  // Topic extraction
+  topic_extraction: [
+    /(?:list|show|what are|identify|extract).*(?:all|main|key|major).*(?:topics?|subjects?|areas?)/i,
+    /(?:topics?|subjects?).*(?:covered|discussed|mentioned).*(?:in|across).*documents?/i,
+    /what.*(?:topics?|subjects?).*(?:do|are).*(?:my|the).*documents?.*(?:cover|discuss|about)/i,
+    /(?:main|key|major).*(?:topics?|subjects?|areas?)/i,
+    // Portuguese patterns
+    /(?:listar|mostrar|quais são|identificar|extrair).*(?:todos?|principais).*(?:tópicos?|assuntos?|áreas?)/i,
+    /(?:tópicos?|assuntos?).*(?:cobertos?|discutidos?|mencionados?).*(?:em|através).*documentos?/i,
+    // Spanish patterns
+    /(?:listar|mostrar|cuáles son|identificar|extraer).*(?:todos?|principales).*(?:temas?|asuntos?|áreas?)/i,
   ],
-  trend: [
-    /(?:trends?|shifts?|changes?) (?:in|across|over)/i,
-    /(?:how|what) (?:has|have) (?:the )?(?:approaches|methods) (?:changed|evolved)/i,
-    /(?:evolution|development|progression) (?:of|in) (?:the )?(?:approaches|methods)/i,
-    /(?:older|newer|recent) (?:papers?|documents?|studies?) (?:use|employ|prefer)/i,
+
+  // Cross-document summary
+  cross_document_summary: [
+    /(?:summarize|summary of).*(?:all|my|the).*documents?/i,
+    /(?:overview|summary).*(?:across|of).*(?:all|my|the).*documents?/i,
+    /what.*(?:do|are).*(?:all|my|the).*documents?.*(?:about|cover|discuss)/i,
+    /(?:general|overall|high.level).*(?:summary|overview)/i,
+    // Portuguese patterns
+    /(?:resumir|resumo de).*(?:todos?|meus?).*documentos?/i,
+    /(?:visão geral|resumo).*(?:através|de).*(?:todos?|meus?).*documentos?/i,
+    /(?:sobre o que|do que).*(?:tratam|falam).*(?:meus?|os?).*documentos?/i,
+    // Spanish patterns
+    /(?:resumir|resumen de).*(?:todos?|mis).*documentos?/i,
+    /(?:visión general|resumen).*(?:de|a través de).*(?:todos?|mis).*documentos?/i,
   ],
-  pattern: [
-    /(?:patterns?|themes?|commonalities?) (?:across|in|among)/i,
-    /what (?:do|does) (?:the )?(?:papers?|documents?|studies?) (?:have in common|share)/i,
-    /(?:recurring|common|frequent) (?:themes?|patterns?|topics?)/i,
-  ],
-  aggregation: [
-    /(?:across|all|every) (?:my )?(?:papers?|documents?|files?|studies?)/i,
-    /(?:summarize|overview|summary) (?:of )?(?:all|my) (?:papers?|documents?)/i,
-    /(?:overall|combined|total) (?:findings?|results?|conclusions?)/i,
-    // "Create a summary report" patterns
-    /(?:create|make|generate) (?:a |an )?(?:summary|comprehensive|detailed)? ?(?:report|document|analysis) (?:of|from|based on|using) (?:my |the |all )?(?:documents?|files?|papers?)/i,
-    /(?:create|make|generate) (?:a |an )?(?:summary|comprehensive|detailed)? ?(?:report|document|analysis)/i,
+
+  // Trend analysis
+  trend_analysis: [
+    /(?:trends?|patterns?|changes?).*(?:across|over|in).*(?:time|years?|documents?)/i,
+    /(?:how|what).*(?:changed|evolved|developed).*(?:over time|across documents?)/i,
+    /(?:temporal|chronological|historical).*(?:analysis|trends?|patterns?)/i,
+    // Portuguese patterns
+    /(?:tendências?|padrões?|mudanças?).*(?:através|ao longo|em).*(?:tempo|anos?|documentos?)/i,
+    /(?:como|o que).*(?:mudou|evoluiu|desenvolveu).*(?:ao longo do tempo|através dos documentos?)/i,
+    // Spanish patterns
+    /(?:tendencias?|patrones?|cambios?).*(?:a través|a lo largo|en).*(?:tiempo|años?|documentos?)/i,
   ],
 };
 
-// Topic extraction patterns
-const TOPIC_PATTERNS = [
-  /(?:in|from|across) (?:my |the )?(.+?) (?:papers?|documents?|files?|studies?)/i,
-  /(?:papers?|documents?|files?|studies?) (?:about|on|regarding) (.+)/i,
-  /(.+?) (?:papers?|documents?|files?|studies?)/i,
-  /(?:on|about|regarding) (.+)$/i,
-];
+/**
+ * Detect if a query is asking for synthesis across documents
+ */
+export function detect(query: string): SynthesisQueryResult {
+  const lowerQuery = query.toLowerCase().trim();
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// DETECTION SERVICE
-// ═══════════════════════════════════════════════════════════════════════════════
-
-class SynthesisQueryDetectionService {
-  /**
-   * Detect if a query requires cross-document synthesis
-   */
-  detect(query: string): SynthesisQueryResult {
-    const queryLower = query.toLowerCase().trim();
-
-    // ⚠️ PRIORITY FIX: Exclude document creation queries from synthesis detection
-    // Queries like "create a summary report" should be handled by document generation, not synthesis
-    const isCreationQuery = /(?:create|make|generate|build|write|draft|prepare|compose|criar|gerar|hacer|generar|créer)\s+(?:a |an )?(?:summary|report|document|file|pdf|docx)/i.test(queryLower);
-    if (isCreationQuery) {
-      return {
-        isSynthesisQuery: false,
-        type: 'none',
-        confidence: 0,
-        reasoning: 'Document creation query - not a synthesis query',
-      };
-    }
-
-    // Check each pattern type
-    for (const [type, patterns] of Object.entries(SYNTHESIS_PATTERNS)) {
-      for (const pattern of patterns) {
-        if (pattern.test(queryLower)) {
-          const topic = this.extractTopic(queryLower);
-
-          return {
-            isSynthesisQuery: true,
-            type: type as SynthesisQueryType,
-            topic,
-            confidence: 0.9,
-            reasoning: `Query matches ${type} synthesis pattern`,
-          };
-        }
+  // Check each synthesis type
+  for (const [type, patterns] of Object.entries(SYNTHESIS_PATTERNS)) {
+    for (const pattern of patterns) {
+      if (pattern.test(lowerQuery)) {
+        console.log(`✅ [SYNTHESIS DETECTION] Matched ${type} pattern: ${pattern}`);
+        return {
+          isSynthesis: true,
+          isSynthesisQuery: true,
+          type: type as any,
+          topic: extractTopic(lowerQuery),
+          confidence: 0.9,
+        };
       }
     }
+  }
 
-    // Check for implicit synthesis queries
-    const aggregationWords = ['all', 'across', 'overall', 'together', 'combined', 'total', 'average', 'summary'];
-    const documentWords = ['papers', 'documents', 'files', 'studies', 'articles', 'reports'];
-
-    const hasAggregation = aggregationWords.some(w => queryLower.includes(w));
-    const hasDocumentRef = documentWords.some(w => queryLower.includes(w));
-
-    if (hasAggregation && hasDocumentRef) {
-      return {
-        isSynthesisQuery: true,
-        type: 'aggregation',
-        topic: this.extractTopic(queryLower),
-        confidence: 0.7,
-        reasoning: 'Query contains aggregation words with document references',
-      };
-    }
-
+  // Check for generic "all documents" queries
+  if (/(?:all|my|the|todos?|meus?|mis).*(?:documents?|documentos?)/i.test(lowerQuery) &&
+      /(?:analyze|summarize|list|show|what|themes?|topics?|analisar|resumir|listar|mostrar|temas?|tópicos?)/i.test(lowerQuery)) {
+    console.log(`✅ [SYNTHESIS DETECTION] Matched generic "all documents" query`);
     return {
-      isSynthesisQuery: false,
-      type: 'none',
-      confidence: 0,
+      isSynthesis: true,
+      isSynthesisQuery: true,
+      type: 'cross_document_summary',
+      topic: extractTopic(lowerQuery),
+      confidence: 0.7,
     };
   }
 
-  /**
-   * Extract the topic from a synthesis query
-   */
-  private extractTopic(query: string): string | undefined {
-    for (const pattern of TOPIC_PATTERNS) {
-      const match = query.match(pattern);
-      if (match && match[1]) {
-        const topic = match[1].trim();
-        // Filter out common words that aren't topics
-        if (!['my', 'the', 'all', 'these', 'those'].includes(topic.toLowerCase())) {
-          return topic;
-        }
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * Check if query is asking about methodologies specifically
-   */
-  isMethodologyQuery(query: string): boolean {
-    const result = this.detect(query);
-    return result.isSynthesisQuery && result.type === 'methodology';
-  }
-
-  /**
-   * Check if query is asking about trends
-   */
-  isTrendQuery(query: string): boolean {
-    const result = this.detect(query);
-    return result.isSynthesisQuery && result.type === 'trend';
-  }
+  return {
+    isSynthesis: false,
+    isSynthesisQuery: false,
+    type: '',
+    topic: '',
+    confidence: 0,
+  };
 }
 
-export const synthesisQueryDetectionService = new SynthesisQueryDetectionService();
-export default synthesisQueryDetectionService;
+/**
+ * Extract the topic/subject from the query
+ */
+function extractTopic(query: string): string {
+  // Remove common question words (English, Portuguese, Spanish)
+  let topic = query
+    .replace(/^(?:what|how|why|when|where|who|which|can|could|would|should|do|does|did|is|are|was|were|analyze|identify|find|extract|list|show|summarize|tell me|give me|o que|como|por que|quando|onde|quem|qual|pode|poderia|analisar|identificar|encontrar|extrair|listar|mostrar|resumir|qué|cómo|por qué|cuándo|dónde|quién|cuál|puede|podría|analizar|extraer)\s+/gi, '')
+    .replace(/\b(?:about|from|in|across|of|the|my|all|documents?|files?|pdfs?|sobre|de|em|através|do|da|dos|das|meu|minha|meus|minhas|todos?|todas?|documentos?|arquivos?|acerca|del|la|los|las|mi|mis)\b/gi, '')
+    .trim();
+
+  return topic || 'general';
+}
+
+/**
+ * Export default object for compatibility
+ */
+export default {
+  detect,
+};
+
+/**
+ * Named export for service object (matches stub interface)
+ */
+export const synthesisQueryDetectionService = {
+  detect,
+};

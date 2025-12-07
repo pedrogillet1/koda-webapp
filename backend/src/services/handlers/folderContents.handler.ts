@@ -83,7 +83,7 @@ class FolderContentsHandler {
           .sort((a, b) => b.similarity - a.similarity);
 
         if (fuzzyMatches.length > 0) {
-          category = fuzzyMatches[0].categories;
+          category = fuzzyMatches[0].category;
           console.log(`   Found fuzzy category match: "${category.name}" (${(fuzzyMatches[0].similarity * 100).toFixed(0)}% similar)`);
         }
       }
@@ -128,7 +128,7 @@ class FolderContentsHandler {
     const categoryEmoji = folder.emoji || '📁';
 
     // Get documents in this folder
-    const documents = await prisma.documents.findMany({
+    const documents = await prisma.document.findMany({
       where: {
         userId: userId,
         folderId: folder.id
@@ -139,7 +139,7 @@ class FolderContentsHandler {
     });
 
     // Get subfolders
-    const subfolders = await prisma.folders.findMany({
+    const subfolders = await prisma.folder.findMany({
       where: {
         userId: userId,
         parentFolderId: folder.id
@@ -152,7 +152,7 @@ class FolderContentsHandler {
     // Build response
     let answer = `**${folder.name}**\n\n`;
     answer += `**Location:** ${folderPath}\n`;
-    answer += `**Category:** ${categoryName}\n\n`;
+    answer += `**Category:** ${categoryEmoji} ${folder.name}\n\n`;
 
     // List subfolders
     if (subfolders.length > 0) {
@@ -228,12 +228,12 @@ class FolderContentsHandler {
     const categoryEmoji = category.emoji || '📁';
 
     // Get all documents in this category
-    const documents = await prisma.documents.findMany({
+    const documents = await prisma.document.findMany({
       where: {
         userId: userId,
       },
       include: {
-        folders: {
+        folder: {
           select: {
             id: true,
             name: true
@@ -246,7 +246,7 @@ class FolderContentsHandler {
     });
 
     // Get all folders in this category
-    const folders = await prisma.folders.findMany({
+    const folders = await prisma.folder.findMany({
       where: {
         userId: userId,
         parentFolderId: null // Only root folders

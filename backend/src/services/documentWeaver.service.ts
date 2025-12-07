@@ -453,7 +453,7 @@ Output ONLY valid JSON, no markdown or explanations.`;
       sections: [
         {
           title: 'Introduction',
-          type: 'text',
+          type: 'text' as const,
           content: [
             `Overview of ${topic}`,
             'Key concepts and definitions',
@@ -462,7 +462,7 @@ Output ONLY valid JSON, no markdown or explanations.`;
         },
         {
           title: 'Main Points',
-          type: 'text',
+          type: 'text' as const,
           content: [
             'First key point to consider',
             'Second important aspect',
@@ -471,7 +471,7 @@ Output ONLY valid JSON, no markdown or explanations.`;
         },
         {
           title: 'Analysis',
-          type: 'text',
+          type: 'text' as const,
           content: [
             'Detailed examination of the topic',
             'Supporting evidence and examples',

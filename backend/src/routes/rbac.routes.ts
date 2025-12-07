@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth.middleware';
 import { requirePermission, requireRole } from '../middleware/permission.middleware';
-import rbacService from '../services/rbac.service';
+import { rbacService } from '../services/securityStubs.service';
 
 const router = Router();
 

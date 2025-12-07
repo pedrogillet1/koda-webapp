@@ -102,10 +102,24 @@ export const ToastProvider = ({ children }) => {
     deleteCounterRef.current = 0;
   }, []);
 
+  // Show info notification when file(s) already exist in folder
+  const showFileExists = useCallback((filename, count = 1) => {
+    if (count === 1 && filename) {
+      return showInfo(t('toast.fileAlreadyExists'), {
+        details: t('toast.fileAlreadyExistsDetails', { filename }),
+        duration: 5000,
+      });
+    } else {
+      return showInfo(t('toast.filesAlreadyExist', { count }), {
+        duration: 5000,
+      });
+    }
+  }, [showInfo, t]);
+
   return (
     <ToastContext.Provider value={{
       showToast, showSuccess, showError, showWarning, showInfo,
-      showUploadSuccess, showUploadError, showRateLimitWarning, showDeleteSuccess, resetDeleteCounter, removeToast,
+      showUploadSuccess, showUploadError, showRateLimitWarning, showDeleteSuccess, showFileExists, resetDeleteCounter, removeToast,
     }}>
       {children}
       <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', pointerEvents: 'none', zIndex: 99999 }}>

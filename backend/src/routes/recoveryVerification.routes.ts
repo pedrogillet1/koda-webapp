@@ -64,9 +64,9 @@ router.post('/send-phone-link', authenticateToken, async (req: Request, res: Res
  * POST /api/recovery-verification/add-phone
  * Add phone number to user profile
  */
-router.post('/add-phone', authenticateToken, async (req: Request, res: Response) => {
+router.post('/add-phone', authenticateToken, async (req: Request, res: Response): Promise<any> => {
   try {
-    const userId = (req as any).users.id;
+    const userId = (req as any).user.id;
     const { phoneNumber } = req.body;
 
     if (!phoneNumber) {
@@ -85,7 +85,7 @@ router.post('/add-phone', authenticateToken, async (req: Request, res: Response)
  * GET /api/recovery-verification/verify-email
  * Verify email using magic link token (public route)
  */
-router.get('/verify-email', async (req: Request, res: Response) => {
+router.get('/verify-email', async (req: Request, res: Response): Promise<any> => {
   try {
     const { token } = req.query;
 
@@ -105,7 +105,7 @@ router.get('/verify-email', async (req: Request, res: Response) => {
  * GET /api/recovery-verification/verify-phone
  * Verify phone using magic link token (public route)
  */
-router.get('/verify-phone', async (req: Request, res: Response) => {
+router.get('/verify-phone', async (req: Request, res: Response): Promise<any> => {
   try {
     const { token } = req.query;
 

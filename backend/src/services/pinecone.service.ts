@@ -13,7 +13,7 @@ class PineconeService {
 
   constructor() {
     // Force reload from environment on each initialization
-    this.indexName = process.env.PINECONE_INDEX_NAME || 'koda-gemini';
+    this.indexName = process.env.PINECONE_INDEX_NAME || 'koda-openai';
     console.log(`🔧 [Pinecone] Constructor: indexName set to "${this.indexName}"`);
     this.initialize();
   }
@@ -324,7 +324,7 @@ class PineconeService {
       filename: result.document.filename,  // ✅ Extract filename
       similarity: result.similarity,
       chunkIndex: result.chunkIndex,
-      document_metadata: {
+      metadata: {
         ...result.metadata,
         // ✅ Ensure filename is in metadata
         filename: result.document.filename,
@@ -630,6 +630,65 @@ class PineconeService {
         success: false,
         vectorCount: 0,
         error: error.message,
+      };
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // Verify Document Embeddings Storage
+  // ═══════════════════════════════════════════════════════════════
+  async verifyDocumentEmbeddings(documentId: string): Promise<{
+    success: boolean;
+    count: number;
+    message: string;
+  }> {
+    try {
+      console.log(`🔍 [VERIFY] Checking embeddings for document: ${documentId}`);
+
+      if (!this.isAvailable()) {
+        console.warn(`⚠️ [VERIFY] Pinecone not available`);
+        return {
+          success: false,
+          count: 0,
+          message: 'Pinecone not available',
+        };
+      }
+
+      const index = this.pinecone!.index(this.indexName);
+
+      const queryResponse = await index.query({
+        vector: new Array(1536).fill(0),
+        topK: 1000,
+        filter: {
+          documentId: documentId,
+        },
+        includeMetadata: false,
+      });
+
+      const count = queryResponse.matches?.length || 0;
+
+      if (count > 0) {
+        console.log(`✅ [VERIFY] Found ${count} embeddings for document ${documentId}`);
+        return {
+          success: true,
+          count,
+          message: `Successfully verified ${count} embeddings`,
+        };
+      } else {
+        console.warn(`⚠️ [VERIFY] No embeddings found for document ${documentId}`);
+        return {
+          success: false,
+          count: 0,
+          message: 'No embeddings found in Pinecone',
+        };
+      }
+
+    } catch (error: any) {
+      console.error(`❌ [VERIFY] Verification failed for document ${documentId}:`, error);
+      return {
+        success: false,
+        count: 0,
+        message: `Verification error: ${error.message}`,
       };
     }
   }

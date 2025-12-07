@@ -51,8 +51,10 @@ import {
 
 // ⚡ PERFORMANCE: Code-split MarkdownEditor to reduce initial bundle size
 // react-markdown, remark-gfm, and rehype-raw add ~200KB to the bundle
-// Only load when user opens an Excel file (converted to markdown)
 const MarkdownEditor = lazy(() => import('./MarkdownEditor'));
+
+// ⚡ PERFORMANCE: Code-split ExcelPreview for Excel HTML table rendering
+const ExcelPreview = lazy(() => import('./ExcelPreview'));
 
 // ⚡ PERFORMANCE: Code-split PPTXPreview to reduce initial bundle size
 const PPTXPreview = lazy(() => import('./PPTXPreview'));
@@ -639,6 +641,14 @@ const DocumentViewer = () => {
         }
         setLoading(false);
       } catch (error) {
+        console.error('[DocumentViewer] Error fetching document:', {
+          documentId,
+          errorMessage: error.message,
+          errorResponse: error.response?.data,
+          errorStatus: error.response?.status,
+          errorStatusText: error.response?.statusText,
+          fullError: error
+        });
         setLoading(false);
       }
     };
@@ -722,7 +732,7 @@ const DocumentViewer = () => {
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', background: '#F5F5F5', overflow: 'hidden', justifyContent: 'flex-start', alignItems: 'center', display: 'inline-flex' }}>
         {!isMobile && <LeftNav onNotificationClick={() => setShowNotificationsPopup(true)} />}
-        <div style={{ flex: '1 1 0', height: '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'inline-flex', width: '100%' }}>
+        <div style={{ flex: '1 1 0', height: isMobile ? '100dvh' : '100vh', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', display: 'inline-flex', width: '100%' }}>
           {/* Header */}
           <div style={{
             alignSelf: 'stretch',
@@ -855,65 +865,236 @@ const DocumentViewer = () => {
                 onClick={async () => {
                   if (document) {
                     try {
-                      // Get the decrypted file from the stream endpoint
-                      const response = await api.get(`/api/documents/${documentId}/stream`, {
-                        responseType: 'blob'
-                      });
+                      const docType = getFileType(document.filename, document.mimeType);
 
-                      // Create blob URL from the response
-                      const blobUrl = window.URL.createObjectURL(response.data);
+                      // Helper function to print using hidden iframe (no new tab)
+                      const printWithIframe = (htmlContent) => {
+                        const iframe = window.document.createElement('iframe');
+                        iframe.style.position = 'absolute';
+                        iframe.style.width = '0';
+                        iframe.style.height = '0';
+                        iframe.style.border = 'none';
+                        iframe.style.left = '-9999px';
+                        window.document.body.appendChild(iframe);
 
-                      // Create a hidden iframe for printing
-                      const iframe = window.document.createElement('iframe');
-                      iframe.style.display = 'none';
-                      window.document.body.appendChild(iframe);
+                        const iframeDoc = iframe.contentWindow.document;
+                        iframeDoc.open();
+                        iframeDoc.write(htmlContent);
+                        iframeDoc.close();
 
-                      iframe.onload = () => {
-                        try {
-                          // Trigger print dialog
-                          iframe.contentWindow.focus();
-                          iframe.contentWindow.print();
-
-                          // Clean up after printing or if user cancels
-                          const cleanup = () => {
+                        // Wait for content to load then print
+                        iframe.onload = () => {
+                          setTimeout(() => {
+                            iframe.contentWindow.focus();
+                            iframe.contentWindow.print();
+                            // Cleanup after print dialog closes
                             setTimeout(() => {
                               if (iframe.parentNode) {
                                 window.document.body.removeChild(iframe);
                               }
+                            }, 1000);
+                          }, 500);
+                        };
+                      };
+
+                      // For PPTX files - fetch slides and print
+                      if (docType === 'powerpoint') {
+                        try {
+                          const slidesResponse = await api.get(`/api/documents/${documentId}/slides`);
+                          if (slidesResponse.data.success && slidesResponse.data.slides?.length > 0) {
+                            const slides = slidesResponse.data.slides;
+
+                            // Create printable HTML with only slide content (no headers/names)
+                            const htmlContent = `
+                              <!DOCTYPE html>
+                              <html>
+                              <head>
+                                <title>Print</title>
+                                <style>
+                                  @media print {
+                                    @page { size: landscape; margin: 0; }
+                                    body { margin: 0; }
+                                    .slide-container { page-break-after: always; }
+                                    .slide-container:last-child { page-break-after: auto; }
+                                  }
+                                  * { margin: 0; padding: 0; box-sizing: border-box; }
+                                  body { margin: 0; padding: 0; }
+                                  .slide-container {
+                                    width: 100%;
+                                    height: 100vh;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    background: white;
+                                  }
+                                  .slide-image {
+                                    max-width: 100%;
+                                    max-height: 100vh;
+                                    object-fit: contain;
+                                  }
+                                  .slide-text {
+                                    white-space: pre-wrap;
+                                    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+                                    padding: 40px;
+                                    font-size: 14px;
+                                  }
+                                </style>
+                              </head>
+                              <body>
+                                ${slides.map((slide) => `
+                                  <div class="slide-container">
+                                    ${slide.imageUrl
+                                      ? `<img src="${slide.imageUrl}" class="slide-image" />`
+                                      : slide.content
+                                        ? `<div class="slide-text">${slide.content}</div>`
+                                        : ''
+                                    }
+                                  </div>
+                                `).join('')}
+                              </body>
+                              </html>
+                            `;
+                            printWithIframe(htmlContent);
+                          } else {
+                            showError(t('documentViewer.noSlidesToPrint') || 'No slides available to print');
+                          }
+                        } catch (error) {
+                          showError(t('documentViewer.failedToLoadForPrinting'));
+                        }
+                        return;
+                      }
+
+                      // For PDF - use blob iframe print
+                      if (docType === 'pdf') {
+                        const response = await api.get(`/api/documents/${documentId}/stream`, {
+                          responseType: 'blob'
+                        });
+                        const blobUrl = window.URL.createObjectURL(response.data);
+                        const iframe = window.document.createElement('iframe');
+                        iframe.style.position = 'absolute';
+                        iframe.style.width = '0';
+                        iframe.style.height = '0';
+                        iframe.style.border = 'none';
+                        iframe.style.left = '-9999px';
+                        window.document.body.appendChild(iframe);
+
+                        iframe.onload = () => {
+                          setTimeout(() => {
+                            try {
+                              iframe.contentWindow.focus();
+                              iframe.contentWindow.print();
+                            } catch (e) {
+                              showError(t('documentViewer.unableToPrint'));
+                            }
+                            setTimeout(() => {
+                              if (iframe.parentNode) window.document.body.removeChild(iframe);
                               window.URL.revokeObjectURL(blobUrl);
                             }, 1000);
+                          }, 500);
+                        };
+
+                        iframe.src = blobUrl;
+                        return;
+                      }
+
+                      // For images - create HTML with just the image
+                      if (docType === 'image') {
+                        const response = await api.get(`/api/documents/${documentId}/stream`, {
+                          responseType: 'blob'
+                        });
+                        const blobUrl = window.URL.createObjectURL(response.data);
+
+                        const htmlContent = `
+                          <!DOCTYPE html>
+                          <html>
+                          <head>
+                            <title>Print</title>
+                            <style>
+                              @media print { @page { margin: 0; } }
+                              * { margin: 0; padding: 0; }
+                              body {
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                min-height: 100vh;
+                                background: white;
+                              }
+                              img { max-width: 100%; max-height: 100vh; object-fit: contain; }
+                            </style>
+                          </head>
+                          <body>
+                            <img src="${blobUrl}" onload="setTimeout(function() { window.print(); }, 100);" />
+                          </body>
+                          </html>
+                        `;
+                        printWithIframe(htmlContent);
+                        return;
+                      }
+
+                      // For DOCX - use preview-pdf endpoint
+                      if (docType === 'word') {
+                        try {
+                          const response = await api.get(`/api/documents/${documentId}/preview-pdf`, {
+                            responseType: 'blob'
+                          });
+                          const blobUrl = window.URL.createObjectURL(response.data);
+                          const iframe = window.document.createElement('iframe');
+                          iframe.style.position = 'absolute';
+                          iframe.style.width = '0';
+                          iframe.style.height = '0';
+                          iframe.style.border = 'none';
+                          iframe.style.left = '-9999px';
+                          window.document.body.appendChild(iframe);
+
+                          iframe.onload = () => {
+                            setTimeout(() => {
+                              try {
+                                iframe.contentWindow.focus();
+                                iframe.contentWindow.print();
+                              } catch (e) {
+                                showError(t('documentViewer.unableToPrint'));
+                              }
+                              setTimeout(() => {
+                                if (iframe.parentNode) window.document.body.removeChild(iframe);
+                                window.URL.revokeObjectURL(blobUrl);
+                              }, 1000);
+                            }, 500);
                           };
 
-                          // Listen for afterprint event
-                          if (iframe.contentWindow.matchMedia) {
-                            const mediaQueryList = iframe.contentWindow.matchMedia('print');
-                            mediaQueryList.addListener(() => {
-                              if (!mediaQueryList.matches) {
-                                cleanup();
+                          iframe.src = blobUrl;
+                        } catch (error) {
+                          showError(t('documentViewer.failedToLoadForPrinting'));
+                        }
+                        return;
+                      }
+
+                      // For other documents - print extracted text only (no headers)
+                      const textContent = document.metadata?.extractedText || '';
+                      if (textContent) {
+                        const htmlContent = `
+                          <!DOCTYPE html>
+                          <html>
+                          <head>
+                            <title>Print</title>
+                            <style>
+                              @media print { @page { margin: 0.5in; } }
+                              * { margin: 0; padding: 0; }
+                              body {
+                                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+                                font-size: 12px;
+                                line-height: 1.6;
+                                white-space: pre-wrap;
+                                padding: 20px;
                               }
-                            });
-                          }
-
-                          // Fallback cleanup after 60 seconds
-                          setTimeout(cleanup, 60000);
-                        } catch (e) {
-                          if (iframe.parentNode) {
-                            window.document.body.removeChild(iframe);
-                          }
-                          window.URL.revokeObjectURL(blobUrl);
-                          showError(t('documentViewer.unableToPrint'));
-                        }
-                      };
-
-                      iframe.onerror = () => {
-                        if (iframe.parentNode) {
-                          window.document.body.removeChild(iframe);
-                        }
-                        window.URL.revokeObjectURL(blobUrl);
-                        showError(t('documentViewer.failedToLoadForPrinting'));
-                      };
-
-                      iframe.src = blobUrl;
+                            </style>
+                          </head>
+                          <body>${textContent}</body>
+                          </html>
+                        `;
+                        printWithIframe(htmlContent);
+                      } else {
+                        showError(t('documentViewer.noContentToPrint') || 'No content available to print');
+                      }
                     } catch (error) {
                       showError(t('documentViewer.failedToLoadForPrinting'));
                     }
@@ -1338,23 +1519,31 @@ const DocumentViewer = () => {
                     </div>
                   );
 
-                case 'excel': // XLSX - show markdown editor
+                case 'excel': // XLSX - show HTML table preview
                   return (
-                    <Suspense fallback={
-                      <div style={{
-                        padding: 40,
-                        background: 'white',
-                        borderRadius: 12,
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        color: '#6C6B6E',
-                        fontSize: 16,
-                        fontFamily: 'Plus Jakarta Sans'
-                      }}>
-                        Loading preview...
-                      </div>
-                    }>
-                      <MarkdownEditor document={document} zoom={zoom} onSave={handleSaveMarkdown} />
-                    </Suspense>
+                    <div style={{
+                      position: 'relative',
+                      width: '100%',
+                      height: '100%',
+                      flex: 1
+                    }}>
+                      <Suspense fallback={
+                        <div style={{
+                          padding: 40,
+                          background: 'white',
+                          borderRadius: 12,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                          color: '#6C6B6E',
+                          fontSize: 16,
+                          fontFamily: 'Plus Jakarta Sans',
+                          textAlign: 'center'
+                        }}>
+                          Loading Excel preview...
+                        </div>
+                      }>
+                        <ExcelPreview document={document} zoom={zoom} />
+                      </Suspense>
+                    </div>
                   );
 
                 case 'powerpoint': // PPTX - show with PPTXPreview component

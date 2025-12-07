@@ -17,7 +17,7 @@ async function test_sendMessageToGemini() {
       []
     );
 
-    const passed = response.text && response.text.includes('4');
+    const passed = Boolean(response.text && response.text.includes('4'));
     results.push({
       test: 'sendMessageToGemini',
       passed,

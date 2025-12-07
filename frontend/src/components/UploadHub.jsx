@@ -223,7 +223,7 @@ const UploadHub = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const isMobile = useIsMobile();
-  const { showSuccess, showError, showUploadSuccess, showUploadError, showDeleteSuccess } = useToast();
+  const { showSuccess, showError, showUploadSuccess, showUploadError, showDeleteSuccess, showFileExists } = useToast();
   // ⚡ PERFORMANCE FIX: Use documents/folders from context (no duplicate API calls)
   const { documents: contextDocuments, folders: contextFolders, socket, fetchDocuments, fetchFolders } = useDocuments();
   const { encryptionPassword, user } = useAuth(); // ⚡ ZERO-KNOWLEDGE ENCRYPTION
@@ -1084,7 +1084,30 @@ const UploadHub = () => {
         });
 
         const document = uploadResponse.data.document;
+        const isExisting = uploadResponse.data.isExisting === true;
         let documentAdded = false;
+
+        // Handle file already exists case
+        if (isExisting) {
+          // Show friendly notification instead of treating as error
+          showFileExists(file.name);
+
+          // Mark as completed (file exists, no further processing needed)
+          setUploadingFiles(prev => prev.map((f, idx) =>
+            idx === i ? {
+              ...f,
+              status: 'completed',
+              progress: 100,
+              processingStage: null
+            } : f
+          ));
+
+          // Remove from upload list after short delay
+          setTimeout(() => {
+            setUploadingFiles(prev => prev.filter((f, idx) => idx !== i));
+          }, 1500);
+          return; // Exit early, don't process further
+        }
 
         try {
           // ⚡ OPTIMISTIC UPDATE: Add document to UI immediately (instant feedback!)

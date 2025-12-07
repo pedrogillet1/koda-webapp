@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import * as notificationService from '../services/notification.service';
+import { notificationService } from '../services/securityStubs.service';
 
 export const getNotifications = async (req: Request, res: Response) => {
   try {

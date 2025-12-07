@@ -222,21 +222,32 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // ✅ INSTANT UPLOAD: Emit FULL document object via WebSocket
-    // Document is returned with status='processing', frontend will add it to state immediately
-    emitToUser(req.user.id, 'document-created', document);
-    console.log('📡 [WebSocket] Emitted document-created event with full document object');
+    // Check if document already existed (duplicate upload)
+    const isExisting = (document as any).isExisting === true;
 
-    // Invalidate cache immediately
-    await cacheService.invalidateDocumentListCache(req.user.id);
-    console.log('🗑️ [Cache] Invalidated document list cache immediately');
+    // Remove the isExisting flag from the document object before sending
+    const { isExisting: _, ...cleanDocument } = document as any;
 
-    // Emit folder-tree-updated event to refresh folder tree
-    emitToUser(req.user.id, 'folder-tree-updated', { documentId: document.id });
+    if (!isExisting) {
+      // ✅ INSTANT UPLOAD: Emit FULL document object via WebSocket (only for new uploads)
+      // Document is returned with status='processing', frontend will add it to state immediately
+      emitToUser(req.user.id, 'document-created', cleanDocument);
+      console.log('📡 [WebSocket] Emitted document-created event with full document object');
+
+      // Invalidate cache immediately
+      await cacheService.invalidateDocumentListCache(req.user.id);
+      console.log('🗑️ [Cache] Invalidated document list cache immediately');
+
+      // Emit folder-tree-updated event to refresh folder tree
+      emitToUser(req.user.id, 'folder-tree-updated', { documentId: cleanDocument.id });
+    } else {
+      console.log('📋 [Upload] File already exists, returning existing document');
+    }
 
     res.status(201).json({
-      message: 'Document uploaded successfully',
-      document,
+      message: isExisting ? 'File already exists in this folder' : 'Document uploaded successfully',
+      document: cleanDocument,
+      isExisting,
     });
   } catch (error) {
     const err = error as Error;
@@ -302,26 +313,42 @@ export const uploadMultipleDocuments = async (req: Request, res: Response): Prom
 
     const documents = await Promise.all(uploadPromises);
 
-    console.log(`📤 [Backend] Returning ${documents.length} document(s) to frontend`);
-    console.log(`📤 [Backend] Document IDs:`, documents.map(d => d?.id || 'null').join(', '));
+    // Separate new uploads from existing documents
+    const newDocuments = documents.filter(doc => doc && !(doc as any).isExisting);
+    const existingDocuments = documents.filter(doc => doc && (doc as any).isExisting);
 
-    // Emit real-time events for all created documents
-    documents.forEach(doc => {
+    // Clean isExisting flag from all documents
+    const cleanDocuments = documents.map(doc => {
+      if (!doc) return doc;
+      const { isExisting: _, ...clean } = doc as any;
+      return clean;
+    });
+
+    console.log(`📤 [Backend] Returning ${documents.length} document(s) to frontend (${newDocuments.length} new, ${existingDocuments.length} existing)`);
+    console.log(`📤 [Backend] Document IDs:`, cleanDocuments.map(d => d?.id || 'null').join(', '));
+
+    // Emit real-time events only for newly created documents
+    newDocuments.forEach(doc => {
       if (doc) {
         emitDocumentEvent(req.user!.id, 'created', doc.id);
       }
     });
 
-    // ✅ INSTANT UPLOAD: Invalidate cache immediately (no delay!)
-    await cacheService.invalidateDocumentListCache(req.user.id);
-    console.log('🗑️ [Cache] Invalidated document list cache immediately');
+    // ✅ INSTANT UPLOAD: Invalidate cache immediately (no delay!) - only if new docs uploaded
+    if (newDocuments.length > 0) {
+      await cacheService.invalidateDocumentListCache(req.user.id);
+      console.log('🗑️ [Cache] Invalidated document list cache immediately');
 
-    // Emit folder-tree-updated event to refresh folder tree
-    emitToUser(req.user.id, 'folder-tree-updated', { documentCount: documents.length });
+      // Emit folder-tree-updated event to refresh folder tree
+      emitToUser(req.user.id, 'folder-tree-updated', { documentCount: newDocuments.length });
+    }
 
     res.status(201).json({
-      message: `${documents.length} documents uploaded successfully`,
-      documents,
+      message: existingDocuments.length > 0
+        ? `${newDocuments.length} documents uploaded, ${existingDocuments.length} already existed`
+        : `${cleanDocuments.length} documents uploaded successfully`,
+      documents: cleanDocuments,
+      existingCount: existingDocuments.length,
     });
   } catch (error) {
     const err = error as Error;
@@ -1184,114 +1211,27 @@ export const regeneratePPTXSlides = async (req: Request, res: Response): Promise
 
 /**
  * Test LibreOffice installation
+ * NOTE: Service removed - returning stub response
  */
 export const testLibreOffice = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { pptxSlideGeneratorService } = await import('../services/pptxSlideGenerator.service');
-    const result = await pptxSlideGeneratorService.checkLibreOffice();
-
-    res.status(200).json(result);
-  } catch (error) {
-    const err = error as Error;
-    console.error('Test LibreOffice error:', err);
-    res.status(500).json({
-      installed: false,
-      error: err.message,
-      message: 'Failed to check LibreOffice installation'
-    });
-  }
+  // REMOVED: pptxSlideGeneratorService was deleted
+  res.status(501).json({
+    installed: false,
+    error: 'Service not available',
+    message: 'LibreOffice check service has been removed'
+  });
 };
 
 /**
  * Export document with edited markdown content
- * Converts markdown back to original format or exports as markdown
+ * NOTE: Service removed - returning stub response
  */
 export const exportDocument = async (req: Request, res: Response): Promise<void> => {
-  try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
-    const { id } = req.params;
-    const { format } = req.body; // 'pdf', 'docx', 'xlsx'
-
-    if (!format || !['pdf', 'docx', 'xlsx'].includes(format)) {
-      res.status(400).json({ error: 'Invalid format. Supported formats: pdf, docx, xlsx' });
-      return;
-    }
-
-    const prisma = (await import('../config/database')).default;
-
-    // Get document with metadata
-    const document = await prisma.documents.findUnique({
-      where: { id },
-      include: {
-        metadata: true,
-      },
-    });
-
-    if (!document) {
-      res.status(404).json({ error: 'Document not found' });
-      return;
-    }
-
-    if (document.userId !== req.user.id) {
-      res.status(403).json({ error: 'Unauthorized access to document' });
-      return;
-    }
-
-    const markdownContent = document.metadata?.markdownContent || '';
-
-    if (!markdownContent) {
-      res.status(400).json({ error: 'No markdown content available for export' });
-      return;
-    }
-
-    // Import export service
-    const documentExportService = (await import('../services/documentExport.service')).default;
-
-    // Export document using the service
-    const buffer = await documentExportService.exportDocument({
-      format: format as 'pdf' | 'docx' | 'xlsx',
-      markdownContent,
-      filename: document.filename
-    });
-
-    if (!buffer) {
-      res.status(500).json({ error: 'Failed to generate export buffer' });
-      return;
-    }
-
-    // Determine content type and file extension
-    const contentTypes = {
-      pdf: 'application/pdf',
-      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    };
-
-    const extensions = {
-      pdf: 'pdf',
-      docx: 'docx',
-      xlsx: 'xlsx'
-    };
-
-    // Generate filename
-    const baseFilename = document.filename.replace(/\.[^/.]+$/, '');
-    const exportFilename = `${baseFilename}.${extensions[format as keyof typeof extensions]}`;
-
-    // Set response headers
-    res.setHeader('Content-Type', contentTypes[format as keyof typeof contentTypes]);
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(exportFilename)}"`);
-    res.setHeader('Content-Length', buffer.length);
-
-    // Send buffer
-    res.send(buffer);
-  } catch (error) {
-    const err = error as Error;
-    console.error('Export error:', err);
-    res.status(500).json({ error: err.message || 'Export failed' });
-  }
+  // REMOVED: documentExportService was deleted
+  res.status(501).json({
+    error: 'Export service not available',
+    message: 'Document export service has been removed'
+  });
 };
 
 /**
@@ -1322,120 +1262,15 @@ export const deleteAllDocuments = async (req: Request, res: Response): Promise<v
 
 /**
  * Re-index all documents in Pinecone
- * This will re-process and re-embed ALL completed documents into Pinecone
- * Useful when documents were uploaded but not indexed, or if indexing failed
+ * NOTE: Service removed - returning stub response
  */
 export const reindexAllDocuments = async (req: Request, res: Response): Promise<void> => {
-  try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
-    const userId = req.user.id;
-
-    console.log('\n🔄 ==========================================');
-    console.log('🔄 [RE-INDEX] Starting document re-indexing...');
-    console.log(`👤 User ID: ${userId.substring(0, 8)}...`);
-    console.log('==========================================\n');
-
-    // Import required services dynamically
-    const prisma = (await import('../config/database')).default;
-    const documentChunkingService = (await import('../services/documentChunking.service')).default;
-    const vectorEmbeddingService = (await import('../services/vectorEmbedding.service')).default;
-
-    // Get all completed documents with extracted text
-    const documents = await prisma.documents.findMany({
-      where: {
-        userId,
-        status: 'completed'
-      },
-      include: {
-        metadata: true
-      }
-    });
-
-    console.log(`📊 Found ${documents.length} completed documents to re-index\n`);
-
-    let successCount = 0;
-    let failedCount = 0;
-    let skippedCount = 0;
-    const failedDocuments: Array<{ filename: string; error: string }> = [];
-
-    for (const doc of documents) {
-      try {
-        // Skip documents without extracted text
-        if (!doc.metadata?.extractedText) {
-          console.log(`⏭️  Skipping "${doc.filename}" - no extracted text`);
-          skippedCount++;
-          continue;
-        }
-
-        console.log(`\n🔄 Processing: "${doc.filename}"`);
-        console.log(`   Document ID: ${doc.id.substring(0, 8)}...`);
-        console.log(`   Text length: ${doc.metadata.extractedText.length.toLocaleString()} characters`);
-
-        // Chunk the document using simple chunking
-        const extractedText = doc.metadata.extractedText;
-        const docChunks = documentChunkingService.chunkText(extractedText);
-        console.log(`   Chunks created: ${docChunks.length}`);
-
-        // Convert to format expected by vector embedding service
-        const chunks = docChunks.map((chunk, index) => ({
-          content: chunk,
-          metadata: {
-            startChar: index * 500,
-            endChar: Math.min((index + 1) * 500, extractedText.length)
-          }
-        }));
-
-        // Store embeddings in Pinecone
-        console.log(`   💾 Storing embeddings in Pinecone...`);
-        await vectorEmbeddingService.storeDocumentEmbeddings(doc.id, chunks);
-
-        successCount++;
-        console.log(`   ✅ Successfully re-indexed "${doc.filename}"`);
-
-      } catch (error: any) {
-        failedCount++;
-        const errorMessage = error.message || 'Unknown error';
-        console.error(`   ❌ Failed to re-index "${doc.filename}": ${errorMessage}`);
-        failedDocuments.push({
-          filename: doc.filename,
-          error: errorMessage
-        });
-      }
-    }
-
-    console.log('\n==========================================');
-    console.log('🎯 RE-INDEX SUMMARY');
-    console.log('==========================================');
-    console.log(`📊 Total documents: ${documents.length}`);
-    console.log(`✅ Successfully re-indexed: ${successCount}`);
-    console.log(`❌ Failed: ${failedCount}`);
-    console.log(`⏭️  Skipped (no text): ${skippedCount}`);
-    console.log('==========================================\n');
-
-    res.status(200).json({
-      success: true,
-      message: `Re-indexing complete: ${successCount} documents successfully re-indexed`,
-      summary: {
-        totalDocuments: documents.length,
-        successCount,
-        failedCount,
-        skippedCount
-      },
-      failedDocuments: failedDocuments.length > 0 ? failedDocuments : undefined
-    });
-
-  } catch (error) {
-    const err = error as Error;
-    console.error('❌ [RE-INDEX] Fatal error:', err);
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
-  }
+  // REMOVED: vectorEmbeddingService was deleted
+  res.status(501).json({
+    success: false,
+    error: 'Re-indexing service not available',
+    message: 'Vector embedding service has been removed'
+  });
 };
 
 /**

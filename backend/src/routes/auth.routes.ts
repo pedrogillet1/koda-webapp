@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as authController from '../controllers/auth.controller';
 import * as twoFactorController from '../controllers/twoFactor.controller';
-import * as oauthController from '../controllers/oauth.controller';
+// REMOVED: oauthController - deleted controller
 import { authLimiter, twoFactorLimiter } from '../middleware/rateLimit.middleware';
 import { authenticateToken } from '../middleware/auth.middleware';
 
@@ -20,13 +20,11 @@ router.post('/pending/resend-email', authLimiter, authController.resendPendingEm
 router.post('/pending/add-phone', authLimiter, authController.addPendingPhone);
 router.post('/pending/verify-phone', authLimiter, authController.verifyPendingPhone);
 
-// Google OAuth routes
-router.get('/google', oauthController.googleAuth);
-router.get('/google/callback', oauthController.googleCallback);
-
-// Apple OAuth routes
-router.get('/apple', oauthController.appleAuth);
-router.post('/apple/callback', oauthController.appleCallback);
+// REMOVED: OAuth routes - oauthController was deleted
+// router.get('/google', oauthController.googleAuth);
+// router.get('/google/callback', oauthController.googleCallback);
+// router.get('/apple', oauthController.appleAuth);
+// router.post('/apple/callback', oauthController.appleCallback);
 
 // Email and Phone Verification routes (protected)
 router.post('/verify/send-email', authenticateToken, authController.sendEmailVerification);

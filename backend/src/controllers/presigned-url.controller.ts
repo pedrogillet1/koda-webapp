@@ -73,7 +73,7 @@ async function createFolderHierarchy(
       : `/${folderName}`;
 
     // Check if folder already exists
-    const existingFolder = await prisma.folders.findFirst({
+    const existingFolder = await prisma.folder.findFirst({
       where: {
         userId,
         name: folderName,
@@ -86,11 +86,11 @@ async function createFolderHierarchy(
       folderMap.set(folderPath, existingFolder.id);
     } else {
       // Create new folder
-      const newFolder = await prisma.folders.create({
+      const newFolder = await prisma.folder.create({
         data: {
-          user: { connect: { id: userId } },
+          userId,
           name: folderName,
-          parentFolderId: parentFolderId,
+          parentFolderId: parentFolderId ?? null,
           path: fullPath
         }
       });
@@ -108,7 +108,7 @@ async function createFolderHierarchy(
  * Helper function to build full path for a folder
  */
 async function buildFullPath(parentFolderId: string, folderName: string): Promise<string> {
-  const parent = await prisma.folders.findUnique({
+  const parent = await prisma.folder.findUnique({
     where: { id: parentFolderId },
     select: { path: true }
   });
@@ -173,7 +173,10 @@ export const generateBulkPresignedUrls = async (
       presignedUrl: string;
       documentId: string;
       encryptedFilename: string;
+      skipped?: boolean;
+      existingFilename?: string;
     }> = [];
+    const skippedFiles: string[] = [];
 
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
       const batch = files.slice(i, i + BATCH_SIZE);
@@ -193,6 +196,28 @@ export const generateBulkPresignedUrls = async (
               const folderPath = pathParts.slice(0, -1).join('/');
               targetFolderId = folderMap.get(folderPath) || targetFolderId;
             }
+          }
+
+          // ✅ NEW: Check if file with same name already exists in this folder
+          const existingDoc = await prisma.documents.findFirst({
+            where: {
+              userId,
+              filename: fileName,
+              folderId: targetFolderId,
+              status: { in: ['completed', 'processing', 'uploading'] }
+            }
+          });
+
+          if (existingDoc) {
+            console.log(`⚠️ File already exists: "${fileName}" in folder ${targetFolderId || 'root'}`);
+            skippedFiles.push(fileName);
+            return {
+              presignedUrl: '',
+              documentId: existingDoc.id,
+              encryptedFilename: existingDoc.encryptedFilename,
+              skipped: true,
+              existingFilename: fileName
+            };
           }
 
           // Generate unique encrypted filename
@@ -234,19 +259,31 @@ export const generateBulkPresignedUrls = async (
       results.push(...batchResults);
     }
 
+    // Filter out skipped files from results
+    const newFiles = results.filter(r => !r.skipped);
+    const skippedResults = results.filter(r => r.skipped);
+
     const duration = Date.now() - startTime;
-    console.log(`✅ Generated ${results.length} presigned URLs successfully in ${duration}ms`);
-    console.log(`📊 [METRICS] URL generation speed: ${(results.length / (duration / 1000)).toFixed(2)} URLs/second`);
+    console.log(`✅ Generated ${newFiles.length} presigned URLs successfully in ${duration}ms`);
+    if (skippedFiles.length > 0) {
+      console.log(`⚠️ Skipped ${skippedFiles.length} files (already exist): ${skippedFiles.join(', ')}`);
+    }
+    console.log(`📊 [METRICS] URL generation speed: ${(newFiles.length / (duration / 1000)).toFixed(2)} URLs/second`);
     console.log(`📊 [METRICS] Memory usage: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)}MB`);
 
     // 🔔 Emit WebSocket event to notify UI of new documents (with "uploading" status)
-    console.log(`🔔 Notifying UI: ${results.length} documents created (status: uploading)`);
-    emitDocumentEvent(userId, 'created');
+    if (newFiles.length > 0) {
+      console.log(`🔔 Notifying UI: ${newFiles.length} documents created (status: uploading)`);
+      emitDocumentEvent(userId, 'created');
+    }
 
     res.status(200).json({
-      presignedUrls: results.map(r => r.presignedUrl),
-      documentIds: results.map(r => r.documentId),
-      encryptedFilenames: results.map(r => r.encryptedFilename)
+      presignedUrls: newFiles.map(r => r.presignedUrl),
+      documentIds: newFiles.map(r => r.documentId),
+      encryptedFilenames: newFiles.map(r => r.encryptedFilename),
+      // ✅ NEW: Include information about skipped files for frontend notification
+      skippedFiles: skippedResults.map(r => r.existingFilename),
+      skippedCount: skippedResults.length
     });
 
   } catch (error: any) {

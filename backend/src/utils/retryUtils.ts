@@ -113,7 +113,7 @@ export async function retryWithBackoff<T>(
       console.warn(
         `⚠️ [RETRY] Attempt ${attempt} failed (retryable error). ` +
         `Retrying in ${delayMs}ms...`,
-        error?.message || error
+        (error as any)?.message || error
       );
 
       await sleep(delayMs);
@@ -192,7 +192,7 @@ export async function retryStreamingWithBackoff<T>(
       console.warn(
         `⚠️ [RETRY-STREAM] Attempt ${attempt} failed (retryable error). ` +
         `Retrying in ${delayMs}ms...`,
-        error?.message || error
+        (error as any)?.message || error
       );
 
       await sleep(delayMs);

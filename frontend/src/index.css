@@ -15,6 +15,10 @@ html {
   height: 100%;
   overflow: hidden;
   -webkit-text-size-adjust: 100%;
+  position: fixed;
+  width: 100%;
+  top: 0;
+  left: 0;
 }
 
 body {
@@ -22,6 +26,10 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden;
+  position: fixed;
+  width: 100%;
+  top: 0;
+  left: 0;
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
@@ -44,30 +52,108 @@ code {
 }
 
 /* ========================================
-   MOBILE SCROLLING FIX
-   Enable scrolling on mobile devices (iOS Safari fix)
+   MOBILE KEYBOARD FIX
+   Fixed positioning to prevent page scroll when keyboard appears
    ======================================== */
 @media (max-width: 768px) {
   html {
-    height: auto;
-    min-height: 100%;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    height: 100%;
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+    top: 0;
+    left: 0;
   }
 
   body {
-    height: auto;
-    min-height: 100%;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    height: 100%;
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+    top: 0;
+    left: 0;
   }
 
   #root {
-    height: auto;
-    min-height: 100vh;
-    min-height: 100dvh; /* Dynamic viewport height for iOS */
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    height: 100dvh;
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+    top: 0;
+    left: 0;
+  }
+}
+
+/* ========================================
+   MOBILE KEYBOARD FIX - GLOBAL
+   Prevent page scrolling on mobile
+   ======================================== */
+@media (max-width: 768px) {
+  /* Prevent any scrolling at document level */
+  html,
+  body,
+  #root {
+    position: fixed !important;
+    width: 100% !important;
+    height: 100dvh !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    top: 0 !important;
+    left: 0 !important;
+  }
+
+  /* All pages should use fixed positioning but allow scrolling */
+  [data-page],
+  .page,
+  .screen {
+    position: fixed !important;
+    width: 100% !important;
+    height: 100dvh !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    top: 0 !important;
+    left: 0 !important;
+  }
+
+  /* Scrollable content areas should be flex children */
+  .scrollable-content,
+  [role="main"],
+  main {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    height: auto !important;
+    min-height: 0 !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Input areas should stay above keyboard */
+  input,
+  textarea,
+  [data-input-area="true"],
+  .chat-input-area {
+    font-size: 16px !important; /* Prevents iOS zoom */
+  }
+
+  /* Ensure input areas are always visible above keyboard */
+  [data-input-area="true"],
+  .chat-input-area,
+  .chat-input-wrapper,
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  textarea {
+    position: relative !important;
+    z-index: 10000 !important;
+  }
+
+  /* Prevent form accessories from appearing */
+  input,
+  textarea {
+    -webkit-appearance: none !important;
+    appearance: none !important;
   }
 }
 
@@ -846,18 +932,17 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
      Fix: Add proper padding and use dvh
      ======================================== */
 
-  /* Chat container needs keyboard-aware spacing */
+  /* Chat container - FIXED height, no extra padding (input area handles nav spacing) */
   .chat-container,
   [data-chat-container="true"] {
-    padding-bottom: max(env(safe-area-inset-bottom), 16px) !important;
-    min-height: 100dvh !important;
-    height: auto !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
   }
 
-  /* Chat input area (outer container) should stay above keyboard */
+  /* Chat input area position - NO padding here, padding is set in line 1314 */
   .chat-input-area,
   [data-input-area="true"] {
-    padding-bottom: max(env(safe-area-inset-bottom), 12px) !important;
     position: relative !important;
     z-index: 10 !important;
   }
@@ -941,11 +1026,11 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     flex-wrap: wrap !important;
   }
 
-  /* Category header search input */
-  .category-header input,
-  .folder-header input,
-  [data-category-header="true"] input,
-  [data-folder-header="true"] input {
+  /* Category header search input - only direct children, NOT mobile-tab-bar */
+  .category-header > div > div input,
+  .folder-header > div > div input,
+  [data-category-header="true"] > div > div input,
+  [data-folder-header="true"] > div > div input {
     width: 100% !important;
     flex: 1 1 100% !important;
     min-width: 0 !important;
@@ -954,15 +1039,46 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     order: -1 !important;
   }
 
-  /* Category header buttons */
-  .category-header button,
-  .folder-header button,
-  [data-category-header="true"] button,
-  [data-folder-header="true"] button {
+  /* Mobile tab bar input - override with proper flex */
+  .mobile-tab-bar input {
+    width: auto !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    order: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Category header buttons - only direct children, NOT mobile-tab-bar */
+  .category-header > div > div button,
+  .folder-header > div > div button,
+  [data-category-header="true"] > div > div button,
+  [data-folder-header="true"] > div > div button {
     padding: 8px 10px !important;
     font-size: 12px !important;
     white-space: nowrap !important;
     flex: 0 1 auto !important;
+  }
+
+  /* Mobile tab bar buttons - compact with no shrink */
+  .mobile-tab-bar button {
+    padding: 0 12px !important;
+    font-size: 14px !important;
+    flex-shrink: 0 !important;
+    height: 40px !important;
+  }
+
+  /* Mobile tab bar container - ensure proper flex layout */
+  .mobile-tab-bar {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow: hidden !important;
+    gap: 8px !important;
+  }
+
+  /* Mobile tab bar search wrapper - must shrink */
+  .mobile-tab-bar > div:first-child {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
   }
 
   /* ========================================
@@ -979,17 +1095,13 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     -webkit-overflow-scrolling: touch !important;
   }
 
-  /* Settings save button - fixed at bottom */
+  /* Settings save button - flows naturally below form fields */
   .settings-form button[type="submit"],
   .settings-form .save-button,
   .settings-content .save-button,
   [data-settings-submit="true"] {
-    position: fixed !important;
-    bottom: max(16px, env(safe-area-inset-bottom)) !important;
-    left: 16px !important;
-    right: 16px !important;
-    width: calc(100% - 32px) !important;
-    z-index: 100 !important;
+    position: relative !important;
+    width: 100% !important;
     margin: 0 !important;
   }
 
@@ -1102,6 +1214,8 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
+    background: transparent !important;
+    border-radius: 0 !important;
   }
 
   .mobile-bottom-nav-item-label {
@@ -1124,17 +1238,8 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     color: #FFFFFF !important;
   }
 
-  /* Add padding to main content to account for bottom nav */
-  .chat-container,
-  [data-chat-container="true"] {
-    padding-bottom: 80px !important;
-  }
-
-  /* Messages container should have space for bottom nav */
-  .messages-container,
-  [data-messages-container="true"] {
-    padding-bottom: 100px !important;
-  }
+  /* REMOVED: Excessive padding for bottom nav - causes grey gap */
+  /* Chat container and messages container no longer need padding */
 }
 
 /* Desktop: Hide mobile bottom nav */
@@ -1218,18 +1323,18 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     flex-direction: column !important;
   }
 
-  /* Messages container with safe area and bottom nav space */
+  /* Messages container - scrollable area, NO bottom nav padding (input area handles that) */
   .messages-container,
   [data-messages-container="true"] {
     flex: 1 !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
-    padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+    padding-bottom: 16px !important;
   }
 
-  /* Input area with safe area - ONLY target the container, NOT the form */
+  /* Input area - padding-bottom to sit above MobileBottomNav (~72px + safe area) */
   .chat-input-area {
-    padding-bottom: max(env(safe-area-inset-bottom), 8px) !important;
+    padding-bottom: calc(72px + max(env(safe-area-inset-bottom), 12px)) !important;
     padding-left: 16px !important;
     padding-right: 16px !important;
   }
@@ -1259,15 +1364,6 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
   }
 
-  /* Settings page content */
-  .settings-content,
-  .settings-page,
-  .settings-form,
-  [data-settings-form="true"],
-  [data-page="settings"] {
-    padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
-  }
-
   /* Upload Hub page content */
   .upload-hub-content,
   .upload-content,
@@ -1279,18 +1375,26 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
 
   /* Category Detail page content */
   .category-detail-content,
+  /* Category/Folder page content - exclude mobile-tab-bar */
   .category-content,
-  [data-category-header="true"] ~ div,
-  [data-page="category"] {
+  [data-category-header="true"] ~ div.category-content,
+  [data-page="category"] .scrollable-content {
     padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
   }
 
   /* File Type Detail page content */
   .file-type-content,
   .file-type-detail-content,
-  [data-file-type-header="true"] ~ div,
-  [data-page="file-type"] {
+  [data-file-type-header="true"] ~ div.file-type-content,
+  [data-page="file-type"] .scrollable-content {
     padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+  }
+
+  /* Mobile tab bar should NOT have extra padding - MUST have higher specificity */
+  div.mobile-tab-bar {
+    padding: 12px 16px !important;
+    padding-bottom: 12px !important;
+    margin: 0 !important;
   }
 
   /* Folder Detail page content */
@@ -1300,11 +1404,11 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
     padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
   }
 
-  /* Generic scrollable content areas */
+  /* Generic scrollable content areas - EXCLUDE messages-container which has its own padding */
   .page-content,
   .main-content,
   .content-area,
-  .scrollable-content {
+  .scrollable-content:not(.messages-container) {
     padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
   }
 
@@ -1316,6 +1420,46 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
   .category-grid,
   .folder-grid {
     padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+  }
+
+  /* Category page folder grid - force 2 columns on mobile */
+  .category-page .folder-card,
+  [data-page="category"] .folder-card {
+    max-width: 100% !important;
+  }
+
+  /* Force folder grid to 2 columns */
+  .category-page div[style*="display: grid"],
+  [data-page="category"] div[style*="display: grid"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  /* Folder card styling for mobile 2-column layout */
+  .folder-card {
+    padding: 12px !important;
+    border-radius: 12px !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Folder card title - ensure text truncation works */
+  .folder-card h3 {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100% !important;
+  }
+
+  /* Folder icon container - smaller on mobile */
+  .folder-card > div:first-of-type + div {
+    height: 80px !important;
+  }
+
+  /* Folder icon image - smaller */
+  .folder-card img[alt="Folder"] {
+    width: 60px !important;
+    height: 60px !important;
   }
 }
 
@@ -1460,17 +1604,71 @@ button.btn-ghost:active:not(:disabled), .btn-ghost:active:not(:disabled) {
   }
 }
 
-/* Mobile viewport fix for #root - prevents 100vh issues on iOS */
+/* ========================================
+   CHATGPT-STYLE MOBILE COMPOSER FIX
+   Prevents page scroll, composer stays at bottom
+   ======================================== */
 @media (max-width: 768px) {
-  #root {
-    height: auto !important;
-    min-height: 100vh;
-    overflow-y: visible;
+  /* Force fixed layout to prevent page scrolling */
+  html, body, #root {
+    position: fixed !important;
+    width: 100% !important;
+    height: 100dvh !important;
+    overflow: hidden !important;
+    top: 0 !important;
+    left: 0 !important;
   }
 
-  html, body {
-    height: auto;
-    overflow-y: visible;
+  /* Messages container should scroll, not page */
+  [data-chat-container="true"],
+  .chat-messages,
+  .messages-container {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    min-height: 0 !important;
+  }
+
+  /* MobileComposer specific styles */
+  .mobile-composer {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 9999 !important;
+    background: white !important;
+    border-top: 1px solid #E6E6EC !important;
+  }
+
+  /* Ensure inputs don't zoom */
+  input,
+  textarea {
+    font-size: 16px !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+  }
+
+  /* Messages padding to avoid composer overlap */
+  .chat-messages-container,
+  [data-messages-container="true"] {
+    padding-bottom: calc(80px + max(env(safe-area-inset-bottom), 16px)) !important;
+  }
+}
+
+/* ========================================
+   SAFE AREA SUPPORT
+   Handle notch, dynamic island, home indicator
+   ======================================== */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+  }
+
+  #root {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
   }
 }
 

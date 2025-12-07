@@ -12,14 +12,77 @@
  */
 
 import { Request, Response } from 'express';
-import sessionStorageService from '../services/sessionStorage.service';
+// REMOVED: sessionStorageService, metadataExtractionService, documentComparisonService - deleted services
 import textExtractionService from '../services/textExtraction.service';
 import embeddingService from '../services/embedding.service';
-import metadataExtractionService from '../services/metadataExtraction.service';
-import documentComparisonService from '../services/documentComparison.service';
 import ragService from '../services/rag.service';
 import prisma from '../config/database';
 import crypto from 'crypto';
+
+// Stub services for removed functionality
+interface SessionDocument {
+  id: string;
+  filename: string;
+  mimeType: string;
+  content: string;
+  metadata: {
+    author?: string;
+    creationDate?: string;
+    language?: string;
+    fileType?: string;
+    [key: string]: any;
+  };
+}
+
+interface Session {
+  id: string;
+  userId: string;
+  documents: SessionDocument[];
+  createdAt: Date;
+}
+
+const sessionStorageService = {
+  createSession: async (_userId: string): Promise<Session> => {
+    return {
+      id: crypto.randomUUID(),
+      userId: _userId,
+      documents: [],
+      createdAt: new Date(),
+    };
+  },
+  getSession: async (_sessionId: string): Promise<Session | null> => null,
+  getSessionStats: async (_sessionId: string) => ({
+    documentCount: 0,
+    totalSize: 0,
+  }),
+  deleteSession: async (_sessionId: string): Promise<void> => {},
+  storeDocument: async (_sessionId: string, _doc: any): Promise<SessionDocument> => {
+    return { id: '', filename: '', mimeType: '', content: '', metadata: {} };
+  },
+  addDocument: async (_sessionId: string, _doc: any): Promise<SessionDocument> => {
+    return { id: '', filename: '', mimeType: '', content: '', metadata: {} };
+  },
+  getDocuments: async (_sessionId: string): Promise<SessionDocument[]> => [],
+  deleteDocument: async (_sessionId: string, _documentId: string): Promise<void> => {},
+  querySession: async (_sessionId: string, _embedding: number[], _topK: number, _threshold: number): Promise<any[]> => [],
+  getSessionDocuments: async (_sessionId: string): Promise<any[]> => [],
+};
+
+const metadataExtractionService = {
+  extractMetadata: async (_buffer: Buffer, _filename: string, _mimeType: string, _text: string) => ({
+    author: undefined as string | undefined,
+    creationDate: undefined as string | undefined,
+    language: undefined as string | undefined,
+    fileType: undefined as string | undefined,
+  }),
+};
+
+const documentComparisonService = {
+  compareDocuments: async (_docId1: string, _docId2: string, _userId: string) => ({
+    similarities: [] as string[],
+    differences: [] as string[],
+  }),
+};
 import multer from 'multer';
 
 // Configure multer for session uploads

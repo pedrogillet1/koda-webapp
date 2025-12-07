@@ -110,12 +110,12 @@ if [ -d "frontend" ]; then
 fi
 
 # Final result
-if [ $ERRORS -eq 0 ]; then
+if [ "${ERRORS:-0}" -eq 0 ]; then
     echo -e "${GREEN}✅ All pre-commit checks passed!${NC}"
     echo ""
     exit 0
 else
-    echo -e "${RED}❌ Pre-commit checks failed with $ERRORS error(s)${NC}"
+    echo -e "${RED}❌ Pre-commit checks failed with ${ERRORS:-0} error(s)${NC}"
     echo ""
     echo -e "${YELLOW}To commit anyway, use:${NC}"
     echo "  git commit --no-verify"

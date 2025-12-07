@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { buildRoute, AUTH_MODES } from '../constants/routes';
 import MobileBottomNav from './MobileBottomNav';
 
 /**
@@ -35,9 +36,9 @@ const ProtectedRoute = ({ children }) => {
         );
     }
 
-    // If not authenticated, redirect to login
+    // If not authenticated, redirect to unified auth
     if (!isAuthenticated) {
-        return <Navigate to="/login" replace />;
+        return <Navigate to={buildRoute.auth(AUTH_MODES.LOGIN)} replace />;
     }
 
     // If authenticated, show content with mobile bottom navigation

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
-import securityMonitoringService, { SecurityEventType, ThreatLevel } from '../services/securityMonitoring.service';
+import { securityMonitoringService, SecurityEventType, ThreatLevel } from '../services/securityStubs.service';
 
 /**
  * IP Filtering Middleware

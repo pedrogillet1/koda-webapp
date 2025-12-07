@@ -104,6 +104,39 @@
   line-height: 1;
 }
 
+/* Feedback Buttons */
+.feedback-buttons {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.feedback-btn {
+  padding: 6px 8px !important;
+  min-width: auto;
+}
+
+.feedback-btn.active {
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.feedback-btn.active svg {
+  transform: scale(1.1);
+}
+
+.feedback-btn:disabled {
+  opacity: 0.8;
+  cursor: default;
+}
+
+/* Action Divider */
+.action-divider {
+  width: 1px;
+  height: 20px;
+  background: #E5E7EB;
+  margin: 0 4px;
+}
+
 /* Dark mode support - DISABLED to keep consistent light appearance */
 /* Icons have hardcoded dark colors, so we force light mode styling */
 /*

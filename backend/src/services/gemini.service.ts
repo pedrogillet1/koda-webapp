@@ -8,7 +8,7 @@ const contextManager = {
   buildOptimizedContext: (params: any) => {
     const { systemPrompt, documentContext, conversationHistory } = params;
     // Build messages array from conversation history
-    const messages = conversationHistory ? conversationHistory.map((msg: any) => ({
+    const messages = conversationHistory ? conversationHistory.map((msg: { role: string; content: string }) => ({
       role: msg.role,
       content: msg.content
     })) : [];
@@ -16,7 +16,14 @@ const contextManager = {
       systemPrompt,
       documentContext,
       conversationHistory,
-      messages
+      messages,
+      tokenUsage: {
+        systemPrompt: 0,
+        documentContext: 0,
+        conversationHistory: 0,
+        total: 0,
+        utilizationPercentage: 0
+      }
     };
   }
 };
@@ -878,7 +885,7 @@ export const sendMessageToGeminiStreaming = async (
 
     // Add current user message to optimized messages
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      ...optimizedContext.messages.map((msg) => ({
+      ...optimizedContext.messages.map((msg: { role: string; content: string }) => ({
         role: msg.role as 'system' | 'user' | 'assistant',
         content: msg.content,
       })),
@@ -1148,7 +1155,7 @@ export const sendMessageToGeminiWithoutFunctions = async (
 
     // Add current user message to optimized messages
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      ...optimizedContext.messages.map((msg) => ({
+      ...optimizedContext.messages.map((msg: { role: string; content: string }) => ({
         role: msg.role as 'system' | 'user' | 'assistant',
         content: msg.content,
       })),
@@ -1893,6 +1900,10 @@ export async function generateText(params: {
 /**
  * Generate a smart, concise title for a conversation based on its content
  * Analyzes the conversation context to create a meaningful title (max 50 characters)
+ *
+ * ✅ FIXED: Now analyzes USER MESSAGE instead of AI RESPONSE
+ * ✅ FIXED: Detects fallback responses and returns "New Chat"
+ * ✅ FIXED: Never uses greetings or response text as titles
  */
 export const generateConversationTitle = async (
   firstMessage: string,
@@ -1900,6 +1911,33 @@ export const generateConversationTitle = async (
 ): Promise<string> => {
   try {
     console.log('📝 Generating AI-powered conversation title...');
+
+    // ✅ NEW: Detect fallback responses and return "New Chat"
+    if (firstResponse) {
+      const fallbackPatterns = [
+        /I cannot answer/i,
+        /I'm not confident/i,
+        /I don't have enough information/i,
+        /I couldn't find/i,
+        /I'm unable to/i,
+        /I don't know/i,
+        /I can't determine/i,
+        /I can't provide/i,
+        /I don't see/i,
+        /I wasn't able to/i,
+        /No relevant information/i,
+        /I need more context/i,
+        /Could you clarify/i,
+        /Could you provide more details/i,
+      ];
+
+      const isFallback = fallbackPatterns.some(pattern => pattern.test(firstResponse));
+
+      if (isFallback) {
+        console.log('⏭️ [TITLE] Detected fallback response, returning "New Chat"');
+        return 'New Chat';
+      }
+    }
 
     const result = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -1910,27 +1948,32 @@ export const generateConversationTitle = async (
 
 **CRITICAL RULES:**
 1. Maximum 50 characters
-2. If the message is just a greeting (hi, hello, hey, etc.) with no specific question or topic, return "New Chat"
-3. ONLY create a specific title if there is a clear topic or question
-4. Use natural, conversational language
-5. No quotes, no colons, no special formatting
-6. Focus on the ACTION or TOPIC mentioned
-7. DO NOT hallucinate or guess topics - only use what's explicitly mentioned
+2. NEVER use greetings as titles (hi, hello, hey, hi there, etc.)
+3. NEVER use the first line of the AI response as the title
+4. ONLY create a specific title if there is a clear topic or question
+5. Analyze the USER MESSAGE for the topic, not the AI response
+6. If the message is just a greeting with no specific topic, return "New Chat"
+7. Use natural, conversational language
+8. No quotes, no colons, no special formatting
+9. Focus on the ACTION or TOPIC mentioned in the USER MESSAGE
+10. DO NOT hallucinate or guess topics - only use what's explicitly mentioned
 
 **Examples:**
-- "hello" → "New Chat" (just a greeting)
-- "hi there" → "New Chat" (just a greeting)
-- "What are tax documents for 2024?" → "Tax documents for 2024"
-- "Check my passport expiry" → "Passport expiry date"
-- "Compare these lease agreements" → "Compare lease agreements"
-- "Help me organize medical records" → "Organize medical records"
+- User: "hello" → "New Chat" (just a greeting)
+- User: "hi there" → "New Chat" (just a greeting)
+- User: "What are tax documents for 2024?" → "Tax documents for 2024"
+- User: "Check my passport expiry" → "Passport expiry date"
+- User: "Compare these lease agreements" → "Compare lease agreements"
+- User: "Help me organize medical records" → "Organize medical records"
+- User: "list companies mentioned in" → "List Companies Mentioned"
+- User: "what is trabalho projeto about" → "Trabalho Projeto Details"
 
 Return ONLY the title, nothing else. NO hallucination or guessing allowed.`,
         },
         {
           role: 'user',
           content: firstResponse
-            ? `User: "${firstMessage}"\nAssistant: "${firstResponse.slice(0, 300)}"\n\nCreate a title that captures the ACTUAL topic discussed.`
+            ? `User asked: "${firstMessage}"\n\nCreate a title based on what the USER ASKED, not the AI response. Focus on the topic or action in the user's question.`
             : `User: "${firstMessage}"\n\nIf this is just a greeting with no specific topic, return "New Chat". Otherwise, create a title for the topic.`,
         },
       ],
@@ -1953,8 +1996,7 @@ Return ONLY the title, nothing else. NO hallucination or guessing allowed.`,
     return title;
   } catch (error) {
     console.error('❌ Error generating conversation title:', error);
-    // Fallback to simple truncation
-    const fallbackTitle = firstMessage.slice(0, 50) + (firstMessage.length > 50 ? '...' : '');
-    return fallbackTitle;
+    // Fallback to "New Chat" instead of using first message
+    return 'New Chat';
   }
 };

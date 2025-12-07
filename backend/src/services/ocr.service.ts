@@ -11,6 +11,7 @@
 
 import Tesseract from 'tesseract.js';
 import vision, { ImageAnnotatorClient } from '@google-cloud/vision';
+// @ts-ignore - pdf-poppler has no type declarations
 import { convert } from 'pdf-poppler';
 import sharp from 'sharp';
 import fs from 'fs/promises';
@@ -288,7 +289,7 @@ class OCRService {
       const pdfData = await parser.getText();
 
       const extractedText = pdfData.text.trim();
-      const wordCount = extractedText.split(/\s+/).filter(w => w.length > 0).length;
+      const wordCount = extractedText.split(/\s+/).filter((w: string) => w.length > 0).length;
 
       console.log(`   📝 Extracted ${wordCount} words from PDF`);
 

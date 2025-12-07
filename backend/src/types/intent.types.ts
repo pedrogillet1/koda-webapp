@@ -116,6 +116,7 @@ export const INTENT_CATEGORY_MAP: Record<Intent, IntentCategory> = {
   [Intent.FIND_DUPLICATES]: IntentCategory.NAVIGATION,
 
   // File Actions
+  [Intent.CREATE_FILE]: IntentCategory.FILE_ACTIONS,
   [Intent.CREATE_FOLDER]: IntentCategory.FILE_ACTIONS,
   [Intent.RENAME_FOLDER]: IntentCategory.FILE_ACTIONS,
   [Intent.MOVE_FILES]: IntentCategory.FILE_ACTIONS,

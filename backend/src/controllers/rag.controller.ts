@@ -2,25 +2,41 @@ import { Request, Response } from 'express';
 import ragService from '../services/rag.service';
 import prisma from '../config/database';
 import { getIO } from '../services/websocket.service';
-import navigationService from '../services/navigation.service';
-import intentService from '../services/intent.service';
-import { llmIntentDetectorService } from '../services/llmIntentDetector.service'; // ✅ FIX #1: LLM Intent Detection
-import responsePostProcessor from '../services/responsePostProcessor.service'; // ✅ FIX #4: Response Post-Processor
-import { Intent } from '../types/intent.types';
+// Stub imports for deleted services
+import {
+  navigationService,
+  responsePostProcessor,
+  p0FeaturesService,
+  chatDocumentGenerationService
+} from '../services/deletedServiceStubs';
 import fileActionsService from '../services/fileActions.service';
 import { generateConversationTitle } from '../services/gemini.service';
-import cacheService from '../services/cache.service'; // ✅ FIX: Cache invalidation after saving messages
-// ✅ P0 FEATURES: Import P0 services for multi-turn conversations
-import p0FeaturesService from '../services/p0Features.service';
-import clarificationService from '../services/clarification.service';
-import chatDocumentGenerationService from '../services/chatDocumentGeneration.service';
+import cacheService from '../services/cache.service';
 import * as languageDetectionService from '../services/languageDetection.service';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
+// ✅ FORMAT ENFORCEMENT: Import format enforcement services
+import { structureEnforcementService } from '../services/structureEnforcement.service';
+import formatEnforcementService from '../services/formatEnforcement.service';
+// ✅ KODA FIX #2: Response validation to prevent empty responses
+import responseValidation from '../services/responseValidation.service';
+// ✅ FIX #6: Simple Intent Detection (replaces LLM-based intentDetection.service)
+import { detectIntent as detectSimpleIntent, toLegacyIntent, Intent } from '../services/simpleIntentDetection.service';
 
-// Initialize Anthropic client for document generation
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!;
-const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022';
-const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+// ═══════════════════════════════════════════════════════════════════════════
+// MIGRATION: Anthropic → Gemini for document generation
+// ═══════════════════════════════════════════════════════════════════════════
+const GEMINI_API_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || '';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+
+let genAI: GoogleGenerativeAI | null = null;
+let geminiModel: GenerativeModel | null = null;
+
+if (GEMINI_API_KEY) {
+  genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  geminiModel = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+} else {
+  console.warn('[RAG Controller] No Gemini API key found');
+}
 
 /**
  * RAG Controller
@@ -395,24 +411,12 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       isShowFileQuery
     );
 
-    let intentResult: IntentResult;
+    // ✅ FIX #6: Simple pattern-based intent detection (<10ms vs 3-6s LLM)
+    const simpleIntentResult = detectSimpleIntent(query);
+    const intentResult = toLegacyIntent(simpleIntentResult);
 
-    if (isObviousRagQuery && !needsLlmIntent) {
-      // ⚡ FAST PATH: Skip LLM intent detection for obvious RAG queries
-      console.log('⚡ [FAST INTENT] Obvious RAG query detected - skipping LLM intent detection (saved 3-6s)');
-      intentResult = {
-        intent: Intent.GENERAL_QA,
-        confidence: 0.95,
-        entities: {}
-      };
-    } else {
-      // SLOW PATH: Use LLM for ambiguous queries or file management
-      console.log('🧠 [SLOW INTENT] Using LLM intent detection for ambiguous/file management query');
-      intentResult = await llmIntentDetectorService.detectIntent(query, conversationHistoryForIntent);
-    }
-
-    console.log(`🎯 [Intent] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
-    console.log(`📝 [STREAMING Entities]`, intentResult.entities);
+    console.log(`⚡ [Intent] ${intentResult.intent} (confidence: ${intentResult.confidence}) [pattern/${simpleIntentResult.detectionTimeMs}ms]`);
+    console.log(`📝 [Entities]`, intentResult.entities);
 
     // TODO: Gemini fallback classifier removed - using pattern matching only
     // Only fallback to Gemini AI classifier if confidence is very low
@@ -445,8 +449,8 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     if (intentResult.intent === Intent.READ_EXCEL_CELL) {
       console.log(`📊 [EXCEL] Reading Excel cell from query: "${query}"`);
 
-      const excelCellReader = await import('../services/excelCellReader.service');
-      const cellResult = await excelCellReader.default.readCell(query);
+      const { excelCellReaderService: excelCellReader } = await import('../services/securityStubs.service');
+      const cellResult = await excelCellReader.readCell(query);
 
       // Ensure conversation exists before creating messages
       await ensureConversationExists(conversationId, userId);
@@ -1114,6 +1118,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     // ========================================
     console.log(`🔍 Executing full RAG pipeline for complex query`);
 
+    // Ensure conversation exists before creating messages
+    await ensureConversationExists(conversationId, userId);
+
     // Get conversation history (last 5 messages) for context
     const conversationHistory = await prisma.message.findMany({
       where: { conversationId },
@@ -1161,6 +1168,42 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
     console.log(`🔍 [RAG CONTROLLER] result.sources:`, JSON.stringify(result.sources?.slice(0, 3), null, 2));
     console.log(`🔍 [RAG CONTROLLER] result.sources.length:`, result.sources?.length);
+    console.log(`🔍 [RAG CONTROLLER] result.answer.length:`, result.answer?.length);
+
+    // ============================================================================
+    // ✅ KODA FIX #2: VALIDATE RESPONSE BEFORE SAVING
+    // ============================================================================
+    const validationResult = responseValidation.validateResponse(result.answer, {
+      minLength: 10,
+      checkQuality: true,
+      allowShortResponses: false
+    });
+
+    if (!validationResult.isValid) {
+      console.error('❌ [RAG CONTROLLER] Response validation failed:', validationResult.errors);
+      console.error('   Validation warnings:', validationResult.warnings);
+      console.error('   Quality score:', validationResult.score);
+
+      // Get user-friendly error message
+      const detectedLanguage = languageDetectionService.detectLanguage(query);
+      const userMessage = responseValidation.getValidationErrorMessage(
+        validationResult,
+        detectedLanguage
+      );
+
+      res.status(500).json({
+        error: userMessage,
+        code: 'RESPONSE_VALIDATION_FAILED',
+        details: {
+          errors: validationResult.errors,
+          warnings: validationResult.warnings,
+          score: validationResult.score
+        }
+      });
+      return;
+    }
+
+    console.log('✅ [RAG CONTROLLER] Response validation passed (score:', validationResult.score + ')');
 
     // Save assistant message to database with RAG metadata
     const assistantMessage = await prisma.message.create({
@@ -1173,10 +1216,15 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           contextId: (result as any).contextId || 'rag-query',
           intent: (result as any).intent || 'content_query',
           confidence: (result as any).confidence || 0.8,
-          answerLength: finalAnswerLength
+          answerLength: finalAnswerLength,
+          validationScore: validationResult.score
         }),
       },
     });
+
+    console.log('✅ [RAG CONTROLLER] Assistant message saved to database');
+    console.log(`   Message ID: ${assistantMessage.id}`);
+    console.log(`   Content length: ${assistantMessage.content.length}`);
 
     // Update conversation timestamp
     await prisma.conversation.update({
@@ -1219,12 +1267,14 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
             // Emit WebSocket event for real-time update (if WebSocket is initialized)
             try {
               const io = getIO();
-              io.to(`user:${userId}`).emit('conversation:updated', {
-                conversationId,
-                title: generatedTitle,
-                updatedAt: new Date()
-              });
-              console.log(`📡 [AUTO-NAMING] WebSocket event emitted to user:${userId}`);
+              if (io) {
+                io.to(`user:${userId}`).emit('conversation:updated', {
+                  conversationId,
+                  title: generatedTitle,
+                  updatedAt: new Date()
+                });
+                console.log(`📡 [AUTO-NAMING] WebSocket event emitted to user:${userId}`);
+              }
             } catch (wsError) {
               console.warn('⚠️  [AUTO-NAMING] WebSocket not available, skipping real-time update:', wsError);
             }
@@ -1421,173 +1471,22 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     console.log(`🌍 [LANGUAGE] Detected: ${detectedLanguage}`);
 
     // ========================================
-    // ⚡ PERFORMANCE: Do fast keyword detection FIRST, only fetch conversation history if needed
-    const lowerQuery = query.toLowerCase();
-    let intentResult: any = null;
-    let conversationHistoryForIntent: any[] = [];
-
-    // Simple greetings - skip LLM and skip conversation history fetch
-    // ✅ FIX: Use language detection service for better multilingual support
-    if (languageDetectionService.isGreeting(query)) {
-      intentResult = {
-        intent: 'greeting',
-        confidence: 1.0,
-        parameters: { language: detectedLanguage }
-      };
-      console.log(`⚡ [FAST KEYWORD] Detected greeting in ${detectedLanguage} (skipped LLM + DB)`);
-    }
-    // List files - skip LLM and skip conversation history fetch
-    // ✅ FIX: Added natural language file type names (excel, word, powerpoint, images)
-    else if (/\b(list|show|what|which|how many|quantos|cuantos)\b.*\b(files?|documents?|pdfs?|docx|xlsx|excel|word|powerpoint|ppt|txt|png|jpe?g|images?|pictures?|photos?)\b/i.test(lowerQuery)) {
-      // Extract file types if present (support both technical and natural language terms)
-      const fileTypes: string[] = [];
-      if (/\bpdf/i.test(lowerQuery)) fileTypes.push('pdf');
-      if (/\b(docx?|word)\b/i.test(lowerQuery)) fileTypes.push('docx');
-      if (/\b(xlsx?|excel|spreadsheet)\b/i.test(lowerQuery)) fileTypes.push('xlsx');
-      if (/\b(pptx?|powerpoint|presentation)\b/i.test(lowerQuery)) fileTypes.push('pptx');
-      if (/\btxt\b/i.test(lowerQuery)) fileTypes.push('txt');
-      if (/\b(png|jpe?g|images?|pictures?|photos?)\b/i.test(lowerQuery)) {
-        fileTypes.push('png');
-        fileTypes.push('jpg');
-        fileTypes.push('jpeg');
-      }
-
-      intentResult = {
-        intent: 'list_files',
-        confidence: 0.95,
-        parameters: fileTypes.length > 0 ? { fileTypes } : {}
-      };
-      console.log(`⚡ [FAST KEYWORD] Detected list_files (skipped LLM + DB)`);
-    }
-    // Create folder - skip LLM and skip conversation history fetch
-    else if (/\b(create|make|new)\b.*\bfolder/i.test(lowerQuery)) {
-      // Extract folder name (basic - LLM will handle complex cases)
-      const match = lowerQuery.match(/(?:folder|pasta|carpeta|dossier)\s+(?:called|named)?\s*["']?([^"']+)["']?/i);
-      const folderName = match ? match[1].trim() : null;
-
-      if (folderName) {
-        intentResult = {
-          intent: 'create_folder',
-          confidence: 0.95,
-          parameters: { folderName }
-        };
-        console.log(`⚡ [FAST KEYWORD] Detected create_folder (skipped LLM + DB)`);
-      }
-    }
-
+    // ✅ UNIFIED INTENT DETECTION - Fast-path + LLM when needed
     // ========================================
-    // ⚡ SPEED FIX: Fast-path RAG detection (skip LLM intent for obvious RAG queries)
-    // ========================================
-    // ⚡ FIX: Added all common question words (does, is, are, can, etc.)
-    // REASON: Queries like "Does the patient..." were falling through to LLM detection
-    // IMPACT: Saves 200-500ms on 30% of queries
-    // Check for obvious RAG queries BEFORE falling back to LLM
-    if (!intentResult) {
-      const isObviousRagQuery = (
-        // Comparison queries
-        lowerQuery.includes('compare') ||
-        lowerQuery.includes('difference') ||
-        lowerQuery.includes('vs ') ||
-        lowerQuery.includes(' vs') ||
-        lowerQuery.includes('versus') ||
-        // Question patterns (WH-words)
-        lowerQuery.startsWith('what ') ||
-        lowerQuery.startsWith('how ') ||
-        lowerQuery.startsWith('why ') ||
-        lowerQuery.startsWith('when ') ||
-        lowerQuery.startsWith('where ') ||
-        lowerQuery.startsWith('who ') ||
-        lowerQuery.startsWith('which ') ||
-        // Question patterns (Yes/No question words) - FIX: Added missing patterns
-        lowerQuery.startsWith('does ') ||
-        lowerQuery.startsWith('do ') ||
-        lowerQuery.startsWith('is ') ||
-        lowerQuery.startsWith('are ') ||
-        lowerQuery.startsWith('can ') ||
-        lowerQuery.startsWith('could ') ||
-        lowerQuery.startsWith('should ') ||
-        lowerQuery.startsWith('would ') ||
-        lowerQuery.startsWith('will ') ||
-        lowerQuery.startsWith('did ') ||
-        lowerQuery.startsWith('has ') ||
-        lowerQuery.startsWith('have ') ||
-        lowerQuery.startsWith('had ') ||
-        // Instruction patterns
-        lowerQuery.startsWith('explain ') ||
-        lowerQuery.startsWith('tell me ') ||
-        lowerQuery.startsWith('describe ') ||
-        lowerQuery.startsWith('summarize ') ||
-        lowerQuery.startsWith('summary ') ||
-        // Portuguese question patterns
-        lowerQuery.startsWith('o que ') ||
-        lowerQuery.startsWith('como ') ||
-        lowerQuery.startsWith('por que ') ||
-        lowerQuery.startsWith('quando ') ||
-        lowerQuery.startsWith('onde ') ||
-        lowerQuery.startsWith('quem ') ||
-        lowerQuery.startsWith('qual ') ||
-        lowerQuery.includes('comparar') ||
-        // Spanish question patterns
-        lowerQuery.startsWith('qué ') ||
-        lowerQuery.startsWith('cómo ') ||
-        lowerQuery.startsWith('por qué ') ||
-        lowerQuery.startsWith('cuándo ') ||
-        lowerQuery.startsWith('dónde ') ||
-        lowerQuery.startsWith('quién ') ||
-        lowerQuery.startsWith('cuál ') ||
-        // Document content queries (asking about what's IN documents)
-        lowerQuery.includes('in the document') ||
-        lowerQuery.includes('in my document') ||
-        lowerQuery.includes('from the document') ||
-        lowerQuery.includes('no documento') ||
-        lowerQuery.includes('en el documento') ||
-        // Queries with .pdf, .docx, etc. file extensions (asking about specific files)
-        /\.(pdf|docx?|xlsx?|pptx?|txt|csv)\b/i.test(query)
-      );
+    // Fetch conversation history for context resolution
+    const conversationHistoryForIntent = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: { role: true, content: true }
+    });
+    conversationHistoryForIntent.reverse(); // Chronological order
 
-      // Patterns that REQUIRE LLM intent detection (file management actions)
-      const needsLlmIntent = (
-        lowerQuery.includes('create folder') ||
-        lowerQuery.includes('criar pasta') ||
-        lowerQuery.includes('crear carpeta') ||
-        lowerQuery.includes('move ') ||
-        lowerQuery.includes('mover ') ||
-        lowerQuery.includes('rename ') ||
-        lowerQuery.includes('renomear ') ||
-        lowerQuery.includes('delete ') ||
-        lowerQuery.includes('excluir ') ||
-        lowerQuery.includes('eliminar ')
-      );
+    // ✅ FIX #6: Simple pattern-based intent detection (<10ms vs 3-6s LLM)
+    const simpleIntentResult = detectSimpleIntent(query);
+    const intentResult = toLegacyIntent(simpleIntentResult);
 
-      if (isObviousRagQuery && !needsLlmIntent) {
-        // ⚡ FAST PATH: Skip LLM intent detection for obvious RAG queries
-        intentResult = {
-          intent: 'rag_query',
-          confidence: 0.95,
-          parameters: {}
-        };
-        console.log(`⚡ [FAST INTENT] Obvious RAG query detected - skipping LLM intent detection (saved 3-6s)`);
-      }
-    }
-
-    // ⚡ PERFORMANCE: Only fetch conversation history if we need LLM (saves 50-150ms DB query)
-    if (!intentResult) {
-      console.log(`🔍 [OPTIMIZATION] No fast match - fetching conversation history for LLM`);
-      conversationHistoryForIntent = await prisma.message.findMany({
-        where: { conversationId },
-        orderBy: { createdAt: 'desc' },
-        take: 10,
-        select: {
-          role: true,
-          content: true,
-        }
-      });
-      conversationHistoryForIntent.reverse(); // Chronological order
-
-      intentResult = await llmIntentDetectorService.detectIntent(query, conversationHistoryForIntent);
-      console.log(`🧠 [LLM Intent] ${intentResult.intent} (confidence: ${intentResult.confidence})`);
-    }
-
+    console.log(`⚡ [STREAMING Intent] ${intentResult.intent} (confidence: ${intentResult.confidence}) [pattern/${simpleIntentResult.detectionTimeMs}ms]`);
     console.log(`📝 [STREAMING Entities]`, intentResult.parameters);
 
     // ========================================
@@ -2140,7 +2039,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // Add keepalive pings every 15 seconds to prevent timeout
     const keepaliveInterval = setInterval(() => {
       res.write(': keepalive\n\n');
-      if (res.flush) res.flush();
+      if ((res as any).flush) (res as any).flush();
     }, 15000);
 
     // Clean up interval when done
@@ -2208,24 +2107,23 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         processedQuery, // ✅ P0: Use processed/rewritten query
         conversationId,
         (chunk: string) => {
-          console.log('🚀 [DEBUG] onChunk called with chunk length:', chunk.length);
-          console.log('🚀 [DEBUG] Chunk full content:', chunk);
-          console.log('🚀 [DEBUG] Checking for marker...');
-          console.log('🚀 [DEBUG] Contains marker?:', chunk.includes('__DOCUMENT_GENERATION_REQUESTED__:'));
+          // ============================================================================
+          // ✅ FIX: ACCUMULATE ONLY - Do NOT stream chunks immediately!
+          // Format enforcement requires the complete response to work.
+          // We'll send the format-enforced response AFTER all chunks are collected.
+          // ============================================================================
 
-          // Check if this is a document generation marker - don't send to client
+          // Check if this is a document generation marker
           if (chunk.includes('__DOCUMENT_GENERATION_REQUESTED__:')) {
-            console.log('📝 [RAG CONTROLLER] Intercepted document generation marker - not sending to client');
-            fullAnswer += chunk;
-            return; // Don't send marker to client
+            console.log('📝 [RAG CONTROLLER] Intercepted document generation marker');
           }
 
+          // Accumulate all chunks - DON'T stream yet
           fullAnswer += chunk;
-          // Stream each chunk to client
-          console.log('🚀 [DEBUG] Writing chunk to SSE stream...');
-          res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
-          if (res.flush) res.flush(); // Force immediate send
-          console.log('🚀 [DEBUG] Chunk written and flushed');
+
+          // ❌ REMOVED: Real-time streaming breaks format enforcement
+          // Format enforcement needs the complete response to add title, sections, etc.
+          // res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
         },
         effectiveDocumentId,
         conversationHistoryForIntent,  // Pass conversation history for context
@@ -2290,6 +2188,49 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     console.log('✅ [POST-PROCESSING] Applied responsePostProcessor formatting (warnings, spacing, next steps limiting)');
 
     // ========================================
+    // ✅ FORMAT ENFORCEMENT - 3-Layer System
+    // ========================================
+    // Layer 1: Structure Enforcement (title, sections, source, follow-up)
+    const isComparisonQueryFormat = /\b(compare|difference|versus|vs\.?|contrast|similarities|between)\b/i.test(processedQuery);
+    const structureResult = structureEnforcementService.enforceStructure(cleanedAnswer, {
+      query: processedQuery,
+      sources: result.sources?.map((s: any) => ({
+        documentName: s.documentName || s.filename || 'Unknown',
+        pageNumber: s.pageNumber || null
+      })) || [],
+      isComparison: isComparisonQueryFormat
+    });
+
+    if (structureResult.violations.length > 0) {
+      console.log(`📐 [STRUCTURE] Fixed ${structureResult.violations.length} violations:`,
+        structureResult.violations.map(v => v.type).join(', '));
+    }
+    cleanedAnswer = structureResult.text;
+
+    // Layer 2: Format Enforcement (bullets, bold, spacing, etc.)
+    const formatResult = formatEnforcementService.enforceFormat(cleanedAnswer);
+    if (formatResult.violations.length > 0) {
+      console.log(`✏️ [FORMAT] Fixed ${formatResult.violations.length} violations:`,
+        formatResult.violations.filter(v => v.severity === 'error').map(v => v.type).join(', '));
+    }
+    cleanedAnswer = formatResult.fixedText || cleanedAnswer;
+
+    console.log(`✅ [FORMAT ENFORCEMENT] Complete - Stats:`, {
+      hasTitle: structureResult.stats.hasTitle,
+      sections: structureResult.stats.sectionCount,
+      hasSource: structureResult.stats.hasSource,
+      hasFollowUp: structureResult.stats.hasFollowUp
+    });
+
+    // ========================================
+    // ✅ SEND FORMAT-ENFORCED RESPONSE TO CLIENT
+    // ========================================
+    // Now that format enforcement is complete, send the full response
+    res.write(`data: ${JSON.stringify({ type: 'content', content: cleanedAnswer })}\n\n`);
+    if ((res as any).flush) (res as any).flush();
+    console.log(`📤 [SEND] Sent format-enforced response (${cleanedAnswer.length} chars)`);
+
+    // ========================================
     // ✅ P0 FEATURES: Post-process response for calculations and context updates
     // ========================================
     try {
@@ -2322,11 +2263,11 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     console.log(`🔍 [DEBUG - DEDUP] result.sources:`, result.sources);
     console.log(`🔍 [DEBUG - DEDUP] First source:`, result.sources?.[0]);
 
-    const uniqueSources = result.sources ?
-      Array.from(new Map(result.sources.map((src: any) => {
+    const uniqueSources: any[] = result.sources ?
+      Array.from(new Map<string, any>(result.sources.map((src: any) => {
         const key = src.documentId || src.documentName || `${src.documentName}-${src.pageNumber}`;
         console.log(`🔍 [DEBUG - DEDUP] Source: documentId=${src.documentId}, documentName=${src.documentName}, key=${key}`);
-        return [key, src];
+        return [key, src] as [string, any];
       })).values())
       : [];
     console.log(`✅ [DEDUPLICATION] ${result.sources?.length || 0} sources → ${uniqueSources.length} unique sources`);
@@ -2337,6 +2278,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
     // Check for comparison keywords - if comparing, show ALL mentioned docs
     const isComparisonQuery = /\b(compare|comparison|vs|versus|difference|between|contrast)\b/i.test(query);
+    const lowerQuery = query.toLowerCase();
 
     // Find ALL mentioned files in the query
     const mentionedFiles = uniqueSources.filter((src: any) => {
@@ -2360,6 +2302,70 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       filteredSources = uniqueSources;
     }
 
+    // ============================================================================
+    // ✅ KODA FIX #2: VALIDATE RESPONSE BEFORE SAVING (Streaming)
+    // ============================================================================
+    console.log(`🔍 [STREAMING] cleanedAnswer length: ${cleanedAnswer.length}`);
+    console.log(`🔍 [STREAMING] cleanedAnswer preview: "${cleanedAnswer.substring(0, 100)}..."`);
+
+    const streamingValidationResult = responseValidation.validateResponse(cleanedAnswer, {
+      minLength: 10,
+      checkQuality: true,
+      allowShortResponses: false
+    });
+
+    if (!streamingValidationResult.isValid) {
+      console.error('❌ [STREAMING] Response validation failed:', streamingValidationResult.errors);
+      console.error('   Validation warnings:', streamingValidationResult.warnings);
+      console.error('   Quality score:', streamingValidationResult.score);
+
+      // Get user-friendly error message
+      const detectedLang = languageDetectionService.detectLanguage(query);
+      const userErrorMessage = responseValidation.getValidationErrorMessage(
+        streamingValidationResult,
+        detectedLang
+      );
+
+      // Stream error to client
+      res.write(`data: ${JSON.stringify({
+        type: 'error',
+        message: userErrorMessage,
+        code: 'RESPONSE_VALIDATION_FAILED'
+      })}\n\n`);
+
+      // Save error message to database instead of empty response
+      const errorAssistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: userErrorMessage,
+          metadata: JSON.stringify({
+            error: 'RESPONSE_VALIDATION_FAILED',
+            validationErrors: streamingValidationResult.errors,
+            validationWarnings: streamingValidationResult.warnings,
+            validationScore: streamingValidationResult.score
+          })
+        }
+      });
+
+      // Send done signal with error
+      res.write(`data: ${JSON.stringify({
+        type: 'done',
+        formattedAnswer: userErrorMessage,
+        userMessageId: userMessage.id,
+        assistantMessageId: errorAssistantMessage.id,
+        sources: [],
+        conversationId,
+        error: 'RESPONSE_VALIDATION_FAILED'
+      })}\n\n`);
+
+      res.end();
+      console.timeEnd('⚡ RAG Streaming Response Time');
+      return;
+    }
+
+    console.log('✅ [STREAMING] Response validation passed (score:', streamingValidationResult.score + ')');
+
     // Save assistant message to database with RAG metadata
     // ✅ REGENERATION: Update existing message if regenerating, otherwise create new
     let assistantMessage: any;
@@ -2375,7 +2381,8 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
             intent: (result as any).intent || 'content_query',
             confidence: (result as any).confidence || 0.8,
             answerLength: finalAnswerLength,
-            regeneratedAt: new Date().toISOString()
+            regeneratedAt: new Date().toISOString(),
+            validationScore: streamingValidationResult.score
           })
         },
       });
@@ -2390,80 +2397,26 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
             contextId: (result as any).contextId || 'rag-query',
             intent: (result as any).intent || 'content_query',
             confidence: (result as any).confidence || 0.8,
-            answerLength: finalAnswerLength
+            answerLength: finalAnswerLength,
+            validationScore: streamingValidationResult.score
           }),
         },
       });
     }
 
+    console.log('✅ [STREAMING] Assistant message saved to database');
+    console.log(`   Message ID: ${assistantMessage.id}`);
+    console.log(`   Content length: ${assistantMessage.content.length}`);
+
     // ════════════════════════════════════════════════════════════════════════════════
-    // DOCUMENT GENERATION HANDLER
+    // DOCUMENT GENERATION HANDLER - REMOVED
     // ════════════════════════════════════════════════════════════════════════════════
+    // NOTE: chatDocumentGeneration service was deleted
     // Check if the answer contains document generation marker
     if (cleanedAnswer.includes('__DOCUMENT_GENERATION_REQUESTED__:')) {
-      console.log('📝 [RAG CONTROLLER] Detected document generation marker in answer');
-
-      // Extract document type from marker
-      const markerMatch = cleanedAnswer.match(/__DOCUMENT_GENERATION_REQUESTED__:(\w+)/);
-      const documentType = markerMatch ? markerMatch[1] as 'summary' | 'report' | 'analysis' | 'general' : 'general';
-
-      console.log(`📝 [RAG CONTROLLER] Triggering ${documentType} document generation`);
-
-      try {
-        // Import document generation service
-        const chatDocGenService = await import('../services/chatDocumentGeneration.service');
-
-        // Stream progress message to client
-        const progressMessage = `\n\n📝 Generating your ${documentType}...\n\n`;
-        res.write(`data: ${JSON.stringify({ type: 'content', content: progressMessage })}\n\n`);
-        if (res.flush) res.flush();
-
-        // Generate document
-        const docResult = await chatDocGenService.generateDocument({
-          userId,
-          conversationId,
-          messageId: assistantMessage.id,
-          query,
-          documentType,
-        });
-
-        // Store chat document for the done event
-        generatedChatDocument = docResult.chatDocument;
-
-        // Update assistant message with generated document content
-        await prisma.message.update({
-          where: { id: assistantMessage.id },
-          data: {
-            content: docResult.message,
-          },
-        });
-
-        // Update cleanedAnswer for the done event
-        cleanedAnswer = docResult.message;
-
-        console.log(`✅ [RAG CONTROLLER] Document generated successfully: ${docResult.chatDocument.id}`);
-
-        // Stream final message
-        res.write(`data: ${JSON.stringify({ type: 'content', content: '\n' + docResult.message })}\n\n`);
-        if (res.flush) res.flush();
-      } catch (docGenError: any) {
-        console.error('❌ [RAG CONTROLLER] Document generation failed:', docGenError);
-        console.error('❌ [RAG CONTROLLER] Error message:', docGenError?.message);
-        console.error('❌ [RAG CONTROLLER] Error stack:', docGenError?.stack);
-        const errorMessage = '\n\n❌ Failed to generate document. Please try again.';
-
-        await prisma.message.update({
-          where: { id: assistantMessage.id },
-          data: {
-            content: cleanedAnswer + errorMessage,
-          },
-        });
-
-        cleanedAnswer += errorMessage;
-
-        res.write(`data: ${JSON.stringify({ type: 'content', content: errorMessage })}\n\n`);
-        if (res.flush) res.flush();
-      }
+      console.log('📝 [RAG CONTROLLER] Document generation marker detected but service removed');
+      // Remove the marker from the answer
+      cleanedAnswer = cleanedAnswer.replace(/__DOCUMENT_GENERATION_REQUESTED__:\w+/, '');
     }
 
     // Update conversation timestamp
@@ -2501,11 +2454,13 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
             try {
               const io = getIO();
-              io.to(`user:${userId}`).emit('conversation:updated', {
-                conversationId,
-                title: generatedTitle,
-                updatedAt: new Date()
-              });
+              if (io) {
+                io.to(`user:${userId}`).emit('conversation:updated', {
+                  conversationId,
+                  title: generatedTitle,
+                  updatedAt: new Date()
+                });
+              }
             } catch (wsError) {
               console.warn('⚠️  WebSocket not available for title update');
             }
@@ -2551,17 +2506,19 @@ Please generate a professional document with:
 
 Format the document using markdown with proper structure. Do NOT include the title or date headers - just start with the Executive Summary section.`;
 
-        const documentContentResponse = await anthropic.messages.create({
-          model: ANTHROPIC_MODEL,
-          max_tokens: 4096,
-          system: 'You are a professional business document writer. Generate comprehensive, well-structured documents with executive summaries and detailed sections.',
-          messages: [{ role: 'user', content: documentPrompt }]
+        if (!geminiModel) {
+          throw new Error('Gemini model not initialized');
+        }
+
+        const documentContentResponse = await geminiModel.generateContent({
+          contents: [{ role: 'user', parts: [{ text: `You are a professional business document writer. Generate comprehensive, well-structured documents with executive summaries and detailed sections.\n\n${documentPrompt}` }] }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 4096,
+          }
         });
 
-        const documentContent = documentContentResponse.content
-          .filter((block: any) => block.type === 'text')
-          .map((block: any) => block.text)
-          .join('\n\n');
+        const documentContent = documentContentResponse.response.text() || '';
 
         console.log(`✅ [AUTO-DOCUMENT] Generated ${documentContent.length} characters of document content`);
 

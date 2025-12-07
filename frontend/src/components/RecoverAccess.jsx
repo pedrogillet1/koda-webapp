@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { buildRoute, AUTH_MODES } from '../constants/routes';
 import api from '../services/api';
 
 function RecoverAccess() {
@@ -88,7 +89,7 @@ function RecoverAccess() {
     }}>
       {/* Back Button */}
       <button
-        onClick={() => navigate('/login')}
+        onClick={() => navigate(buildRoute.auth(AUTH_MODES.LOGIN))}
         style={{
           position: 'absolute',
           top: '24px',

@@ -42,7 +42,7 @@ export async function getFolderPath(folderId: string | null | undefined): Promis
 
     // Traverse up the folder hierarchy
     while (currentFolderId) {
-      const folders: { name: string; parentFolderId: string | null } | null = await prisma.folders.findUnique({
+      const folder: { name: string; parentFolderId: string | null } | null = await prisma.folder.findUnique({
         where: { id: currentFolderId },
         select: {
           name: true,

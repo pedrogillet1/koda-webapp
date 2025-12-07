@@ -45,8 +45,8 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         return;
       }
 
-      // Generate verification code
-      const { generateSMSCode } = await import('../services/sms.service');
+      // Generate verification code - SMS service removed, use random code
+      const generateSMSCode = () => Math.floor(100000 + Math.random() * 900000).toString();
       verification_codes = generateSMSCode();
       needsPhoneVerification = true;
 
@@ -62,14 +62,8 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         },
       });
 
-      // Send SMS verification code
-      try {
-        const { sendSMS } = await import('../services/sms.service');
-        await sendSMS(phoneNumber, `Your Koda verification code is: ${verification_codes}`);
-      } catch (error) {
-        console.error('Failed to send SMS:', error);
-        console.log(`📧 [DEV MODE] Verification code for ${phoneNumber}: ${verification_codes}`);
-      }
+      // SMS service removed - log code for dev mode
+      console.log(`📧 [DEV MODE] Verification code for ${phoneNumber}: ${verification_codes}`);
     }
 
     // Update user in database

@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { ReactComponent as AttachmentIcon } from '../assets/Paperclip.svg';
 import { ReactComponent as SendIcon } from '../assets/arrow-narrow-up.svg';
 import { ReactComponent as CheckIcon } from '../assets/check.svg';
-import { ReactComponent as UploadIconDrag } from '../assets/upload.svg';
 import sphere from '../assets/sphere.svg';
 import kodaLogo from '../assets/koda-logo_1.svg';
 import filesIcon from '../assets/files-icon.svg';
@@ -33,9 +33,27 @@ import useStreamingAnimation from '../hooks/useStreamingAnimation';
 import KeyboardShortcutsModal from './KeyboardShortcutsModal';
 import './MarkdownStyles.css';
 import './StreamingAnimation.css';
+import './SpacingUtilities.css';
 import StreamingMarkdown from './StreamingMarkdown';
 import StreamingWelcomeMessage from './StreamingWelcomeMessage';
 import { useToast } from '../context/ToastContext';
+import InlineDocumentButton from './InlineDocumentButton';
+import InlineFolderButton from './InlineFolderButton';
+import InlineDocumentList from './InlineDocumentList';
+import FolderButton from './FolderButton';
+import LoadMoreButton from './LoadMoreButton';
+import DocumentSources from './DocumentSources';
+import {
+  hasInlineDocuments,
+  splitTextWithDocuments,
+  stripAllDocumentMarkers,
+  parseInlineDocuments,
+  hasMarkers,
+  parseAllMarkers,
+  splitContentWithMarkers,
+  parseInlineFolders,
+  parseLoadMoreMarkers
+} from '../utils/inlineDocumentParser';
 
 // Module-level variable to prevent duplicate socket initialization across all instances
 let globalSocketInitialized = false;
@@ -250,6 +268,25 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             return ext.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|tif)$/);
         }
         return false;
+    };
+
+    // Helper function to strip visible document sources from message content
+    // The AI sometimes outputs "Document Sources" text which we already display via the UI component
+    const stripDocumentSources = (content) => {
+        if (!content) return content;
+
+        // Remove patterns like:
+        // ---\n\nDocument Sources (1)\n\n• filename.xlsx
+        // or: \n---\n\nDocument Sources (N)\n\n• file1\n• file2
+        // Also remove: \n\n---\n\nDocument Sources
+        let result = content;
+        // Remove "---" followed by "Document Sources" section at the end
+        result = result.replace(/\n*---\n*[*]*Document Sources?[*]*\s*\(\d+\)[*]*\s*\n+(?:[•\-*]\s*.+\n*)+$/gi, '');
+        // Remove standalone "Document Sources" section without HR
+        result = result.replace(/\n*[*]*Document Sources?[*]*\s*\(\d+\)[*]*\s*\n+(?:[•\-*]\s*.+\n*)+$/gi, '');
+        // Remove trailing HR that might be left over
+        result = result.replace(/\n*---\s*$/g, '');
+        return result.trim();
     };
 
     // Custom link component for document navigation
@@ -2536,7 +2573,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
             background: '#F5F5F7',
             position: 'relative',
             width: isMobile ? '100%' : 'auto',
-            height: isMobile ? '100dvh' : '100%',
+            height: '100%',
             overflow: 'hidden'
         }}>
             {/* Header - sticky with safe-area padding for notch/dynamic island */}
@@ -2596,14 +2633,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     overflowY: 'auto',
                     overflowX: 'hidden',
                     padding: isMobile ? 16 : 20,
-                    // Dynamic padding: when keyboard opens, we need space for the fixed input
-                    paddingBottom: isMobile
-                        ? `calc(${Math.max(120, keyboardHeight + 80)}px + env(safe-area-inset-bottom))`
-                        : 20,
+                    // Only safe-area padding needed - input area is fixed at bottom
+                    paddingBottom: isMobile ? 'calc(env(safe-area-inset-bottom))' : 20,
                     position: 'relative',
                     WebkitOverflowScrolling: 'touch', // Enable momentum scrolling on iOS
-                    willChange: 'transform', // Optimize scrolling performance
-                    transition: 'padding-bottom 0.25s ease-out' // Smooth keyboard animation
+                    willChange: 'transform' // Optimize scrolling performance
                 }}
             >
             {/* Centered Content Container */}
@@ -2645,11 +2679,15 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             }
 
                             // Normal message rendering
-                            // Calculate spacing based on consecutive messages from same sender
+                            // Calculate spacing based on message sender pattern (EXACT_FORMAT spec)
                             const nextMsg = messages[index + 1];
                             const isLastMessage = index === messages.length - 1;
-                            const isSameSenderAsNext = nextMsg && nextMsg.role === msg.role;
-                            const messageSpacing = isLastMessage ? 0 : (isSameSenderAsNext ? 8 : 20);
+                            // Spec spacing: Koda→Koda: 12px, User→Koda: 8px, default: 20px
+                            const messageSpacing = isLastMessage ? 0 : (
+                                msg.role === 'assistant' && nextMsg?.role === 'assistant' ? 12 :
+                                msg.role === 'user' && nextMsg?.role === 'assistant' ? 8 :
+                                20
+                            );
 
                             return (
                             <div
@@ -2667,23 +2705,25 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                     msg.isRegenerating && !msg.content ? (
                                         <TypingIndicator userName="Koda" stage={currentStage} />
                                     ) : (
-                                    <div className="assistant-message" style={{display: 'flex', gap: 12, alignItems: 'flex-start', maxWidth: '70%'}}>
-                                        {/* Koda Avatar - Sphere Icon */}
+                                    <div className="assistant-message" style={{display: 'flex', gap: 16, alignItems: 'flex-start', maxWidth: '100%', width: '100%'}}>
+                                        {/* Koda Avatar - Sphere Icon (32px per spec) */}
                                         <img src={sphere} alt="Koda" style={{
-                                            width: 40,
-                                            height: 40,
+                                            width: 32,
+                                            height: 32,
                                             flexShrink: 0,
-                                            marginTop: 4
+                                            marginTop: 0
                                         }} />
-                                        <div style={{display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start', flex: 1}}>
-                                        <div style={{padding: '0', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
+                                        <div style={{display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start', flex: 1, maxWidth: 720}}>
+                                        <div style={{background: '#FFFFFF', borderRadius: 16, boxShadow: '0 1px 2px rgba(0,0,0,0.05)', padding: '24px 28px', width: '100%', maxWidth: 720, justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
                                             <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
                                                 <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
                                                         <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 4, display: 'flex', width: '100%'}}>
-                                                            <div className="markdown-preview-container" style={{color: '#323232', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '500', lineHeight: '24px', width: '100%', whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
-                                                                <ReactMarkdown
-                                                                    remarkPlugins={[remarkGfm]}
-                                                                    components={{
+                                                            <div className="markdown-preview-container" style={{color: '#1a1a1a', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: 1.5, width: '100%', whiteSpace: 'pre-line', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
+                                                                {(() => {
+                                                                    const content = stripDocumentSources(msg.content);
+
+                                                                    // Define markdown components for text segments
+                                                                    const markdownComponents = {
                                                                         a: DocumentLink,
                                                                         table: ({node, ...props}) => <table className="markdown-table" {...props} />,
                                                                         thead: ({node, ...props}) => <thead {...props} />,
@@ -2705,11 +2745,106 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                         blockquote: ({node, ...props}) => <blockquote className="markdown-blockquote" {...props} />,
                                                                         hr: ({node, ...props}) => <hr className="markdown-hr" {...props} />,
                                                                         img: ({node, ...props}) => <img className="markdown-image" {...props} alt={props.alt || ''} />,
-                                                                    }}
-                                                                >
-                                                                    {msg.content}
-                                                                </ReactMarkdown>
+                                                                    };
+
+                                                                    // Check if content has any inline markers (documents, folders, loadmore)
+                                                                    if (hasMarkers(content)) {
+                                                                        // Split content into segments (text, document, folder, loadmore)
+                                                                        const segments = splitContentWithMarkers(content);
+
+                                                                        // Handler for folder clicks
+                                                                        const handleFolderClick = (folder) => {
+                                                                            console.log('[FOLDER] Navigating to folder:', folder);
+                                                                            // Navigate to folder view or filter files by folder
+                                                                            // You can customize this behavior
+                                                                        };
+
+                                                                        // Handler for load more clicks
+                                                                        const handleLoadMoreClick = async (loadMoreData) => {
+                                                                            console.log('[LOADMORE] Loading more files:', loadMoreData);
+                                                                            // Implement load more logic here
+                                                                            // Could fetch additional files from backend
+                                                                        };
+
+                                                                        return (
+                                                                            <>
+                                                                                {/* Render all segments in order */}
+                                                                                {segments.map((segment, idx) => {
+                                                                                    if (segment.type === 'text') {
+                                                                                        return (
+                                                                                            <ReactMarkdown
+                                                                                                key={`text-${idx}`}
+                                                                                                remarkPlugins={[remarkGfm]}
+                                                                                                rehypePlugins={[rehypeRaw]}
+                                                                                                components={markdownComponents}
+                                                                                            >
+                                                                                                {segment.content}
+                                                                                            </ReactMarkdown>
+                                                                                        );
+                                                                                    } else if (segment.type === 'document') {
+                                                                                        return (
+                                                                                            <InlineDocumentButton
+                                                                                                key={`doc-${idx}`}
+                                                                                                document={segment.content}
+                                                                                                variant="inline"
+                                                                                                onClick={(doc) => {
+                                                                                                    console.log('[INLINE DOC] Opening preview:', doc);
+                                                                                                    setPreviewDocument(doc);
+                                                                                                }}
+                                                                                            />
+                                                                                        );
+                                                                                    } else if (segment.type === 'folder') {
+                                                                                        return (
+                                                                                            <InlineFolderButton
+                                                                                                key={`folder-${idx}`}
+                                                                                                folder={segment.content}
+                                                                                                variant="inline"
+                                                                                                onClick={handleFolderClick}
+                                                                                            />
+                                                                                        );
+                                                                                    } else if (segment.type === 'loadmore') {
+                                                                                        return (
+                                                                                            <LoadMoreButton
+                                                                                                key={`loadmore-${idx}`}
+                                                                                                loadMoreData={segment.content}
+                                                                                                onClick={handleLoadMoreClick}
+                                                                                            />
+                                                                                        );
+                                                                                    }
+                                                                                    return null;
+                                                                                })}
+                                                                            </>
+                                                                        );
+                                                                    }
+
+                                                                    // No inline documents - strip any markers and render as before
+                                                                    const cleanedContent = stripAllDocumentMarkers(content);
+                                                                    return (
+                                                                        <ReactMarkdown
+                                                                            remarkPlugins={[remarkGfm]}
+                                                                            rehypePlugins={[rehypeRaw]}
+                                                                            components={markdownComponents}
+                                                                        >
+                                                                            {cleanedContent}
+                                                                        </ReactMarkdown>
+                                                                    );
+                                                                })()}
                                                             </div>
+
+                                                            {/* Document Sources Dropdown - only show when NOT a file listing response */}
+                                                            {/* If inline markers are rendered as buttons, don't show duplicate dropdown */}
+                                                            {!hasMarkers(msg.content || '') && (
+                                                                <DocumentSources
+                                                                    sources={[
+                                                                        ...(msg.ragSources || []),
+                                                                        ...parseInlineDocuments(msg.content || '')
+                                                                    ]}
+                                                                    onDocumentClick={(doc) => {
+                                                                        console.log('[DOC SOURCES] Opening preview:', doc);
+                                                                        setPreviewDocument(doc);
+                                                                    }}
+                                                                />
+                                                            )}
 
                                                             {/* Manus-style Document Preview Button */}
                                                             {msg.chatDocument && (
@@ -3009,201 +3144,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                             )}
                                                         </div>
 
-                                                    {/* ✅ Show Document Sources for RAG queries, hide for file actions and regenerating */}
-                                                    {/* Hide sources if message is a file action (rename, delete, move, create folder) or regenerating */}
-                                                    {msg.role === 'assistant' && !msg.isRegenerating && !msg.content?.match(/File (renamed|moved|deleted)|Folder (created|renamed|deleted)|successfully/i) && (() => {
-                                                        const sources = msg.ragSources || [];
-
-                                                        // Group sources by document NAME to show unique documents (not by ID)
-                                                        // This prevents showing duplicates when same doc was indexed multiple times
-                                                        const uniqueDocuments = sources.reduce((acc, source) => {
-                                                            // Skip sources without valid document names
-                                                            if (!source.documentName || source.documentName === 'Unknown Document') {
-                                                                return acc;
-                                                            }
-
-                                                            // Use documentName as key to dedupe by filename (not internal ID)
-                                                            const dedupeKey = source.documentName.toLowerCase().trim();
-                                                            if (!acc[dedupeKey]) {
-                                                                acc[dedupeKey] = {
-                                                                    documentId: source.documentId,
-                                                                    documentName: source.documentName,
-                                                                    mimeType: source.mimeType, // ✅ Store mimeType for icon detection
-                                                                    chunks: []
-                                                                };
-                                                            }
-                                                            acc[dedupeKey].chunks.push(source);
-                                                            return acc;
-                                                        }, {});
-
-                                                        const documentList = Object.values(uniqueDocuments);
-
-                                                        // ✅ FIX: Only render if there are actual documents
-                                                        if (documentList.length === 0) {
-                                                            return null;
-                                                        }
-
-                                                        const isExpanded = expandedSources[`${msg.id}-rag`];
-
-                                                        return (
-                                                            <div style={{ width: '100%', marginTop: 12 }}>
-                                                                {/* Toggle Button for Document Sources */}
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setExpandedSources(prev => ({
-                                                                            ...prev,
-                                                                            [`${msg.id}-rag`]: !isExpanded
-                                                                        }));
-                                                                    }}
-                                                                    style={{
-                                                                        width: '100%',
-                                                                        padding: '12px 16px',
-                                                                        background: 'white',
-                                                                        border: '1px solid #E2E2E6',
-                                                                        borderRadius: 12,
-                                                                        cursor: 'pointer',
-                                                                        fontSize: 14,
-                                                                        fontWeight: '600',
-                                                                        color: '#32302C',
-                                                                        transition: 'all 0.2s',
-                                                                        display: 'flex',
-                                                                        alignItems: 'center',
-                                                                        justifyContent: 'space-between',
-                                                                        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.02)'
-                                                                    }}
-                                                                    onMouseEnter={(e) => {
-                                                                        e.currentTarget.style.background = '#F9F9FB';
-                                                                        e.currentTarget.style.borderColor = '#D1D5DB';
-                                                                    }}
-                                                                    onMouseLeave={(e) => {
-                                                                        e.currentTarget.style.background = 'white';
-                                                                        e.currentTarget.style.borderColor = '#E2E2E6';
-                                                                    }}
-                                                                >
-                                                                    <div style={{
-                                                                        display: 'flex',
-                                                                        alignItems: 'center',
-                                                                        gap: 8
-                                                                    }}>
-                                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                                            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                                                                            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-                                                                        </svg>
-                                                                        <span>{t('chat.documentSources', { count: documentList.length })}</span>
-                                                                    </div>
-                                                                    <svg
-                                                                        width="14"
-                                                                        height="14"
-                                                                        viewBox="0 0 24 24"
-                                                                        fill="none"
-                                                                        stroke="currentColor"
-                                                                        strokeWidth="2"
-                                                                        strokeLinecap="round"
-                                                                        strokeLinejoin="round"
-                                                                        style={{
-                                                                            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                                                                            transition: 'transform 0.2s'
-                                                                        }}
-                                                                    >
-                                                                        <polyline points="6 9 12 15 18 9" />
-                                                                    </svg>
-                                                                </button>
-
-                                                                {/* Document Sources List (shown when expanded) */}
-                                                                {isExpanded && (
-                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-                                                                    {documentList.length === 0 ? (
-                                                                        <div style={{
-                                                                            padding: 16,
-                                                                            background: '#F9FAFB',
-                                                                            borderRadius: 8,
-                                                                            border: '1px solid #E5E7EB',
-                                                                            textAlign: 'center',
-                                                                            color: '#6B7280',
-                                                                            fontSize: 13
-                                                                        }}>
-                                                                            {t('chat.noDocumentsReferenced')}
-                                                                        </div>
-                                                                    ) : documentList.map((doc, index) => {
-                                                                        // Get the highest similarity chunk for this document
-                                                                        const bestChunk = doc.chunks.reduce((best, curr) =>
-                                                                            (curr.similarity || 0) > (best.similarity || 0) ? curr : best
-                                                                        );
-
-                                                                        return (
-                                                                            <div
-                                                                                key={index}
-                                                                                style={{
-                                                                                    padding: 12,
-                                                                                    background: 'linear-gradient(135deg, #FAFAFA 0%, #F5F5F5 100%)',
-                                                                                    borderRadius: 10,
-                                                                                    border: '1px solid #E6E6EC',
-                                                                                    cursor: 'pointer',
-                                                                                    transition: 'all 0.2s',
-                                                                                    position: 'relative',
-                                                                                    overflow: 'hidden'
-                                                                                }}
-                                                                                onClick={() => setPreviewDocument({
-                                                                                    id: doc.documentId,
-                                                                                    filename: doc.documentName,
-                                                                                    mimeType: doc.mimeType
-                                                                                })}
-                                                                                onMouseEnter={(e) => {
-                                                                                    e.currentTarget.style.background = 'linear-gradient(135deg, #F0F0F0 0%, #E6E6EC 100%)';
-                                                                                    e.currentTarget.style.borderColor = '#D1D1D6';
-                                                                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                                                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
-                                                                                }}
-                                                                                onMouseLeave={(e) => {
-                                                                                    e.currentTarget.style.background = 'linear-gradient(135deg, #FAFAFA 0%, #F5F5F5 100%)';
-                                                                                    e.currentTarget.style.borderColor = '#E6E6EC';
-                                                                                    e.currentTarget.style.transform = 'translateY(0)';
-                                                                                    e.currentTarget.style.boxShadow = 'none';
-                                                                                }}
-                                                                            >
-                                                                                <div style={{
-                                                                                    display: 'flex',
-                                                                                    alignItems: 'center',
-                                                                                    gap: 12
-                                                                                }}>
-                                                                                    <img
-                                                                                        src={getFileIcon(doc.documentName, doc.mimeType)}
-                                                                                        alt="File icon"
-                                                                                        style={{
-                                                                                            width: 40,
-                                                                                            height: 40,
-                                                                                            flexShrink: 0,
-                                                                                            imageRendering: '-webkit-optimize-contrast',
-                                                                                            objectFit: 'contain',
-                                                                                            shapeRendering: 'geometricPrecision',
-                                                                                            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
-                                                                                        }}
-                                                                                    />
-                                                                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                                                                        <div style={{
-                                                                                            fontSize: 14,
-                                                                                            fontWeight: '600',
-                                                                                            color: '#181818',
-                                                                                            display: 'flex',
-                                                                                            alignItems: 'center',
-                                                                                            gap: 6,
-                                                                                            overflow: 'hidden',
-                                                                                            textOverflow: 'ellipsis',
-                                                                                            whiteSpace: 'nowrap'
-                                                                                        }}>
-                                                                                            {doc.documentName || 'Unknown Document'}
-                                                                                        </div>
-                                                                                    </div>
-                                                                                </div>
-                                                                            </div>
-                                                                        );
-                                                                    })}
-                                                                </div>
-                                                                )}
-
-                                                            </div>
-                                                        );
-                                                    })()}
+                                                    {/* Document Sources dropdown REMOVED - only inline pill citations should show */}
 
                                                     {/* Web Sources Display */}
                                                     {msg.webSources && msg.webSources.length > 0 && (() => {
@@ -3438,10 +3379,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                             </div>
                                         </div>
 
-                                        {/* Message Actions (Regenerate, Copy) - Hide when regenerating */}
+                                        {/* Message Actions (Regenerate, Copy, Feedback) - Hide when regenerating */}
                                         {!msg.isRegenerating && (
                                             <MessageActions
                                                 message={msg}
+                                                conversationId={currentConversation?.id}
                                                 onRegenerate={handleRegenerate}
                                                 isRegenerating={regeneratingMessageId === msg.id}
                                             />
@@ -3637,7 +3579,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                         <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>
                                                 <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 4, display: 'flex'}}>
                                                     <StreamingMarkdown
-                                                        content={displayedText}
+                                                        content={stripAllDocumentMarkers(displayedText)}
                                                         isStreaming={isStreaming}
                                                         customComponents={{
                                                             a: DocumentLink,
@@ -3707,9 +3649,9 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 data-input-area="true"
                 className="chat-input-area"
                 style={{
-                    padding: isMobile ? '8px 12px 8px 12px' : '8px 20px 20px 20px',
-                    paddingBottom: isMobile ? 'calc(env(safe-area-inset-bottom) + 8px)' : '20px',
-                    paddingTop: isMobile ? 8 : 8,
+                    padding: isMobile ? '8px 16px' : '8px 20px 20px 20px',
+                    // paddingBottom handled by CSS !important rule in index.css for mobile
+                    paddingTop: 8,
                     background: isMobile ? 'white' : '#F5F5F7',
                     borderTop: isMobile ? '1px solid #E6E6EC' : 'none',
                     display: 'flex',
@@ -3717,11 +3659,11 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     alignItems: 'center',
                     gap: isMobile ? 8 : 16,
                     flexShrink: 0,
-                    // ✅ MOBILE KEYBOARD FIX: Fixed position at bottom on mobile
-                    position: isMobile ? 'fixed' : 'relative',
-                    bottom: isMobile ? keyboardHeight : 'auto',
-                    left: isMobile ? 0 : 'auto',
-                    right: isMobile ? 0 : 'auto',
+                    // Input area at bottom
+                    position: 'relative',
+                    bottom: 0,
+                    left: 'auto',
+                    right: 'auto',
                     width: isMobile ? '100%' : 'auto',
                     zIndex: isMobile ? 100 : 'auto',
                     boxSizing: 'border-box',
@@ -4099,20 +4041,22 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                 {/* TASK #10: Trust & Security Footer - Hidden when keyboard is open on mobile */}
                 {!(isMobile && isKeyboardOpen) && (
                     <div style={{
-                        marginTop: isMobile ? 8 : 16,
-                        paddingTop: isMobile ? 8 : 16,
+                        marginTop: isMobile ? 4 : 16,
+                        paddingTop: isMobile ? 4 : 16,
                         marginBottom: isMobile ? 8 : 0,
                         borderTop: '2px solid #E6E6EC',
                         display: 'flex',
-                        alignItems: 'center',
+                        alignItems: isMobile ? 'flex-start' : 'center',
                         justifyContent: 'center',
                         gap: 8,
                         fontSize: isMobile ? 10 : 12,
                         color: '#B9B9BD',
                         fontFamily: 'Plus Jakarta Sans',
-                        whiteSpace: 'nowrap'
+                        whiteSpace: isMobile ? 'normal' : 'nowrap',
+                        textAlign: 'center',
+                        lineHeight: isMobile ? 1.4 : 1
                     }}>
-                        <svg width={isMobile ? 14 : 16} height={isMobile ? 14 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink: 0}}>
+                        <svg width={isMobile ? 14 : 16} height={isMobile ? 14 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink: 0, marginTop: isMobile ? 2 : 0}}>
                             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                         </svg>
                         <span>{t('fileBreakdown.encryptionMessage')}</span>

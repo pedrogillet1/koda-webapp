@@ -120,9 +120,9 @@ const SignUp = () => {
   );
 
   return (
-    <div style={{width: '100%', minHeight: '100vh', padding: '40px 20px', background: 'white', overflowY: 'auto', overflowX: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
-      <div style={{width: '100%', maxWidth: 'var(--container-max-width)', padding: 'var(--container-padding)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32}}>
-        <img style={{width: 120, height: 120, filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15))'}} src={logo} alt="Logo" />
+    <div style={{width: '100%', minHeight: '100vh', padding: '60px 20px 40px', background: 'white', overflow: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', position: 'relative'}}>
+      <div style={{width: '100%', maxWidth: 'var(--container-max-width)', padding: 'var(--container-padding)', borderRadius: 16, flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center', gap: 32, display: 'flex'}}>
+        <img style={{width: 120, height: 120, borderRadius: 120, filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15))'}} src={logo} alt="Logo" />
 
         <div style={{alignSelf: 'stretch', textAlign: 'center', flexDirection: 'column', gap: 12}}>
           <div style={{color: '#32302C', fontSize: 30, fontFamily: 'Plus Jakarta Sans', fontWeight: '600'}}>{t('auth.signup.title')}</div>

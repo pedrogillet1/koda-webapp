@@ -35,7 +35,6 @@ import { ReactComponent as DownloadIcon } from '../assets/Download 3- black.svg'
 import { ReactComponent as AddIcon } from '../assets/add.svg';
 import { ReactComponent as CloseIcon } from '../assets/x-close.svg';
 import { ReactComponent as DotsIcon } from '../assets/dots.svg';
-import { ReactComponent as UploadIconMenu } from '../assets/upload.svg';
 import { ReactComponent as XCloseIcon } from '../assets/x-close.svg';
 import logoSvg from '../assets/logo.svg';
 import sphereIcon from '../assets/sphere.svg';
@@ -561,8 +560,8 @@ const Documents = () => {
         onDragOver={handlePageDragOver}
         onDragLeave={handlePageDragLeave}
       >
-        {/* Header */}
-        <div style={{minHeight: isMobile ? 'auto' : 84, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, paddingTop: isMobile ? 12 : 0, paddingBottom: isMobile ? 12 : 0, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', flexDirection: isMobile ? 'row' : 'row', justifyContent: 'space-between', alignItems: 'center', gap: isMobile ? 12 : 0}}>
+        {/* Header - Title Row */}
+        <div style={{minHeight: isMobile ? 56 : 84, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, paddingTop: isMobile ? 'max(env(safe-area-inset-top), 0px)' : 0, paddingBottom: 0, background: 'white', borderBottom: '1px #E6E6EC solid', display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexShrink: 0}}>
           {isSelectMode ? (
             <>
               {/* Left: Back arrow + Documents title */}
@@ -606,11 +605,11 @@ const Documents = () => {
               </div>
             </>
           ) : (
-            <div style={{color: '#32302C', fontSize: isMobile ? 16 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px', textAlign: 'left', flex: isMobile ? 1 : 'auto'}}>
+            <div style={{color: '#32302C', fontSize: isMobile ? 18 : 20, fontFamily: 'Plus Jakarta Sans', fontWeight: '700', textTransform: 'capitalize', lineHeight: isMobile ? '24px' : '30px', textAlign: 'left', flex: 1}}>
               {t('documents.welcomeBack', { name: user && (user.firstName || user.lastName) ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : user?.email?.split('@')[0] || t('common.user') })}
             </div>
           )}
-          <div style={{display: 'flex', alignItems: 'center', gap: 12}}>
+          <div style={{display: isMobile && !isSelectMode ? 'none' : 'flex', alignItems: 'center', gap: 12}}>
             {isSelectMode ? (
               <>
                 {/* Delete Button - Red style matching FileTypeDetail */}
@@ -1077,8 +1076,72 @@ const Documents = () => {
           </div>
         </div>
 
+        {/* Mobile Tab Bar - Search + Upload */}
+        {isMobile && !isSelectMode && (
+          <div style={{
+            padding: '12px 16px',
+            background: 'white',
+            borderBottom: '1px #E6E6EC solid',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            flexShrink: 0
+          }}>
+            {/* Search Bar */}
+            <div style={{
+              flex: 1,
+              height: 44,
+              paddingLeft: 12,
+              paddingRight: 12,
+              background: '#F5F5F5',
+              borderRadius: 100,
+              border: '1px #E6E6EC solid',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}>
+              <SearchIcon style={{ width: 20, height: 20, color: '#6B7280', flexShrink: 0 }} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t('common.search')}
+                style={{
+                  flex: 1,
+                  border: 'none',
+                  outline: 'none',
+                  background: 'transparent',
+                  color: '#32302C',
+                  fontSize: 16,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontWeight: '500',
+                  lineHeight: '24px'
+                }}
+              />
+            </div>
+            {/* Upload Button */}
+            <div
+              onClick={() => setShowUniversalUploadModal(true)}
+              style={{
+                height: 44,
+                width: 44,
+                background: '#F5F5F5',
+                borderRadius: 100,
+                border: '1px #E6E6EC solid',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0
+              }}
+            >
+              <LogoutBlackIcon style={{width: 20, height: 20}} />
+            </div>
+          </div>
+        )}
+
         {/* Scrollable Content */}
-        <div className="scrollable-content documents-content" style={{flex: 1, minHeight: 0, padding: isMobile ? 12 : 20, paddingBottom: isMobile ? 100 : 20, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 20, maxWidth: '100%', boxSizing: 'border-box', WebkitOverflowScrolling: 'touch'}}>
+        <div className="scrollable-content documents-content" style={{flex: 1, minHeight: 0, padding: isMobile ? 12 : 20, paddingBottom: isMobile ? 100 : 20, overflowY: isMobile ? 'hidden' : 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 20, maxWidth: '100%', boxSizing: 'border-box', WebkitOverflowScrolling: 'touch'}}>
           {/* Smart Categories */}
           <div key={categoriesRefreshKey} style={{display: 'flex', flexDirection: 'column', gap: isMobile ? 8 : 12}}>
             {/* Categories - vertical list on mobile, 4-column grid on desktop */}
@@ -1146,7 +1209,7 @@ const Documents = () => {
                       </div>
                     </div>
                   </div>
-                  {!isMobile && <div style={{position: 'relative'}} data-category-menu>
+                  <div style={{position: 'relative'}} data-category-menu>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1170,8 +1233,8 @@ const Documents = () => {
                         }
                       }}
                       style={{
-                        width: 28,
-                        height: 28,
+                        width: 32,
+                        height: 32,
                         background: 'transparent',
                         borderRadius: '50%',
                         border: 'none',
@@ -1238,7 +1301,7 @@ const Documents = () => {
                             e.stopPropagation();
                             // Show upload modal for this category
                             setUploadCategoryId(category.id);
-                            setShowUploadModal(true);
+                            setShowUniversalUploadModal(true);
                             setCategoryMenuOpen(null);
                           }}
                           style={{
@@ -1261,7 +1324,7 @@ const Documents = () => {
                           onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
-                          <UploadIconMenu style={{width: 16, height: 16, color: '#32302C'}} />
+                          <LogoutBlackIcon style={{width: 16, height: 16, color: '#32302C'}} />
                           {t('common.upload')}
                         </button>
                         <button
@@ -1295,7 +1358,7 @@ const Documents = () => {
                         </button>
                       </div>
                     )}
-                  </div>}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1485,7 +1548,7 @@ const Documents = () => {
                             onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                           >
-                            <UploadIconMenu style={{width: 16, height: 16, color: '#32302C'}} />
+                            <LogoutBlackIcon style={{width: 16, height: 16, color: '#32302C'}} />
                             {t('common.upload')}
                           </button>
                           <button
@@ -1781,16 +1844,18 @@ const Documents = () => {
                         style={isMobile ? {
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 14,
-                          padding: 14,
+                          gap: 12,
+                          padding: 10,
                           borderRadius: 14,
-                          background: '#F5F5F5',
+                          background: 'white',
                           border: '1px solid #E6E6EC',
-                          cursor: 'grab',
-                          marginBottom: 12,
+                          cursor: 'pointer',
+                          marginBottom: 8,
                           position: 'relative',
                           overflow: openDropdownId === doc.id ? 'visible' : 'hidden',
-                          zIndex: openDropdownId === doc.id ? 99999 : 1
+                          zIndex: openDropdownId === doc.id ? 99999 : 1,
+                          minHeight: 72,
+                          boxSizing: 'border-box'
                         } : {
                           display: 'grid',
                           gridTemplateColumns: '2fr 1fr 1fr 1fr 50px',
@@ -1838,8 +1903,8 @@ const Documents = () => {
                               src={getFileIcon(doc)}
                               alt="File icon"
                               style={{
-                                width: 48,
-                                height: 48,
+                                width: 40,
+                                height: 40,
                                 aspectRatio: '1/1',
                                 imageRendering: '-webkit-optimize-contrast',
                                 objectFit: 'contain',
@@ -1894,7 +1959,7 @@ const Documents = () => {
                             <div style={{color: '#6C6B6E', fontSize: 13, fontFamily: 'Plus Jakarta Sans', position: 'relative', zIndex: 1}}>{isUploading ? '' : new Date(doc.createdAt).toLocaleDateString()}</div>
                           </>
                         )}
-                        <div style={{position: 'relative'}} data-dropdown>
+                        <div style={{position: 'relative', flexShrink: 0}} data-dropdown>
                           <button
                             ref={(el) => {
                               if (el) dropdownRefs.current[doc.id] = el;
@@ -2047,6 +2112,7 @@ const Documents = () => {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    setOpenDropdownId(null); // Close dropdown immediately
                                     setItemToDelete({ type: 'document', id: doc.id, name: doc.filename });
                                     setShowDeleteModal(true);
                                   }}
@@ -2315,7 +2381,7 @@ const Documents = () => {
 
       {/* Ask Koda Floating Button - Thinking Bubble Style */}
       {showAskKoda && (
-        <div style={{ width: 277, height: 82, right: 20, bottom: 20, position: 'absolute' }}>
+        <div style={{ width: 277, height: 82, right: 20, bottom: isMobile ? 100 : 20, position: 'absolute', zIndex: 9999 }}>
           {/* Close button */}
           <button
             onClick={(e) => {

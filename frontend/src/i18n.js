@@ -113,6 +113,17 @@ const resources = {
         deleteSuccess: 'Document deleted',
         moveSuccess: 'Document moved'
       },
+      // Toast messages
+      toast: {
+        uploadSuccess: '{{count}} document(s) uploaded successfully',
+        uploadFailed: 'Upload failed',
+        deleteSuccess: '{{count}} item(s) deleted',
+        rateLimitWarning: 'Slow down! Too many requests.',
+        rateLimitDetails: 'Please wait a few seconds before trying again.',
+        fileAlreadyExists: 'Duplicate file skipped',
+        fileAlreadyExistsDetails: '"{{filename}}" has already been uploaded',
+        filesAlreadyExist: '{{count}} duplicate file(s) skipped'
+      },
       // Errors
       errors: {
         generic: 'Something went wrong',
@@ -261,6 +272,17 @@ const resources = {
         deleteSuccess: 'Documento excluído',
         moveSuccess: 'Documento movido'
       },
+      // Toast messages
+      toast: {
+        uploadSuccess: '{{count}} documento(s) enviado(s) com sucesso',
+        uploadFailed: 'Falha no envio',
+        deleteSuccess: '{{count}} item(s) excluído(s)',
+        rateLimitWarning: 'Devagar! Muitas requisições.',
+        rateLimitDetails: 'Por favor, aguarde alguns segundos antes de tentar novamente.',
+        fileAlreadyExists: 'Arquivo duplicado ignorado',
+        fileAlreadyExistsDetails: '"{{filename}}" já foi enviado',
+        filesAlreadyExist: '{{count}} arquivo(s) duplicado(s) ignorado(s)'
+      },
       // Errors
       errors: {
         generic: 'Algo deu errado',
@@ -408,6 +430,17 @@ const resources = {
         uploadError: 'Error al subir documento',
         deleteSuccess: 'Documento eliminado',
         moveSuccess: 'Documento movido'
+      },
+      // Toast messages
+      toast: {
+        uploadSuccess: '{{count}} documento(s) subido(s) exitosamente',
+        uploadFailed: 'Error al subir',
+        deleteSuccess: '{{count}} elemento(s) eliminado(s)',
+        rateLimitWarning: '¡Más despacio! Demasiadas solicitudes.',
+        rateLimitDetails: 'Por favor, espera unos segundos antes de intentar de nuevo.',
+        fileAlreadyExists: 'Archivo duplicado omitido',
+        fileAlreadyExistsDetails: '"{{filename}}" ya ha sido subido',
+        filesAlreadyExist: '{{count}} archivo(s) duplicado(s) omitido(s)'
       },
       // Errors
       errors: {

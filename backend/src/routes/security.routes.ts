@@ -8,14 +8,8 @@ import {
   detectCrossUserAccessAttempts,
 } from '../middleware/auditLog.middleware';
 import prisma from '../config/database';
-import securityMonitoringService, { ThreatLevel } from '../services/securityMonitoring.service';
-import sessionManagementService from '../services/sessionManagement.service';
-import bruteForceProtection from '../services/bruteForceProtection.service';
+import { securityMonitoringService, ThreatLevel, sessionManagementService, bruteForceProtection, securityDashboardService } from '../services/securityStubs.service';
 import { getIPFilterStats, blacklistIP, removeFromBlacklist, whitelistIP } from '../middleware/ipFilter.middleware';
-import auditLogService from '../services/auditLog.service';
-import securityDashboardService from '../services/securityDashboard.service';
-// TODO: Data retention service removed
-// import dataRetentionService from '../services/dataRetention.service';
 
 const router = Router();
 
@@ -616,7 +610,6 @@ router.get('/data-retention/stats', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    // TODO: Data retention service removed - stub response
     const stats = {
       message: 'Data retention service currently disabled',
       policies: []
@@ -645,7 +638,6 @@ router.post('/data-retention/cleanup', async (req: Request, res: Response) => {
 
     const { dataType } = req.body;
 
-    // TODO: Data retention service removed - stub response
     const results = [{
       message: 'Data retention service currently disabled',
       cleaned: 0
@@ -675,8 +667,7 @@ router.get('/data-retention/policies', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    // TODO: Data retention service removed - stub response
-    const policies = [];
+    const policies: any[] = [];
 
     return res.json({ policies });
   } catch (error) {

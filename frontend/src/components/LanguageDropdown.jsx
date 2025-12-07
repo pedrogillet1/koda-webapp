@@ -37,6 +37,7 @@ const LanguageDropdown = ({ type = 'interface', variant = 'default' }) => {
   };
 
   // Close dropdown when clicking outside
+  // Use 'click' instead of 'mousedown' for better mobile compatibility
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -44,8 +45,9 @@ const LanguageDropdown = ({ type = 'interface', variant = 'default' }) => {
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    // Use 'click' for both mouse and touch - it fires after touch events complete
+    document.addEventListener('click', handleClickOutside, true);
+    return () => document.removeEventListener('click', handleClickOutside, true);
   }, []);
 
   // Pill variant styles (cylindrical, transparent background)
@@ -68,7 +70,11 @@ const LanguageDropdown = ({ type = 'interface', variant = 'default' }) => {
     alignItems: 'center',
     gap: 8,
     justifyContent: 'center',
-    transition: 'all 0.2s ease'
+    transition: 'all 0.2s ease',
+    WebkitTapHighlightColor: 'transparent',
+    touchAction: 'manipulation',
+    userSelect: 'none',
+    WebkitUserSelect: 'none'
   } : {
     width: isMobile ? '100%' : 'auto',
     minWidth: isMobile ? 'auto' : 220,
@@ -86,13 +92,20 @@ const LanguageDropdown = ({ type = 'interface', variant = 'default' }) => {
     alignItems: 'center',
     gap: 10,
     justifyContent: 'space-between',
-    transition: 'all 0.2s ease'
+    transition: 'all 0.2s ease',
+    WebkitTapHighlightColor: 'transparent',
+    touchAction: 'manipulation',
+    userSelect: 'none',
+    WebkitUserSelect: 'none'
   };
 
   return (
     <div ref={dropdownRef} style={{ position: 'relative', width: isPill ? 'auto' : (isMobile ? '100%' : 'auto') }}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
         style={buttonStyles}
         onMouseEnter={(e) => {
           if (isPill) {
@@ -174,7 +187,13 @@ const LanguageDropdown = ({ type = 'interface', variant = 'default' }) => {
         }}>
           {type === 'answer' && (
             <div
-              onClick={() => handleSelect('match')}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleSelect('match');
+              }}
+              role="button"
+              tabIndex={0}
               style={{
                 padding: '14px 16px',
                 cursor: 'pointer',
@@ -187,7 +206,11 @@ const LanguageDropdown = ({ type = 'interface', variant = 'default' }) => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
-                transition: 'background 0.15s ease'
+                transition: 'background 0.15s ease',
+                WebkitTapHighlightColor: 'transparent',
+                touchAction: 'manipulation',
+                userSelect: 'none',
+                WebkitUserSelect: 'none'
               }}
               onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F7'}
               onMouseLeave={(e) => e.currentTarget.style.background = currentLanguage === 'match' ? '#F5F5F7' : 'white'}
@@ -206,7 +229,13 @@ const LanguageDropdown = ({ type = 'interface', variant = 'default' }) => {
           {languages.map((lang, index) => (
             <div
               key={lang.code}
-              onClick={() => handleSelect(lang.code)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleSelect(lang.code);
+              }}
+              role="button"
+              tabIndex={0}
               style={{
                 padding: '14px 16px',
                 cursor: 'pointer',
@@ -219,7 +248,11 @@ const LanguageDropdown = ({ type = 'interface', variant = 'default' }) => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
-                transition: 'background 0.15s ease'
+                transition: 'background 0.15s ease',
+                WebkitTapHighlightColor: 'transparent',
+                touchAction: 'manipulation',
+                userSelect: 'none',
+                WebkitUserSelect: 'none'
               }}
               onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F7'}
               onMouseLeave={(e) => e.currentTarget.style.background = (currentLanguage === lang.code || currentLanguage.startsWith(lang.code.split('-')[0])) ? '#F5F5F7' : 'white'}
