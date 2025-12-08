@@ -304,132 +304,6 @@ const CategoryGrid = () => {
                     <DotsIcon style={{width: 24, height: 24}} />
                   </button>
 
-                  {/* ✅ NEW: Dropdown Menu (using Portal for proper positioning) */}
-                  {categoryMenuOpen === category.id && ReactDOM.createPortal(
-                    <div
-                      data-category-menu
-                      onClick={(e) => e.stopPropagation()}
-                      style={{
-                        position: 'fixed',
-                        top: categoryMenu.top,
-                        left: categoryMenu.left,
-                        background: 'white',
-                        borderRadius: 12,
-                        border: '1px solid #E6E6EC',
-                        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                        zIndex: 999999,
-                        minWidth: 160,
-                        overflow: 'hidden'
-                      }}
-                    >
-                      {/* Edit Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const currentCategoryId = categoryMenuOpen;
-                          const targetCategory = categories.find(c => c.id === currentCategoryId);
-                          if (targetCategory) {
-                            setEditingCategory(targetCategory);
-                            setShowEditModal(true);
-                          }
-                          setCategoryMenuOpen(null);
-                        }}
-                        style={{
-                          width: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          padding: '10px 14px',
-                          background: 'transparent',
-                          border: 'none',
-                          borderBottom: '1px solid #F5F5F5',
-                          cursor: 'pointer',
-                          fontSize: 14,
-                          fontFamily: 'Plus Jakarta Sans',
-                          fontWeight: '500',
-                          color: '#32302C',
-                          transition: 'background 0.2s ease',
-                          textAlign: 'left'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <EditIcon style={{width: 16, height: 16}} />
-                        {t('common.edit')}
-                      </button>
-
-                      {/* Upload Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const currentCategoryId = categoryMenuOpen;
-                          if (currentCategoryId) {
-                            setUploadCategoryId(currentCategoryId);
-                            setShowUniversalUploadModal(true);
-                            setCategoryMenuOpen(null);
-                          }
-                        }}
-                        style={{
-                          width: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          padding: '10px 14px',
-                          background: 'transparent',
-                          border: 'none',
-                          borderBottom: '1px solid #F5F5F5',
-                          cursor: 'pointer',
-                          fontSize: 14,
-                          fontFamily: 'Plus Jakarta Sans',
-                          fontWeight: '500',
-                          color: '#32302C',
-                          transition: 'background 0.2s ease',
-                          textAlign: 'left'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <LogoutBlackIcon style={{width: 16, height: 16, color: '#32302C'}} />
-                        {t('common.upload')}
-                      </button>
-
-                      {/* Delete Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const currentCategoryId = categoryMenuOpen;
-                          const targetCategory = categories.find(c => c.id === currentCategoryId);
-                          if (targetCategory) {
-                            setItemToDelete({ type: 'category', id: targetCategory.id, name: targetCategory.name });
-                            setShowDeleteModal(true);
-                          }
-                          setCategoryMenuOpen(null);
-                        }}
-                        style={{
-                          width: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          padding: '10px 14px',
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          fontSize: 14,
-                          fontFamily: 'Plus Jakarta Sans',
-                          fontWeight: '500',
-                          color: '#D92D20',
-                          transition: 'background 0.2s ease',
-                          textAlign: 'left'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#FEE2E2'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <TrashCanIcon style={{width: 16, height: 16}} />
-                        {t('common.delete')}
-                      </button>
-                    </div>,
-                    document.body
-                  )}
                 </div>
               )}
             </div>
@@ -458,6 +332,130 @@ const CategoryGrid = () => {
           </div>
         )}
       </div>
+
+      {/* ✅ FIXED: Single Category Dropdown Portal (outside map loop to avoid closure bugs) */}
+      {categoryMenuOpen && ReactDOM.createPortal(
+        <div
+          data-category-menu
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            top: categoryMenu.top,
+            left: categoryMenu.left,
+            background: 'white',
+            borderRadius: 12,
+            border: '1px solid #E6E6EC',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+            zIndex: 999999,
+            minWidth: 160,
+            overflow: 'hidden'
+          }}
+        >
+          {/* Edit Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const targetCategory = categories.find(c => c.id === categoryMenuOpen);
+              if (targetCategory) {
+                setEditingCategory(targetCategory);
+                setShowEditModal(true);
+              }
+              setCategoryMenuOpen(null);
+            }}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 14px',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: '1px solid #F5F5F5',
+              cursor: 'pointer',
+              fontSize: 14,
+              fontFamily: 'Plus Jakarta Sans',
+              fontWeight: '500',
+              color: '#32302C',
+              transition: 'background 0.2s ease',
+              textAlign: 'left'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          >
+            <EditIcon style={{width: 16, height: 16}} />
+            {t('common.edit')}
+          </button>
+
+          {/* Upload Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (categoryMenuOpen) {
+                setUploadCategoryId(categoryMenuOpen);
+                setShowUniversalUploadModal(true);
+                setCategoryMenuOpen(null);
+              }
+            }}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 14px',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: '1px solid #F5F5F5',
+              cursor: 'pointer',
+              fontSize: 14,
+              fontFamily: 'Plus Jakarta Sans',
+              fontWeight: '500',
+              color: '#32302C',
+              transition: 'background 0.2s ease',
+              textAlign: 'left'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = '#F5F5F5'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          >
+            <LogoutBlackIcon style={{width: 16, height: 16, color: '#32302C'}} />
+            {t('common.upload')}
+          </button>
+
+          {/* Delete Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const targetCategory = categories.find(c => c.id === categoryMenuOpen);
+              if (targetCategory) {
+                setItemToDelete({ type: 'category', id: targetCategory.id, name: targetCategory.name });
+                setShowDeleteModal(true);
+              }
+              setCategoryMenuOpen(null);
+            }}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 14px',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 14,
+              fontFamily: 'Plus Jakarta Sans',
+              fontWeight: '500',
+              color: '#D92D20',
+              transition: 'background 0.2s ease',
+              textAlign: 'left'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = '#FEE2E2'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          >
+            <TrashCanIcon style={{width: 16, height: 16}} />
+            {t('common.delete')}
+          </button>
+        </div>,
+        document.body
+      )}
 
       {/* ✅ NEW: Modals */}
       <EditCategoryModal
