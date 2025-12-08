@@ -71,7 +71,7 @@ import {
   type DocumentInfo as AdaptiveDocumentInfo
 } from './deletedServiceStubs';
 
-import adaptiveAnswerGeneration, { classifyResponseType, FLASH_OPTIMAL_CONFIG, ResponseType } from './adaptiveAnswerGeneration.service';
+import adaptiveAnswerGeneration, { classifyResponseType, FLASH_OPTIMAL_CONFIG, ResponseType, verifyAnswerCompletion } from './adaptiveAnswerGeneration.service';
 import contextEngineering from './contextEngineering.service';
 import { emptyResponsePrevention } from './emptyResponsePrevention.service';
 import { fallbackResponseService } from './fallbackResponse.service';
@@ -2213,7 +2213,8 @@ function detectLanguage(query: string): 'pt' | 'es' | 'en' | 'fr' {
   // Log for debugging
   console.log(`ðŸŒ [LANG DETECT] EN: ${enCount}, PT: ${ptCount}, ES: ${esCount}, FR: ${frCount} for query: "${query.substring(0, 50)}..."`);
 
-  const MIN_MATCHES_FOR_LANGUAGE_SWITCH = 2;
+  // FIX: Lowered from 2 to 1 to handle short queries like "Qual é o total?"
+  const MIN_MATCHES_FOR_LANGUAGE_SWITCH = 1;
 
   // English wins if it has the most matches OR ties with any other language
   if (enCount >= ptCount && enCount >= esCount && enCount >= frCount && enCount > 0) {
@@ -2237,6 +2238,120 @@ function detectLanguage(query: string): 'pt' | 'es' | 'en' | 'fr' {
 
   console.log(`ðŸŒ [LANG DETECT] Detected: English (default)`);
   return 'en'; // Default to English
+}
+
+// ============================================================================
+// DYNAMIC RESPONSE GENERATOR - Adaptive Multi-Language Responses
+// ============================================================================
+
+interface DynamicResponseParams {
+  scenario: string;
+  context?: Record<string, any>;
+  language: string;
+  query?: string;
+}
+
+/**
+ * Generate a dynamic, language-adaptive response using LLM
+ */
+async function generateDynamicResponse(params: DynamicResponseParams): Promise<string> {
+  const { scenario, context = {}, language, query = '' } = params;
+
+  const langName = language === 'pt' ? 'Portuguese' :
+                   language === 'es' ? 'Spanish' :
+                   language === 'fr' ? 'French' : 'English';
+
+  const scenarioPrompts: Record<string, string> = {
+    error_generating: `Generate a brief apology saying you encountered an error and to try again.`,
+    error_fetching: `Generate a brief apology saying you had trouble fetching ${context.item || 'the data'}.`,
+    error_calculation: `Explain there was a calculation error: "${context.error}".`,
+    error_search: `Apologize for error searching for "${context.term}".`,
+    no_filename_identified: `Ask the user to provide the exact filename.`,
+    no_folder_identified: `Ask the user to specify which folder they mean.`,
+    no_folders_yet: `Tell user they have no folders yet and can create one.`,
+    no_files_about_topic: `Tell user you couldn't find any files about "${context.topic}". Suggest trying a different search term or checking if the document has been uploaded.`,
+    file_found_single: `Show file "${context.filename}" at "${context.location}".`,
+    file_found_multiple: `List ${context.count} files: ${context.files}`,
+    files_about_topic: `Found ${context.count} files about "${context.topic}": ${context.files}`,
+    document_count: `User has ${context.count} documents. Ask what they want to know.`,
+    here_is_file: `Present file "${context.filename}": ${context.preview || ''}`,
+    found_matching_docs: `Found ${context.count} matching docs: ${context.documents}`,
+    cell_value: `Cell ${context.cell} = ${context.value}`,
+    calculation_result: `Result is ${context.result}`,
+    organizations_found: `Found ${context.count} organizations: ${context.orgs}`,
+  };
+
+  const basePrompt = scenarioPrompts[scenario] || `Respond about: ${scenario}`;
+
+  const fullPrompt = `You are Koda, a helpful document assistant.
+RESPOND ONLY IN ${langName.toUpperCase()}. NO OTHER LANGUAGE.
+
+User query: "${query}"
+Task: ${basePrompt}
+
+Be concise (<80 words), friendly. Use **bold** for key terms, • for lists.`;
+
+  try {
+    const model = geminiClient.getModel({
+      model: 'gemini-2.0-flash',
+      generationConfig: { temperature: 0.3, maxOutputTokens: 250 }
+    });
+    const result = await model.generateContent(fullPrompt);
+    return result.response.text();
+  } catch (error) {
+    console.error('[DYNAMIC RESPONSE] LLM error, using fallback');
+    return getDynamicFallback(scenario, language, context);
+  }
+}
+
+/**
+ * Sync fallback for when async isn't possible
+ */
+function getDynamicFallback(scenario: string, language: string, context: Record<string, any> = {}): string {
+  const templates: Record<string, Record<string, string>> = {
+    error_generating: {
+      en: 'I encountered an error. Please try again.',
+      pt: 'Encontrei um erro. Por favor, tente novamente.',
+      es: 'Encontré un error. Por favor, inténtalo de nuevo.',
+      fr: 'J\'ai rencontré une erreur. Veuillez réessayer.'
+    },
+    no_filename_identified: {
+      en: "Could you provide the exact filename?",
+      pt: 'Poderia fornecer o nome exato do arquivo?',
+      es: '¿Podrías proporcionar el nombre exacto del archivo?',
+      fr: 'Pourriez-vous fournir le nom exact du fichier?'
+    },
+    no_folder_identified: {
+      en: "Could you specify the folder name?",
+      pt: 'Poderia especificar o nome da pasta?',
+      es: '¿Podrías especificar el nombre de la carpeta?',
+      fr: 'Pourriez-vous préciser le nom du dossier?'
+    },
+    no_folders_yet: {
+      en: "You don't have any folders yet. Say \"Create folder [name]\" to create one.",
+      pt: 'Você não tem pastas ainda. Diga "Criar pasta [nome]" para criar.',
+      es: 'No tienes carpetas. Di "Crear carpeta [nombre]" para crear una.',
+      fr: 'Vous n\'avez pas de dossiers. Dites "Créer dossier [nom]".'
+    },
+    error_fetching_folders: {
+      en: 'Error fetching folders. Please try again.',
+      pt: 'Erro ao buscar pastas. Tente novamente.',
+      es: 'Error al buscar carpetas. Inténtalo de nuevo.',
+      fr: 'Erreur de récupération des dossiers. Réessayez.'
+    },
+    error_search: {
+      en: 'Search error. Please try again.',
+      pt: 'Erro na busca. Tente novamente.',
+      es: 'Error de búsqueda. Inténtalo de nuevo.',
+      fr: 'Erreur de recherche. Réessayez.'
+    }
+  };
+
+  let message = templates[scenario]?.[language] || templates[scenario]?.['en'] || 'An error occurred.';
+  Object.entries(context).forEach(([key, value]) => {
+    message = message.replace(new RegExp(`\\{${key}\\}`, 'g'), String(value));
+  });
+  return message;
 }
 
 // ============================================================================
@@ -3049,6 +3164,58 @@ export async function generateAnswerStream(
   console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
 
   // ============================================================================
+  // STEP 0: ULTRA-FAST GREETING DETECTION (MUST BE FIRST!)
+  // ============================================================================
+  // REASON: Greetings should be <1s, not 20s
+  // HOW: Rule-based check BEFORE any DB/LLM calls
+  // IMPACT: 20s → <50ms for greetings (400x faster)
+
+  const isUltraFastGreeting = detectUltraFastGreeting(query);
+
+  if (isUltraFastGreeting) {
+    console.log('⚡ ULTRA-FAST PATH: Pure greeting detected - bypassing ALL heavy operations');
+    console.log(`   Query: "${query}", detectedLanguage param: ${detectedLanguage}`);
+
+    const greetingResponse = getInstantGreeting(query, detectedLanguage);
+
+    if (onChunk) onChunk(greetingResponse);
+    if (onStage) onStage('complete', 'Complete');
+
+    return { sources: [] };
+  }
+
+  // ============================================================================
+  // STEP 0.5: ULTRA-FAST DOC COUNT DETECTION (MUST BE EARLY!)
+  // ============================================================================
+  // REASON: "Quantos documentos eu tenho?" should be <1s, not 4s
+  // HOW: Simple regex + single DB COUNT query
+  // IMPACT: 4s → <500ms for doc count queries
+
+  const isDocCountQuery = detectUltraFastDocCount(query);
+  if (isDocCountQuery) {
+    console.log('⚡ ULTRA-FAST PATH: Doc count query detected - single DB query only');
+
+    const docCount = await prisma.document.count({ where: { userId } });
+    const lang = detectedLanguage || detectLanguageFromQuery(query);
+
+    let response: string;
+    if (lang === 'pt') {
+      response = `Você tem **${docCount}** documento${docCount !== 1 ? 's' : ''} no total.\n\nO que você gostaria de saber sobre eles?`;
+    } else if (lang === 'es') {
+      response = `Tienes **${docCount}** documento${docCount !== 1 ? 's' : ''} en total.\n\n¿Qué te gustaría saber sobre ellos?`;
+    } else {
+      response = `You have **${docCount}** document${docCount !== 1 ? 's' : ''} in total.\n\nWhat would you like to know about them?`;
+    }
+
+    if (onChunk) onChunk(response);
+    if (onStage) onStage('complete', 'Complete');
+
+    return { sources: [] };
+  }
+
+  console.log('⏩ Not a pure greeting or doc count - continuing with normal pipeline');
+
+  // ============================================================================
   // STEP -2: CONTEXT-AWARE INTENT DETECTION (6-Stage Pipeline)
   // ============================================================================
   // Runs the advanced intent detection pipeline for:
@@ -3109,7 +3276,8 @@ export async function generateAnswerStream(
   // ============================================================================
   // STEP -1.7: HIERARCHICAL INTENT CLASSIFICATION (Two-Stage: Heuristic + LLM)
   // ============================================================================
-  const hierarchicalResult = await handleHierarchicalIntent(query, userId);
+  // FIX: Pass conversationHistory to enable pronoun resolution and active document tracking
+  const hierarchicalResult = await handleHierarchicalIntent(query, userId, conversationHistory);
   const { hierarchicalIntent, pipelineConfig, answerPlan } = hierarchicalResult;
 
   // Handle clarification_needed intent (early return)
@@ -6380,9 +6548,17 @@ Provide a comprehensive answer addressing all parts of the query.`;
     perfTimer.mark('complexLlmStreaming');
     const streamResult = await model.generateContentStream(comparisonPrompt);
 
+    let fullStreamedResponse = '';
     for await (const chunk of streamResult.stream) {
       const chunkText = chunk.text();
+      fullStreamedResponse += chunkText;
       onChunk(chunkText);
+    }
+
+    // Verify streaming completion
+    const completionCheck = verifyAnswerCompletion(fullStreamedResponse);
+    if (!completionCheck.isComplete) {
+      console.warn(`⚠️ [STREAMING] Answer may be truncated: ${completionCheck.reason}`);
     }
     perfTimer.measure('Complex Query LLM Streaming', 'complexLlmStreaming');
 
@@ -8929,7 +9105,8 @@ function extractTopicFromQuery(query: string): string {
 async function handleContentBasedLocationQuery(
   query: string,
   userId: string,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  language: string = 'en'
 ): Promise<{ sources: any[] }> {
   console.log('🔍 [CONTENT LOCATION] Searching for files by content...');
 
@@ -8941,7 +9118,8 @@ async function handleContentBasedLocationQuery(
     // Generate embedding for the query using the embedding service
     const embeddingResult = await embeddingService.generateEmbedding(query);
     if (!embeddingResult.embedding || embeddingResult.embedding.length === 0) {
-      onChunk(`I couldn't process your search query. Please try again.`);
+      const errorResponse = getDynamicFallback('error_search', language, { term: topic });
+      onChunk(errorResponse);
       return { sources: [] };
     }
 
@@ -8959,8 +9137,13 @@ async function handleContentBasedLocationQuery(
     });
 
     if (!results.matches || results.matches.length === 0) {
-      const noMatchesMsg = `**I couldn't find any files about "${topic}"** in your library.\n\n• Try a different search term\n• Check if the document has been uploaded`;
-      const formattedNoMatches = applyFormatEnforcement(noMatchesMsg, {
+      const noMatchesResponse = await generateDynamicResponse({
+        scenario: 'no_files_about_topic',
+        context: { topic },
+        language,
+        query
+      });
+      const formattedNoMatches = applyFormatEnforcement(noMatchesResponse, {
         responseType: 'no_matches_fallback',
         logPrefix: '[NO-MATCHES FORMAT]'
       });
@@ -9015,7 +9198,13 @@ async function handleContentBasedLocationQuery(
       const score = documentScores.get(doc.id)?.score || 0;
       const confidence = score >= 0.7 ? 'high' : score >= 0.5 ? 'good' : 'possible';
 
-      onChunk(`The file about "${topic}" is:\n\n**${doc.filename}**\n\nLocation: \`${fullPath}/${doc.filename}\`\n\nConfidence: ${confidence}`);
+      const fileResponse = await generateDynamicResponse({
+        scenario: 'files_about_topic',
+        context: { count: 1, topic, files: `**${doc.filename}** at \`${fullPath}/${doc.filename}\` (${confidence} confidence)` },
+        language,
+        query
+      });
+      onChunk(fileResponse);
 
       return {
         sources: [{
@@ -9036,7 +9225,13 @@ async function handleContentBasedLocationQuery(
       })
     );
 
-    onChunk(`I found ${documents.length} files about "${topic}":\n\n${fileList.join('\n\n')}`);
+    const multiFileResponse = await generateDynamicResponse({
+      scenario: 'files_about_topic',
+      context: { count: documents.length, topic, files: fileList.join('\n\n') },
+      language,
+      query
+    });
+    onChunk(multiFileResponse);
 
     const sources = documents.map(doc => ({
       documentId: doc.id,
@@ -9048,7 +9243,8 @@ async function handleContentBasedLocationQuery(
 
   } catch (error) {
     console.error('[CONTENT LOCATION] Error:', error);
-    onChunk(`I encountered an error searching for files about "${topic}". Please try again.`);
+    const errorResponse = getDynamicFallback('error_search', language, { term: topic });
+    onChunk(errorResponse);
     return { sources: [] };
   }
 }
@@ -9059,7 +9255,8 @@ async function handleContentBasedLocationQuery(
 async function handleFileLocationQuery(
   query: string,
   userId: string,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  language: string = 'en'
 ): Promise<{ sources: any[] }> {
   console.log('ðŸ“ [FILE LOCATION] Searching database for file...');
 
@@ -9068,7 +9265,12 @@ async function handleFileLocationQuery(
   const filename = filenameMatch ? filenameMatch[1] : null;
 
   if (!filename) {
-    onChunk('I couldn\'t identify a specific filename in your question. Could you provide the exact filename?');
+    const response = await generateDynamicResponse({
+      scenario: 'no_filename_identified',
+      language,
+      query
+    });
+    onChunk(response);
     return { sources: [] };
   }
 
@@ -9102,12 +9304,12 @@ async function handleFileLocationQuery(
       orderBy: { createdAt: 'desc' }
     });
 
-    // Use dynamic fallback response
+    // Use dynamic fallback response with detected language
     const fallbackMessage = await fallbackResponseService.generateFileNotFoundResponse(
       query,
       filename,
       userId,
-      'en', // TODO: Detect language from query
+      language,
       similarFiles
     );
     // Apply format enforcement to fallback response
@@ -9122,17 +9324,29 @@ async function handleFileLocationQuery(
   if (documents.length === 1) {
     const doc = documents[0];
     const fullPath = await getFullFolderPath(doc.folderId);
-    onChunk(`**${doc.filename}** is located in:\n\n\`${fullPath}/${doc.filename}\``);
+    const response = await generateDynamicResponse({
+      scenario: 'file_found_single',
+      context: { filename: doc.filename, location: `${fullPath}/${doc.filename}` },
+      language,
+      query
+    });
+    onChunk(response);
     return { sources: [{ documentId: doc.id, documentName: doc.filename, score: 1.0 }] };
   }
 
   // Multiple files with same name - use full paths
   const locations = await Promise.all(documents.map(async (doc) => {
     const fullPath = await getFullFolderPath(doc.folderId);
-    return `- **${doc.filename}** in \`${fullPath}/\``;
+    return `**${doc.filename}** in \`${fullPath}/\``;
   }));
 
-  onChunk(`I found ${documents.length} files with that name:\n\n${locations.join('\n')}`);
+  const response = await generateDynamicResponse({
+    scenario: 'file_found_multiple',
+    context: { count: documents.length, files: locations.join(', ') },
+    language,
+    query
+  });
+  onChunk(response);
 
   const sources = documents.map(doc => ({
     documentId: doc.id,
@@ -9209,7 +9423,8 @@ function detectFolderContentQuery(query: string): boolean {
 async function handleFolderContentQuery(
   query: string,
   userId: string,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  language: string = 'en'
 ): Promise<{ sources: any[] }> {
   console.log('ðŸ“ [FOLDER CONTENT] Searching for folder...');
 
@@ -9239,7 +9454,12 @@ async function handleFolderContentQuery(
   }
 
   if (!folderName) {
-    onChunk('I couldn\'t identify which folder you\'re asking about. Could you specify the folder name?');
+    const response = await generateDynamicResponse({
+      scenario: 'no_folder_identified',
+      language,
+      query
+    });
+    onChunk(response);
     return { sources: [] };
   }
 
@@ -9363,7 +9583,8 @@ function detectFolderListingQuery(query: string): boolean {
  */
 async function handleFolderListingQuery(
   userId: string,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  language: string = 'en'
 ): Promise<{ sources: any[] }> {
   try {
     // Fetch all folders for user
@@ -9378,7 +9599,12 @@ async function handleFolderListingQuery(
     });
 
     if (folders.length === 0) {
-      const response = "You don't have any folders yet. You can create folders to organize your documents by saying:\n\n\"Create folder Finance\"";
+      // Dynamic response based on language
+      const response = await generateDynamicResponse({
+        scenario: 'no_folders_yet',
+        language,
+        query: 'show my folders'
+      });
       onChunk(response);
       return { sources: [] };
     }
@@ -9390,7 +9616,8 @@ async function handleFolderListingQuery(
 
   } catch (error) {
     console.error('[FOLDER LISTING] Error:', error);
-    onChunk('I encountered an error while fetching your folders. Please try again.');
+    const errorResponse = getDynamicFallback('error_fetching_folders', language);
+    onChunk(errorResponse);
     return { sources: [] };
   }
 }
@@ -10113,6 +10340,145 @@ async function getContext(contextId: string): Promise<any> {
   // For now, return null as contexts are ephemeral
   console.log(`ðŸ“‹ [RAG] Getting context for: ${contextId}`);
   return null;
+}
+
+// ============================================================================
+// ULTRA-FAST GREETING DETECTION HELPERS
+// ============================================================================
+
+/**
+ * Detect pure greetings with ZERO external calls
+ * Must be <10ms
+ */
+function detectUltraFastGreeting(query: string): boolean {
+  const normalized = query.toLowerCase().trim();
+  const cleaned = normalized.replace(/[!?.,:;]/g, '').trim();
+  
+  const pureGreetings = [
+    // Portuguese
+    'oi', 'olá', 'ola', 'e aí', 'e ai', 'opa', 'fala',
+    'bom dia', 'boa tarde', 'boa noite',
+    'oi koda', 'olá koda', 'ola koda',
+    // English
+    'hi', 'hello', 'hey', 'yo', 'sup', 'wassup',
+    'good morning', 'good afternoon', 'good evening',
+    'hi koda', 'hello koda', 'hey koda',
+    // Spanish
+    'hola', 'que tal', 'buenos dias', 'buenas tardes', 'buenas noches',
+    // French
+    'salut', 'bonjour', 'bonsoir',
+    // German
+    'hallo', 'guten tag', 'guten morgen',
+    // Italian
+    'ciao', 'buongiorno', 'buonasera',
+  ];
+  
+  if (pureGreetings.includes(cleaned)) {
+    return true;
+  }
+  
+  if (cleaned.length < 25) {
+    for (const greeting of pureGreetings) {
+      if (cleaned.startsWith(greeting)) {
+        const afterGreeting = cleaned.substring(greeting.length).trim();
+        if (afterGreeting.length === 0 || 
+            afterGreeting === 'there' || 
+            afterGreeting === 'tudo bem' ||
+            afterGreeting === 'como vai' ||
+            afterGreeting === 'koda') {
+          return true;
+        }
+      }
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Get instant greeting response (no LLM call)
+ * Must be <5ms
+ */
+function getInstantGreeting(query: string, language?: string): string {
+  const detectedLang = detectLanguageFromGreeting(query);
+  const lang = language || detectedLang;
+
+  console.log(`🌐 [GREETING LANG] Query: "${query}", Passed language: ${language}, Detected: ${detectedLang}, Using: ${lang}`);
+
+  const greetings: Record<string, string[]> = {
+    pt: [
+      'Olá! 👋 Sou a Koda, sua assistente de documentos. Posso te ajudar a analisar contratos, encontrar informações, comparar arquivos e muito mais. O que você gostaria de fazer?',
+      'Oi! 😊 Como posso te ajudar hoje? Posso analisar seus documentos, responder perguntas sobre eles, ou te ajudar a encontrar informações específicas.',
+      'Olá! Estou aqui para te ajudar com seus documentos. Pode me perguntar qualquer coisa sobre os arquivos que você enviou!',
+    ],
+    en: [
+      "Hello! 👋 I'm Koda, your document assistant. I can help you analyze contracts, find information, compare files and more. What would you like to do?",
+      'Hi! 😊 How can I help you today? I can analyze your documents, answer questions about them, or help you find specific information.',
+      "Hello! I'm here to help with your documents. Feel free to ask me anything about the files you've uploaded!",
+    ],
+    es: [
+      '¡Hola! 👋 Soy Koda, tu asistente de documentos. Puedo ayudarte a analizar contratos, encontrar información y comparar archivos. ¿Qué te gustaría hacer?',
+    ],
+    fr: [
+      'Bonjour! 👋 Je suis Koda, votre assistant documentaire. Je peux vous aider à analyser des contrats, trouver des informations et comparer des fichiers. Que souhaitez-vous faire?',
+    ],
+  };
+
+  const options = greetings[lang] || greetings.en;
+  const index = Math.floor(Date.now() / 10000) % options.length;
+
+  return options[index];
+}
+
+/**
+ * Detect language from greeting text
+ */
+function detectUltraFastDocCount(query: string): boolean {
+  const normalized = query.toLowerCase().trim();
+
+  // Portuguese patterns
+  if (/quantos?\s+(documentos?|arquivos?|ficheiros?)\s+(eu\s+)?(tenho|possuo|tem)/i.test(normalized)) return true;
+  if (/eu\s+tenho\s+quantos?\s+(documentos?|arquivos?)/i.test(normalized)) return true;
+
+  // English patterns
+  if (/how\s+many\s+(documents?|files?)\s+(do\s+)?(i\s+)?(have|got)/i.test(normalized)) return true;
+  if (/number\s+of\s+(my\s+)?(documents?|files?)/i.test(normalized)) return true;
+  if (/count\s+(my\s+)?(documents?|files?)/i.test(normalized)) return true;
+
+  // Spanish patterns
+  if (/cuántos?\s+(documentos?|archivos?)\s+(tengo|hay)/i.test(normalized)) return true;
+
+  // French patterns
+  if (/combien\s+(de\s+)?(documents?|fichiers?)/i.test(normalized)) return true;
+
+  return false;
+}
+
+function detectLanguageFromQuery(query: string): string {
+  const normalized = query.toLowerCase();
+
+  // Portuguese indicators
+  if (/(quantos?|tenho|você|documentos?|arquivos?|sobre|fazer|gostaria)/i.test(normalized)) return 'pt';
+  // Spanish indicators
+  if (/(cuántos?|tengo|usted|archivos?|sobre|hacer|gustaría)/i.test(normalized)) return 'es';
+  // French indicators
+  if (/(combien|avez|vous|fichiers?|sur|faire|voudrais)/i.test(normalized)) return 'fr';
+  // German indicators
+  if (/(wie\s+viele|haben|sie|dateien?|über|machen|möchte)/i.test(normalized)) return 'de';
+
+  return 'en';
+}
+
+function detectLanguageFromGreeting(query: string): string {
+  const normalized = query.toLowerCase();
+  
+  if (/(oi|olá|ola|bom dia|boa tarde|boa noite)/.test(normalized)) return 'pt';
+  if (/(hola|buenos dias|buenas tardes)/.test(normalized)) return 'es';
+  if (/(bonjour|salut|bonsoir)/.test(normalized)) return 'fr';
+  if (/(hallo|guten tag)/.test(normalized)) return 'de';
+  if (/(ciao|buongiorno)/.test(normalized)) return 'it';
+  
+  return 'en';
 }
 
 // ============================================================================
