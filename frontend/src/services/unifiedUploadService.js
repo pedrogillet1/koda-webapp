@@ -147,7 +147,8 @@ function analyzeFolderStructure(files) {
     throw new Error('Files must have webkitRelativePath (folder upload required)');
   }
 
-  const rootFolderName = firstPath.split('/')[0];
+  // Normalize root folder name to NFC for proper Unicode handling
+  const rootFolderName = firstPath.split('/')[0].normalize('NFC');
 
   // Validate folder name
   if (!rootFolderName || rootFolderName.trim() === '') {
@@ -169,20 +170,22 @@ function analyzeFolderStructure(files) {
     const relativeParts = pathParts.slice(1);
 
     // Add file to file list
+    // Normalize paths to NFC to handle Unicode characters properly (e.g., "Capítulo" instead of "Capil̃tulo")
     fileList.push({
       file: file,
-      fullPath: fullPath,
-      relativePath: relativeParts.join('/'),
-      fileName: relativeParts[relativeParts.length - 1],
+      fullPath: fullPath.normalize('NFC'),
+      relativePath: relativeParts.join('/').normalize('NFC'),
+      fileName: relativeParts[relativeParts.length - 1].normalize('NFC'),
       depth: relativeParts.length - 1, // 0 = direct child of category
-      folderPath: relativeParts.length > 1 ? relativeParts.slice(0, -1).join('/') : null
+      folderPath: relativeParts.length > 1 ? relativeParts.slice(0, -1).join('/').normalize('NFC') : null
     });
 
     // Build subfolder structure (if file is nested)
     for (let i = 0; i < relativeParts.length - 1; i++) {
-      const folderPath = relativeParts.slice(0, i + 1).join('/');
-      const folderName = relativeParts[i];
-      const parentPath = i > 0 ? relativeParts.slice(0, i).join('/') : null;
+      // Normalize folder paths/names to NFC for proper Unicode handling
+      const folderPath = relativeParts.slice(0, i + 1).join('/').normalize('NFC');
+      const folderName = relativeParts[i].normalize('NFC');
+      const parentPath = i > 0 ? relativeParts.slice(0, i).join('/').normalize('NFC') : null;
 
       if (!subfolderSet.has(folderPath)) {
         subfolderSet.add(folderPath);
@@ -329,10 +332,11 @@ function calculateFileHash(file) {
  */
 async function requestPresignedUrls(files, folderId) {
   const urlRequests = files.map(fileInfo => ({
-    fileName: fileInfo.fileName || fileInfo.file.name,
+    // Normalize filename to NFC to handle Unicode characters properly (e.g., "Capítulo" instead of "Capil̃tulo")
+    fileName: (fileInfo.fileName || fileInfo.file.name).normalize('NFC'),
     fileType: fileInfo.file.type || 'application/octet-stream',
     fileSize: fileInfo.file.size,
-    relativePath: fileInfo.relativePath || null,
+    relativePath: fileInfo.relativePath ? fileInfo.relativePath.normalize('NFC') : null,
     folderId: fileInfo.folderId || folderId
   }));
 
@@ -450,7 +454,8 @@ async function uploadFiles(files, folderId, onProgress) {
   // Prepare file info
   const fileInfos = validFiles.map(file => ({
     file,
-    fileName: file.name,
+    // Normalize filename to NFC to handle Unicode characters properly
+    fileName: file.name.normalize('NFC'),
     folderId
   }));
 
@@ -709,7 +714,8 @@ async function uploadSingleFile(file, folderId, onProgress) {
 
     const { data } = await api.post('/api/presigned-urls/bulk', {
       files: [{
-        fileName: file.name,
+        // Normalize filename to NFC to handle Unicode characters properly (e.g., "Capítulo" instead of "Capil̃tulo")
+        fileName: file.name.normalize('NFC'),
         fileType: file.type || 'application/octet-stream',
         fileSize: file.size,
         folderId

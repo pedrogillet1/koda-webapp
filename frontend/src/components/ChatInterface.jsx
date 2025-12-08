@@ -52,7 +52,10 @@ import {
   parseAllMarkers,
   splitContentWithMarkers,
   parseInlineFolders,
-  parseLoadMoreMarkers
+  parseLoadMoreMarkers,
+  parseSeeAllMarkers,
+  hasSimpleMarkers,
+  stripSimpleMarkers
 } from '../utils/inlineDocumentParser';
 
 // Module-level variable to prevent duplicate socket initialization across all instances
@@ -2682,10 +2685,10 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                             // Calculate spacing based on message sender pattern (EXACT_FORMAT spec)
                             const nextMsg = messages[index + 1];
                             const isLastMessage = index === messages.length - 1;
-                            // Spec spacing: Koda→Koda: 12px, User→Koda: 8px, default: 20px
+                            // Spec spacing: Koda→Koda: 12px, User→Koda: 24px, default: 20px
                             const messageSpacing = isLastMessage ? 0 : (
                                 msg.role === 'assistant' && nextMsg?.role === 'assistant' ? 12 :
-                                msg.role === 'user' && nextMsg?.role === 'assistant' ? 8 :
+                                msg.role === 'user' && nextMsg?.role === 'assistant' ? 24 :
                                 20
                             );
 
@@ -2706,19 +2709,19 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                         <TypingIndicator userName="Koda" stage={currentStage} />
                                     ) : (
                                     <div className="assistant-message" style={{display: 'flex', gap: 16, alignItems: 'flex-start', maxWidth: '100%', width: '100%'}}>
-                                        {/* Koda Avatar - Sphere Icon (32px per spec) */}
+                                        {/* Koda Avatar - Sphere Icon (42px per spec) */}
                                         <img src={sphere} alt="Koda" style={{
-                                            width: 32,
-                                            height: 32,
+                                            width: 42,
+                                            height: 42,
                                             flexShrink: 0,
-                                            marginTop: 0
+                                            marginTop: -8
                                         }} />
                                         <div style={{display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start', flex: 1, maxWidth: 720}}>
-                                        <div style={{background: '#FFFFFF', borderRadius: 16, boxShadow: '0 1px 2px rgba(0,0,0,0.05)', padding: '24px 28px', width: '100%', maxWidth: 720, justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
+                                        <div style={{background: 'transparent', borderRadius: 0, padding: '0', width: '100%', maxWidth: 720, justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
                                             <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
                                                 <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
                                                         <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 4, display: 'flex', width: '100%'}}>
-                                                            <div className="markdown-preview-container" style={{color: '#1a1a1a', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: 1.5, width: '100%', whiteSpace: 'pre-line', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
+                                                            <div className="markdown-preview-container" style={{color: '#1a1a1a', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: 1.6, width: '100%', whiteSpace: 'pre-line', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
                                                                 {(() => {
                                                                     const content = stripDocumentSources(msg.content);
 
@@ -2809,6 +2812,28 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                                 loadMoreData={segment.content}
                                                                                                 onClick={handleLoadMoreClick}
                                                                                             />
+                                                                                        );
+                                                                                    } else if (segment.type === 'seeall') {
+                                                                                        // "See All" link - navigates to /files screen
+                                                                                        return (
+                                                                                            <button
+                                                                                                key={`seeall-${idx}`}
+                                                                                                onClick={() => navigate('/files')}
+                                                                                                style={{
+                                                                                                    background: 'none',
+                                                                                                    border: 'none',
+                                                                                                    color: '#3b82f6',
+                                                                                                    cursor: 'pointer',
+                                                                                                    textDecoration: 'underline',
+                                                                                                    fontSize: 'inherit',
+                                                                                                    fontFamily: 'inherit',
+                                                                                                    padding: '0',
+                                                                                                    margin: '0 4px',
+                                                                                                    display: 'inline',
+                                                                                                }}
+                                                                                            >
+                                                                                                {segment.content.linkText}
+                                                                                            </button>
                                                                                         );
                                                                                     }
                                                                                     return null;
@@ -3574,7 +3599,7 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         {/* Streaming Message - Only show if streamingMessage is not empty */}
                         {streamingMessage && (
                             <div style={{marginBottom: 16, display: 'flex', justifyContent: 'flex-start'}}>
-                                <div style={{maxWidth: '70%', padding: 12, background: 'white', borderRadius: 18, border: '2px solid #E6E6EC', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
+                                <div style={{maxWidth: '70%', padding: 0, background: 'transparent', borderRadius: 0, justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
                                     <div style={{overflow: 'hidden', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
                                         <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex'}}>
                                                 <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 4, display: 'flex'}}>

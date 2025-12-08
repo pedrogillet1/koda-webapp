@@ -23,6 +23,20 @@ import {
   getSkillConfig,
 } from './kodaSkillTaxonomyExtended';
 
+// Import BM25 keyword configuration for enhanced skill detection
+import {
+  findTopSkillsByKeywords,
+  getBM25BoostKeywords,
+  getSkillById,
+} from './kodaBM25Keywords.config';
+
+// Import enhanced skill patterns for multilingual support
+import {
+  findMatchingSkills,
+  testSkillPatterns,
+  extractDocumentReference,
+} from './kodaSkillPatternsEnhanced.config';
+
 // ============================================================================
 // INTERFACES
 // ============================================================================
@@ -57,16 +71,22 @@ export interface RouterContext {
 /**
  * Fast rule-based classification using regex patterns
  * Returns SkillMapping if confident, null otherwise
+ *
+ * Now includes:
+ * 1. Original pattern matching from EXTENDED_SKILL_REGISTRY
+ * 2. Enhanced multilingual patterns from kodaSkillPatternsEnhanced.config
+ * 3. BM25 keyword-based scoring for fallback
  */
 function ruleBasedClassification(context: RouterContext): SkillMapping | null {
   const { query, userDocumentCount } = context;
   const queryLower = query.toLowerCase().trim();
 
-  // Try to match against all skill patterns
+  // Step 1: Try to match against all skill patterns in EXTENDED_SKILL_REGISTRY
   for (const [skillId, skillConfig] of Object.entries(EXTENDED_SKILL_REGISTRY)) {
     for (const pattern of skillConfig.patterns) {
       if (pattern.test(query)) {
         // Found a match!
+        console.log(`[SkillRouter] Pattern match in EXTENDED_SKILL_REGISTRY: ${skillId}`);
         return {
           skillId,
           skillName: skillConfig.skillName,
@@ -82,7 +102,51 @@ function ruleBasedClassification(context: RouterContext): SkillMapping | null {
     }
   }
 
-  // Special cases for meta queries
+  // Step 2: Try enhanced multilingual patterns
+  const enhancedMatches = findMatchingSkills(query);
+  if (enhancedMatches.length > 0) {
+    const topMatch = enhancedMatches[0];
+    const skillConfig = getSkillConfig(topMatch.skillId);
+    if (skillConfig) {
+      console.log(`[SkillRouter] Enhanced pattern match: ${topMatch.skillId} (${topMatch.language})`);
+      return {
+        skillId: topMatch.skillId,
+        skillName: skillConfig.skillName,
+        domain: skillConfig.domain,
+        mode: skillConfig.mode,
+        complexity: skillConfig.depthDefault,
+        speedProfile: skillConfig.speedProfile,
+        skillConfig,
+        confidence: 0.88,
+        detectionMethod: 'rule-based',
+      };
+    }
+  }
+
+  // Step 3: Try BM25 keyword-based classification (fallback)
+  const topSkillsByKeywords = findTopSkillsByKeywords(query, 3);
+  if (topSkillsByKeywords.length > 0 && topSkillsByKeywords[0].score >= 2) {
+    // At least 2 keyword matches = reasonably confident
+    const topSkill = topSkillsByKeywords[0];
+    const skillConfig = getSkillConfig(topSkill.skillId);
+
+    if (skillConfig) {
+      console.log(`[SkillRouter] BM25 keyword match: ${topSkill.skillId} (score: ${topSkill.score}, keywords: ${topSkill.matchedKeywords.join(', ')})`);
+      return {
+        skillId: topSkill.skillId,
+        skillName: skillConfig.skillName,
+        domain: skillConfig.domain,
+        mode: skillConfig.mode,
+        complexity: skillConfig.depthDefault,
+        speedProfile: skillConfig.speedProfile,
+        skillConfig,
+        confidence: 0.75 + (topSkill.score * 0.05), // Higher score = higher confidence
+        detectionMethod: 'rule-based',
+      };
+    }
+  }
+
+  // Step 4: Special cases for meta queries
   if (userDocumentCount === 0) {
     // User has no documents - route to META mode
     if (
@@ -105,7 +169,7 @@ function ruleBasedClassification(context: RouterContext): SkillMapping | null {
     }
   }
 
-  // Greetings
+  // Step 5: Greetings
   if (/^(oi|olá|ola|hi|hello|hey|bom\s+dia|boa\s+tarde|boa\s+noite)[\s!?.]*$/i.test(queryLower)) {
     const metaSkill = EXTENDED_SKILL_REGISTRY['GENERAL.LIST_DOCUMENTS'];
     return {
@@ -123,6 +187,24 @@ function ruleBasedClassification(context: RouterContext): SkillMapping | null {
 
   // No confident match
   return null;
+}
+
+/**
+ * Extract document reference from query (for context-aware routing)
+ */
+export function getDocumentReferenceFromQuery(query: string): {
+  type: 'explicit' | 'pronoun' | null;
+  documentName?: string;
+  language: 'pt' | 'en' | null;
+} {
+  return extractDocumentReference(query);
+}
+
+/**
+ * Get BM25 boost keywords for a query (to improve retrieval)
+ */
+export function getBM25KeywordsForQuery(query: string): string[] {
+  return getBM25BoostKeywords(query);
 }
 
 // ============================================================================
@@ -179,7 +261,7 @@ Classify this query into ONE of these skills:
 }`;
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
 
@@ -318,6 +400,8 @@ export const skillAndIntentRouter = {
   routeQueryToSkill,
   adjustComplexity,
   ruleBasedClassification,
+  getDocumentReferenceFromQuery,
+  getBM25KeywordsForQuery,
 };
 
 export default skillAndIntentRouter;

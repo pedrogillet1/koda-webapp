@@ -5,20 +5,121 @@
  *
  * PURPOSE: Parse all marker types from backend responses
  *
- * MARKER TYPES:
+ * MARKER TYPES (Legacy Format - {{...}}):
  * - {{DOC:::id:::filename:::mimeType:::fileSize:::folderPath}}
  * - {{FOLDER:::id:::folderName:::fileCount:::folderPath}}
  * - {{LOADMORE:::remainingCount:::totalCount:::loadedCount}}
+ *
+ * NEW MARKER TYPES (Simple Format - [[...]]):
+ * - [[DOC:documentId:documentName]] - Document link (from RAG answers)
+ * - [[FOLDER:folderId:folderName]] - Folder link
+ * - [[SEE_ALL:linkText]] - "See all" navigation link
  */
 
 /**
  * ============================================================================
- * DOCUMENT MARKERS
+ * NEW SIMPLE MARKERS ([[DOC:]], [[FOLDER:]], [[SEE_ALL:]])
  * ============================================================================
  */
 
 /**
- * Check if content contains inline document markers
+ * Check if content contains new simple markers
+ */
+export const hasSimpleMarkers = (content) => {
+  if (!content || typeof content !== 'string') return false;
+  return /\[\[(DOC|FOLDER|SEE_ALL):/.test(content);
+};
+
+/**
+ * Parse simple document markers: [[DOC:documentId:documentName]]
+ */
+export const parseSimpleDocMarkers = (content) => {
+  if (!content || typeof content !== 'string') return [];
+
+  const docRegex = /\[\[DOC:([^:\]]+):([^\]]+)\]\]/g;
+  const documents = [];
+  let match;
+
+  while ((match = docRegex.exec(content)) !== null) {
+    documents.push({
+      documentId: match[1],
+      filename: match[2],
+      documentName: match[2],
+      mimeType: null, // Not available in simple format
+      size: null,
+      marker: match[0]
+    });
+  }
+
+  return documents;
+};
+
+/**
+ * Parse simple folder markers: [[FOLDER:folderId:folderName]]
+ */
+export const parseSimpleFolderMarkers = (content) => {
+  if (!content || typeof content !== 'string') return [];
+
+  const folderRegex = /\[\[FOLDER:([^:\]]+):([^\]]+)\]\]/g;
+  const folders = [];
+  let match;
+
+  while ((match = folderRegex.exec(content)) !== null) {
+    folders.push({
+      folderId: match[1],
+      folderName: match[2],
+      marker: match[0]
+    });
+  }
+
+  return folders;
+};
+
+/**
+ * Parse see all markers: [[SEE_ALL:linkText]]
+ */
+export const parseSeeAllMarkers = (content) => {
+  if (!content || typeof content !== 'string') return [];
+
+  const seeAllRegex = /\[\[SEE_ALL:([^\]]+)\]\]/g;
+  const seeAlls = [];
+  let match;
+
+  while ((match = seeAllRegex.exec(content)) !== null) {
+    seeAlls.push({
+      linkText: match[1],
+      marker: match[0]
+    });
+  }
+
+  return seeAlls;
+};
+
+/**
+ * Strip simple markers from content (replace with display name)
+ */
+export const stripSimpleMarkers = (content) => {
+  if (!content || typeof content !== 'string') return content;
+
+  let cleaned = content;
+  // [[DOC:id:name]] -> name
+  cleaned = cleaned.replace(/\[\[DOC:[^:\]]+:([^\]]+)\]\]/g, '$1');
+  // [[FOLDER:id:name]] -> name
+  cleaned = cleaned.replace(/\[\[FOLDER:[^:\]]+:([^\]]+)\]\]/g, '$1');
+  // [[SEE_ALL:text]] -> text
+  cleaned = cleaned.replace(/\[\[SEE_ALL:([^\]]+)\]\]/g, '$1');
+
+  return cleaned;
+};
+
+/**
+ * ============================================================================
+ * LEGACY DOCUMENT MARKERS ({{DOC:::...}})
+ * ============================================================================
+ */
+
+/**
+ * Check if content contains inline document markers (legacy format)
  */
 export const hasInlineDocuments = (content) => {
   if (!content || typeof content !== 'string') return false;
@@ -154,27 +255,40 @@ export const parseLoadMoreMarkers = (content) => {
  */
 
 /**
- * Check if content has any markers
+ * Check if content has any markers (legacy or new format)
  */
 export const hasMarkers = (content) => {
   if (!content || typeof content !== 'string') return false;
 
   return (
+    // Legacy format
     content.includes('{{DOC:::') ||
     content.includes('{{FOLDER:::') ||
-    content.includes('{{LOADMORE:::')
+    content.includes('{{LOADMORE:::') ||
+    // New simple format
+    content.includes('[[DOC:') ||
+    content.includes('[[FOLDER:') ||
+    content.includes('[[SEE_ALL:')
   );
 };
 
 /**
- * Parse all marker types at once
+ * Parse all marker types at once (legacy + new simple format)
  * Returns object with all parsed markers
  */
 export const parseAllMarkers = (content) => {
+  // Combine legacy and new format markers
+  const legacyDocs = parseInlineDocuments(content);
+  const simpleDocs = parseSimpleDocMarkers(content);
+  const legacyFolders = parseInlineFolders(content);
+  const simpleFolders = parseSimpleFolderMarkers(content);
+  const seeAlls = parseSeeAllMarkers(content);
+
   return {
-    documents: parseInlineDocuments(content),
-    folders: parseInlineFolders(content),
-    loadMore: parseLoadMoreMarkers(content)
+    documents: [...legacyDocs, ...simpleDocs],
+    folders: [...legacyFolders, ...simpleFolders],
+    loadMore: parseLoadMoreMarkers(content),
+    seeAll: seeAlls
   };
 };
 
@@ -233,15 +347,18 @@ export const stripLoadMoreMarkers = (content) => {
 };
 
 /**
- * Strip ALL marker types from content
+ * Strip ALL marker types from content (legacy + new format)
  */
 export const stripAllMarkers = (content) => {
   if (!content || typeof content !== 'string') return content;
 
   let cleaned = content;
+  // Legacy format
   cleaned = stripDocumentMarkers(cleaned);
   cleaned = stripFolderMarkers(cleaned);
   cleaned = stripLoadMoreMarkers(cleaned);
+  // New simple format
+  cleaned = stripSimpleMarkers(cleaned);
 
   return cleaned.trim();
 };
@@ -249,12 +366,17 @@ export const stripAllMarkers = (content) => {
 /**
  * Strip ALL document markers (complete or incomplete) from content
  * More aggressive than stripDocumentMarkers
+ * Handles both legacy and simple formats
  */
 export const stripAllDocumentMarkers = (content) => {
   if (!content || typeof content !== 'string') return content;
 
+  // Legacy format
   let result = content.replace(/\{\{DOC:::[\s\S]*?\}\}/g, '');
   result = result.replace(/\{\{DOC:::[^\n]*/g, '');
+
+  // Simple format - replace with display name
+  result = stripSimpleMarkers(result);
 
   return result.trim();
 };
@@ -270,16 +392,22 @@ export const stripAllDocumentMarkers = (content) => {
  */
 const stripIncompleteMarkers = (text) => {
   if (!text) return text;
-  return text.replace(/\{\{DOC:::[^\}]*$/g, '')
-             .replace(/\{\{DOC:::[^\n]*/g, '')
-             .replace(/\{\{FOLDER:::[^\}]*$/g, '')
-             .replace(/\{\{LOADMORE:::[^\}]*$/g, '')
-             .trim();
+  return text
+    // Legacy format incomplete markers
+    .replace(/\{\{DOC:::[^\}]*$/g, '')
+    .replace(/\{\{DOC:::[^\n]*/g, '')
+    .replace(/\{\{FOLDER:::[^\}]*$/g, '')
+    .replace(/\{\{LOADMORE:::[^\}]*$/g, '')
+    // Simple format incomplete markers
+    .replace(/\[\[DOC:[^\]]*$/g, '')
+    .replace(/\[\[FOLDER:[^\]]*$/g, '')
+    .replace(/\[\[SEE_ALL:[^\]]*$/g, '')
+    .trim();
 };
 
 /**
  * Split content into text and marker segments
- * Returns array of segments: { type: 'text'|'document'|'folder'|'loadmore', content: string|object }
+ * Returns array of segments: { type: 'text'|'document'|'folder'|'loadmore'|'seeall', content: string|object }
  */
 export const splitContentWithMarkers = (content) => {
   if (!content || typeof content !== 'string') {
@@ -299,7 +427,8 @@ export const splitContentWithMarkers = (content) => {
   const allMarkers = [
     ...markers.documents.map(m => ({ ...m, type: 'document', index: content.indexOf(m.marker) })),
     ...markers.folders.map(m => ({ ...m, type: 'folder', index: content.indexOf(m.marker) })),
-    ...markers.loadMore.map(m => ({ ...m, type: 'loadmore', index: content.indexOf(m.marker) }))
+    ...markers.loadMore.map(m => ({ ...m, type: 'loadmore', index: content.indexOf(m.marker) })),
+    ...markers.seeAll.map(m => ({ ...m, type: 'seeall', index: content.indexOf(m.marker) }))
   ].filter(m => m.index !== -1).sort((a, b) => a.index - b.index);
 
   // Split content into alternating text and marker segments
@@ -323,6 +452,7 @@ export const splitContentWithMarkers = (content) => {
         content: {
           documentId: marker.documentId,
           filename: marker.filename,
+          documentName: marker.documentName || marker.filename,
           mimeType: marker.mimeType,
           size: marker.size,
           fileSize: marker.fileSize,
@@ -346,6 +476,13 @@ export const splitContentWithMarkers = (content) => {
           remainingCount: marker.remainingCount,
           totalCount: marker.totalCount,
           loadedCount: marker.loadedCount
+        }
+      });
+    } else if (marker.type === 'seeall') {
+      segments.push({
+        type: 'seeall',
+        content: {
+          linkText: marker.linkText
         }
       });
     }
@@ -457,23 +594,30 @@ export const formatFileSize = (bytes) => {
  */
 
 export default {
-  // Document parsing
+  // Simple markers (NEW - [[DOC:]], [[FOLDER:]], [[SEE_ALL:]])
+  hasSimpleMarkers,
+  parseSimpleDocMarkers,
+  parseSimpleFolderMarkers,
+  parseSeeAllMarkers,
+  stripSimpleMarkers,
+
+  // Legacy document parsing ({{DOC:::...}})
   hasInlineDocuments,
   parseInlineDocuments,
   stripDocumentMarkers,
   stripAllDocumentMarkers,
 
-  // Folder parsing (NEW)
+  // Legacy folder parsing ({{FOLDER:::...}})
   hasInlineFolders,
   parseInlineFolders,
   stripFolderMarkers,
 
-  // Load more parsing (NEW)
+  // Load more parsing ({{LOADMORE:::...}})
   hasLoadMoreMarkers,
   parseLoadMoreMarkers,
   stripLoadMoreMarkers,
 
-  // Unified parsing (NEW)
+  // Unified parsing (all formats)
   hasMarkers,
   parseAllMarkers,
   getMarkerCounts,

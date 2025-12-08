@@ -3,11 +3,16 @@
  *
  * Combines BM25 keyword search and vector semantic search using Reciprocal Rank Fusion (RRF).
  * Provides metadata-aware filtering and domain-specific boosting.
+ *
+ * ENHANCED: Now includes skill-based keyword boosting from kodaBM25Keywords.config
  */
 
 import { PrismaClient, Prisma } from '@prisma/client';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Pinecone } from '@pinecone-database/pinecone';
+
+// Import BM25 keyword boosting for skill-aware search
+import { getBM25BoostKeywords, findTopSkillsByKeywords } from './kodaBM25Keywords.config';
 
 const prisma = new PrismaClient();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
@@ -79,6 +84,10 @@ export interface HybridSearchOptions {
   chunkTypeBoosts?: Record<string, number>;
   domainBoosts?: Record<string, number>;
   minScore?: number;
+  // NEW: Enable skill-based keyword boosting
+  enableKeywordBoosting?: boolean;
+  // NEW: Additional keywords to boost (from skill detection)
+  boostKeywords?: string[];
 }
 
 /**
@@ -96,13 +105,36 @@ export async function hybridSearch(
     rrfK = 60,
     chunkTypeBoosts = {},
     domainBoosts = {},
-    minScore = 0.1
+    minScore = 0.1,
+    enableKeywordBoosting = true, // NEW: Default enabled
+    boostKeywords = []
   } = options;
 
   console.log(`[HybridSearch] Query: "${query.slice(0, 100)}..."`);
   console.log(`[HybridSearch] Filters: ${JSON.stringify(filters)}`);
 
   const startTime = Date.now();
+
+  // Step 0 (NEW): Get skill-based boost keywords if enabled
+  let enhancedQuery = query;
+  let skillBoostKeywords: string[] = boostKeywords;
+
+  if (enableKeywordBoosting) {
+    // Get boost keywords based on detected skill
+    const detectedBoostKeywords = getBM25BoostKeywords(query);
+    if (detectedBoostKeywords.length > 0) {
+      skillBoostKeywords = [...new Set([...boostKeywords, ...detectedBoostKeywords])];
+      // Add boost keywords to query for BM25 search (OR-style)
+      enhancedQuery = `${query} ${skillBoostKeywords.slice(0, 5).join(' ')}`;
+      console.log(`[HybridSearch] Skill-based keyword boost: ${skillBoostKeywords.slice(0, 5).join(', ')}`);
+
+      // Log detected skill for debugging
+      const topSkills = findTopSkillsByKeywords(query, 1);
+      if (topSkills.length > 0) {
+        console.log(`[HybridSearch] Detected skill: ${topSkills[0].skillId} (score: ${topSkills[0].score})`);
+      }
+    }
+  }
 
   // Step 1: Get filtered document IDs
   const filteredDocIds = await getFilteredDocumentIds(filters);
@@ -114,10 +146,15 @@ export async function hybridSearch(
 
   console.log(`[HybridSearch] Filtered to ${filteredDocIds.length} documents`);
 
-  // Step 2: Perform BM25 search
-  const bm25Results = await performBM25Search(query, filteredDocIds, filters.userId, topK * 2);
+  // Step 2: Perform BM25 search (with enhanced query if keyword boosting is enabled)
+  const bm25Results = await performBM25Search(
+    enableKeywordBoosting ? enhancedQuery : query,
+    filteredDocIds,
+    filters.userId,
+    topK * 2
+  );
 
-  // Step 3: Perform vector search
+  // Step 3: Perform vector search (always use original query for semantic accuracy)
   const vectorResults = await performVectorSearch(query, filteredDocIds, filters.userId, topK * 2);
 
   console.log(`[HybridSearch] BM25: ${bm25Results.length} results, Vector: ${vectorResults.length} results`);

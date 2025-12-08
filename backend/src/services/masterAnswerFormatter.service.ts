@@ -2,10 +2,10 @@
  * ============================================================================
  * MASTER ANSWER FORMATTER SERVICE - SINGLE SOURCE OF TRUTH
  * ============================================================================
- * 
+ *
  * PURPOSE: Consolidates ALL formatting logic into ONE service
  * Replaces: 13 conflicting format services
- * 
+ *
  * RESPONSIBILITIES:
  * 1. Language detection and consistency enforcement
  * 2. Source deduplication (each source appears ONCE)
@@ -15,14 +15,24 @@
  * 6. Markdown structure enforcement
  * 7. Bold text formatting
  * 8. List formatting
- * 
+ * 9. Document name formatting (clickable links) - NEW
+ *
  * RULES:
  * - NO other service should modify answer format
  * - NO other service should add/remove citations
  * - This is the ONLY formatter in the system
- * 
+ *
  * ============================================================================
  */
+
+import {
+  formatDocumentNamesForFrontend,
+  addSeeAllLink,
+  formatDocumentList,
+  Source as DocSource,
+} from './documentNameFormatter.service';
+
+import { applySmartBolding } from './smartBoldingEnhanced.service';
 
 interface Source {
   documentId: string;
@@ -41,6 +51,7 @@ interface FormatOptions {
   fixEncoding?: boolean;
   deduplicateSources?: boolean;
   addInlineCitations?: boolean;
+  formatDocumentNames?: boolean; // NEW: Add clickable document name markers
 }
 
 interface FormattedResult {
@@ -300,7 +311,8 @@ export function formatAnswer(
     addBoldHeadings = true,
     fixEncoding = true,
     deduplicateSources: dedupe = true,
-    addInlineCitations: addCitations = false
+    addInlineCitations: addCitations = false,
+    formatDocumentNames: formatDocs = true // NEW: Default enabled
   } = options;
 
   console.log('[MasterFormatter] Starting format process...');
@@ -319,10 +331,21 @@ export function formatAnswer(
   formatted = enforceMarkdownStructure(formatted);
   console.log('[MasterFormatter] ✓ Enforced markdown structure');
 
-  // Step 4: Add bold formatting
+  // Step 4: Apply smart bolding (enhanced - currency, dates, percentages, key terms, etc.)
   if (addBoldHeadings) {
-    formatted = ensureBoldFormatting(formatted);
-    console.log('[MasterFormatter] ✓ Added bold formatting');
+    formatted = applySmartBolding(formatted, {
+      boldNumbers: true,
+      boldDates: true,
+      boldCurrency: true,
+      boldPercentages: true,
+      boldDocumentNames: true,
+      boldEntityNames: true,
+      boldKeyTerms: true,
+      boldHeadings: true,
+      boldImportantPhrases: true,
+      boldQuotedText: false,
+    });
+    console.log('[MasterFormatter] ✓ Applied smart bolding');
   }
 
   // Step 5: Deduplicate sources
@@ -335,7 +358,20 @@ export function formatAnswer(
     console.log('[MasterFormatter] ✓ Added inline citations');
   }
 
-  // Step 7: Verify completion
+  // Step 7: Format document names for frontend (clickable links) - NEW
+  if (formatDocs && finalSources.length > 0) {
+    // Convert sources to DocSource format for the formatter
+    const docSources: DocSource[] = finalSources.map(s => ({
+      documentId: s.documentId,
+      documentName: s.documentName || s.filename || s.title,
+      filename: s.filename,
+      title: s.title,
+    }));
+    formatted = formatDocumentNamesForFrontend(formatted, docSources);
+    console.log('[MasterFormatter] ✓ Formatted document names for frontend');
+  }
+
+  // Step 8: Verify completion
   const completionCheck = verifyCompletion(formatted);
   if (!completionCheck.isComplete) {
     console.warn(`[MasterFormatter] ⚠️ Answer may be incomplete: ${completionCheck.reason}`);
@@ -346,6 +382,7 @@ export function formatAnswer(
   const hasHeadings = /^#{1,6}\s+/m.test(formatted);
   const hasBoldText = /\*\*[^*]+\*\*/.test(formatted);
   const hasList = /^[\-\*]\s+/m.test(formatted);
+  const hasDocLinks = /\[\[DOC:/.test(formatted); // NEW: Track doc links
 
   console.log('[MasterFormatter] ✓ Format complete');
 
