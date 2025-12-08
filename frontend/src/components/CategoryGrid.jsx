@@ -264,9 +264,11 @@ const CategoryGrid = () => {
               {!isMobile && (
                 <div style={{ position: 'relative' }} data-category-menu>
                   <button
+                    data-category-id={category.id}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (categoryMenuOpen === category.id) {
+                      const clickedId = e.currentTarget.getAttribute('data-category-id');
+                      if (categoryMenuOpen === clickedId) {
                         setCategoryMenu({ id: null, top: 0, left: 0 });
                       } else {
                         const buttonRect = e.currentTarget.getBoundingClientRect();
@@ -277,7 +279,7 @@ const CategoryGrid = () => {
                         let leftPos = buttonRect.right - dropdownWidth;
                         leftPos = Math.max(8, Math.min(leftPos, window.innerWidth - dropdownWidth - 8));
                         setCategoryMenu({
-                          id: category.id,
+                          id: clickedId,
                           top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
                           left: leftPos
                         });

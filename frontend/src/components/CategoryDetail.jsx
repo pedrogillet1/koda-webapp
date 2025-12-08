@@ -2069,18 +2069,19 @@ const CategoryDetail = () => {
                         {/* Three Dots Menu Button */}
                         <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 9999 }} data-folder-menu>
                           <button
-                            data-folder-menu-id={folder.id}
+                            data-folder-id={folder.id}
                             onClick={(e) => {
                               e.stopPropagation();
-                              console.log('🟢 [FOLDER MENU] Three dots clicked for folder:', folder.name, folder.id);
+                              const folderId = e.currentTarget.getAttribute('data-folder-id');
+                              console.log('🟢 [FOLDER MENU] Three dots clicked for folder ID:', folderId);
                               console.log('🟢 [FOLDER MENU] Current openFolderMenuId:', openFolderMenuId);
                               const rect = e.currentTarget.getBoundingClientRect();
                               setFolderMenuPosition({
                                 top: rect.bottom + 4,
                                 right: window.innerWidth - rect.right
                               });
-                              setOpenFolderMenuId(openFolderMenuId === folder.id ? null : folder.id);
-                              console.log('🟢 [FOLDER MENU] Setting openFolderMenuId to:', openFolderMenuId === folder.id ? null : folder.id);
+                              setOpenFolderMenuId(openFolderMenuId === folderId ? null : folderId);
+                              console.log('🟢 [FOLDER MENU] Setting openFolderMenuId to:', openFolderMenuId === folderId ? null : folderId);
                             }}
                             style={{
                               width: 28,
@@ -2127,14 +2128,19 @@ const CategoryDetail = () => {
                               padding: 8
                             }}>
                               <button
+                                data-folder-id={folder.id}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   e.preventDefault();
-                                  console.log('✏️ [FOLDER EDIT] Button clicked for folder:', folder.name);
-                                  setItemToRename({ type: 'folder', id: folder.id, name: folder.name });
-                                  setShowRenameModal(true);
-                                  setOpenFolderMenuId(null);
-                                  console.log('✏️ [FOLDER EDIT] Rename modal state set to true');
+                                  const folderId = e.currentTarget.getAttribute('data-folder-id');
+                                  const targetFolder = subFolders.find(f => f.id.toString() === folderId);
+                                  console.log('✏️ [FOLDER EDIT] Button clicked for folder:', targetFolder ? targetFolder.name : 'unknown');
+                                  if (targetFolder) {
+                                    setItemToRename({ type: 'folder', id: targetFolder.id, name: targetFolder.name });
+                                    setShowRenameModal(true);
+                                    setOpenFolderMenuId(null);
+                                    console.log('✏️ [FOLDER EDIT] Rename modal state set to true');
+                                  }
                                 }}
                                 style={{
                                   width: '100%',
