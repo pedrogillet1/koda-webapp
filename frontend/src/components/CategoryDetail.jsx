@@ -261,7 +261,7 @@ const CategoryDetail = () => {
       if (showNewDropdown && !event.target.closest('[data-new-dropdown]')) {
         setShowNewDropdown(false);
       }
-      if (openFolderMenuId && !event.target.closest('[data-folder-menu]')) {
+      if (openFolderMenuId && !event.target.closest('[data-folder-menu]') && !event.target.closest('[data-dropdown]')) {
         setOpenFolderMenuId(null);
       }
     };
