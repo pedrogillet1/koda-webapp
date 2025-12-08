@@ -76,7 +76,9 @@ import contextEngineering from './contextEngineering.service';
 import { emptyResponsePrevention } from './emptyResponsePrevention.service';
 import { fallbackResponseService } from './fallbackResponse.service';
 
-import { postProcessAnswer as qaPostProcessAnswer } from './outputPostProcessor.service';
+// OLD: import { postProcessAnswer as qaPostProcessAnswer } from './outputPostProcessor.service';
+// NEW: Unified Post-Processor (replaces 6+ conflicting formatters)
+import { kodaUnifiedPostProcessor, type PostProcessingInput, detectLanguage, determineAnswerType } from './kodaUnifiedPostProcessor.service';
 import groundingVerificationService, { GroundingVerificationResult } from './groundingVerification.service';
 import citationVerificationService, { CitationVerificationResult } from './citationVerification.service';
 import { checkAnswerQuality } from './answerQualityChecker.service';
@@ -135,6 +137,16 @@ import { classifyIntent, shouldDecompose, decomposeQuery, type IntentResult, typ
 import { getPipelineConfig, planAnswerShape, buildPromptWithPlan, type PipelineConfig, type AnswerPlan } from './pipelineConfiguration.service';
 import { executeSubQuestion, assembleMultiPartAnswer, type SubQuestionResult, type MultiPartAnswer } from './queryExecutor.service';
 import { handleHierarchicalIntent, handleQueryDecomposition } from './hierarchicalIntentHandler.service';
+
+// SKILL-BASED ROUTING SYSTEM (New modular skill architecture)
+import {
+  integrateSkillRouting,
+  postProcessSkillAnswer,
+  isMetaSkill,
+  requiresDocumentContext,
+  describeSkillRouting,
+  type SkillIntegrationResult,
+} from './skillSystemIntegration.service';
 
 // RAG CONFIGURATION INTERFACE
 export interface RAGConfig {
@@ -3061,6 +3073,35 @@ export async function generateAnswerStream(
   }
   if (!contextIntent.isComplete) {
     console.log(`   ⚠️ Incomplete query: ${contextIntent.clarificationNeeded}`);
+  }
+
+  // ============================================================================
+  // STEP -1.8: SKILL-BASED ROUTING (New modular skill architecture)
+  // ============================================================================
+  // Uses rule-based pattern matching with LLM fallback for ambiguous queries.
+  // Maps queries to specific skills (GENERAL, LEGAL, FINANCIAL) with speed profiles.
+
+  let skillRoutingResult: SkillIntegrationResult | null = null;
+  try {
+    // Get user document count for LIST_DOCUMENTS skill
+    const userDocCount = await prisma.document.count({ where: { userId } });
+
+    skillRoutingResult = await integrateSkillRouting(
+      query,
+      userId,
+      userDocCount,
+      conversationHistory
+    );
+
+    console.log('┌─────────────────────────────────────────────────────────────');
+    console.log(`│ 🎯 [SKILL ROUTING] ${skillRoutingResult.skillMapping.skillId}`);
+    console.log(`│    Mode: ${skillRoutingResult.ragMode} | Bypass: ${skillRoutingResult.shouldBypassRAG}`);
+    console.log(`│    Detection: ${skillRoutingResult.skillMapping.detectionMethod} (${(skillRoutingResult.skillMapping.confidence * 100).toFixed(0)}%)`);
+    console.log('└─────────────────────────────────────────────────────────────');
+
+  } catch (error) {
+    console.error('[SKILL ROUTING] Error in skill routing, falling back to existing logic:', error);
+    // Continue with existing logic if skill routing fails
   }
 
   // ============================================================================
@@ -8672,36 +8713,57 @@ export async function generateAnswer(
   }
 
   // ============================================================================
-  // POST-PROCESSING - Clean up citations, remove source sections
+  // UNIFIED POST-PROCESSING - Single pass through kodaUnifiedPostProcessor
+  // Replaces: qaPostProcessAnswer, formatValidation, kodaFormatEnforcement, etc.
   // ============================================================================
   try {
-    console.log('[POST-PROCESS] Applying output post-processing...');
-    const postProcessResult = await qaPostProcessAnswer(formatted, {
-      removeSourceSection: true,
-      removeDocumentNames: true,
-      removeRawLinks: true,
-      fixEmptyBullets: true,
-      ensureNumericCitations: false, // Keep original citation format
-    });
+    console.log('[UNIFIED POST-PROCESSOR] Starting unified post-processing...');
 
-    if (postProcessResult.sourcesRemoved || postProcessResult.rawLinksRemoved > 0) {
-      console.log('[POST-PROCESS] Cleaned:', {
-        sourcesRemoved: postProcessResult.sourcesRemoved,
-        rawLinksRemoved: postProcessResult.rawLinksRemoved,
-        emptyBulletsRemoved: postProcessResult.emptyBulletsRemoved,
+    // Build input for unified post-processor
+    const postProcessInput: PostProcessingInput = {
+      answer: formatted,
+      query,
+      sources: result.sources?.map((s: any) => ({
+        documentId: s.documentId || s.id,
+        documentName: s.documentName || s.filename || s.name,
+        score: s.score,
+      })) || [],
+      queryLanguage: detectLanguage(query),
+      answerType: determineAnswerType(query, formatted.length),
+    };
+
+    // Process through unified pipeline
+    const postProcessResult = kodaUnifiedPostProcessor.process(postProcessInput);
+
+    // Log stats
+    const { stats } = postProcessResult;
+    if (stats.duplicatesRemoved > 0 || stats.sourceSectionsRemoved || stats.emojisRemoved > 0) {
+      console.log('[UNIFIED POST-PROCESSOR] Cleaned:', {
+        duplicatesRemoved: stats.duplicatesRemoved,
+        sourceSectionsRemoved: stats.sourceSectionsRemoved,
+        citationsFixed: stats.citationsFixed,
+        emojisRemoved: stats.emojisRemoved,
+        languageCorrected: stats.languageCorrected,
       });
     }
 
-    formatted = postProcessResult.cleanedAnswer;
-  } catch (error) {
-    console.error('[POST-PROCESS] Post-processing failed:', error);
-    // Continue with original formatted answer
-  }
+    formatted = postProcessResult.processedAnswer;
 
-  return {
-    answer: formatted,
-    sources: result.sources,
-  };
+    // Return with deduplicated sources
+    return {
+      answer: formatted,
+      sources: postProcessResult.dedupedSources.length > 0
+        ? postProcessResult.dedupedSources
+        : result.sources,
+    };
+  } catch (error) {
+    console.error('[UNIFIED POST-PROCESSOR] Post-processing failed:', error);
+    // Continue with original formatted answer
+    return {
+      answer: formatted,
+      sources: result.sources,
+    };
+  }
 }
 
 // ============================================================================
