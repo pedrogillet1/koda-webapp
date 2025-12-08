@@ -212,6 +212,11 @@ export const sendMessageStreaming = async (req: Request, res: Response) => {
       res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
     }
 
+    // ✅ STREAMING FIX: Add keepalive interval to prevent connection timeout
+    const keepAliveInterval = setInterval(() => {
+      res.write(': keepalive\n\n');
+    }, 15000); // Every 15 seconds
+
     // Call streaming service with chunk callback
     const result = await chatService.sendMessageStreaming(
       {
@@ -221,10 +226,17 @@ export const sendMessageStreaming = async (req: Request, res: Response) => {
         attachedDocumentId,
       },
       (chunk: string) => {
-        // Stream each chunk to client
+        // Stream each chunk to client IMMEDIATELY
         res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
+        // ✅ STREAMING FIX: Force flush to prevent buffering
+        if (typeof (res as any).flush === 'function') {
+          (res as any).flush();
+        }
       }
     );
+
+    // Clear keepalive when done
+    clearInterval(keepAliveInterval);
 
     // Send completion signal (with null checks to prevent crashes)
     const donePayload = {
@@ -465,6 +477,11 @@ export const sendAdaptiveMessageStreaming = async (req: Request, res: Response) 
     // Send initial connection confirmation
     res.write(`data: ${JSON.stringify({ type: 'connected', conversationId })}\n\n`);
 
+    // ✅ STREAMING FIX: Add keepalive interval to prevent connection timeout
+    const keepAliveInterval = setInterval(() => {
+      res.write(': keepalive\n\n');
+    }, 15000); // Every 15 seconds
+
     // ✅ FIX #1: Call actual chat service with LLM intent detection
     const result = await chatService.sendMessageStreaming(
       {
@@ -474,10 +491,17 @@ export const sendAdaptiveMessageStreaming = async (req: Request, res: Response) 
         attachedDocumentId,
       },
       (chunk: string) => {
-        // Stream each chunk to client
+        // Stream each chunk to client IMMEDIATELY
         res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
+        // ✅ STREAMING FIX: Force flush to prevent buffering
+        if (typeof (res as any).flush === 'function') {
+          (res as any).flush();
+        }
       }
     );
+
+    // Clear keepalive when done
+    clearInterval(keepAliveInterval);
 
     // Send completion signal (with null checks to prevent crashes)
     const donePayload = {

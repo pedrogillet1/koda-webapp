@@ -7672,8 +7672,8 @@ Provide a comprehensive answer addressing all parts of the query.`;
 - Translate information from the document into **${queryLangName}** if needed`;
 
       const finalSystemPrompt = systemPrompt + languageInstruction;
-      // This prevents duplication (raw response + format-enforced response)
-      fullResponse = await streamLLMResponse(finalSystemPrompt, contextWithIntelligence, () => {});
+      // ✅ TRUE STREAMING: Pass actual onChunk callback (was incorrectly passing empty callback)
+      fullResponse = await streamLLMResponse(finalSystemPrompt, contextWithIntelligence, onChunk);
     }
 
     perfTimer.measure('Adaptive Answer Generation', 'adaptiveAnswerGeneration');
@@ -7947,16 +7947,22 @@ async function streamLLMResponse(
       // Reset for retry
       fullAnswer = '';
 
-      console.log(`ðŸ”„ [STREAMING] Attempt ${attempt}/${MAX_RETRIES}`);
+      console.log(`ðŸ"„ [STREAMING] Attempt ${attempt}/${MAX_RETRIES}`);
 
-      // ðŸ”§ FIX: Accumulate full response, then fix table cells
+      // ✅ TRUE STREAMING: Forward chunks immediately to client
+      // Post-processing (table fix, dedup) happens AFTER streaming completes
       fullAnswer = await geminiCache.generateStreamingWithCache({
         systemPrompt,
         documentContext: '', // Already included in systemPrompt - don't duplicate!
         query: '', // Query already included in systemPrompt
         temperature: 0.4,
         maxTokens: 4000,
-        onChunk: () => {} // Don't stream - accumulate instead
+        onChunk: (chunk: string) => {
+          // ✅ IMMEDIATELY forward chunk to client (true streaming!)
+          if (chunk && chunk.length > 0) {
+            onChunk(chunk);
+          }
+        }
       });
 
       console.log(`âœ… [STREAMING] Complete. Total chars: ${fullAnswer.length}`);
@@ -7990,19 +7996,17 @@ async function streamLLMResponse(
         return formattedRetryFallback;
       }
 
+      // ✅ POST-PROCESSING: Apply fixes to the accumulated response (for return value)
+      // Note: Chunks were already streamed to client in real-time above
       let fixedAnswer = fixMarkdownTableCells(fullAnswer);
-      console.log('ðŸ"§ [TABLE FIX] Applied in streamLLMResponse');
+      console.log('ðŸ"§ [TABLE FIX] Applied in streamLLMResponse (post-stream)');
 
       // This catches LLM responses that repeat themselves
       fixedAnswer = removeWholeBlockDuplication(fixedAnswer);
 
-      // This ensures the caller's callback receives the generated response
-      // The "format enforcement first" approach was CAUSING empty responses
-      // because callers like handleMetaQuery ignore the return value
-      if (fixedAnswer && fixedAnswer.trim().length > 0) {
-        onChunk(fixedAnswer);
-        console.log(`âœ… [STREAMING] Sent response via onChunk: ${fixedAnswer.length} chars`);
-      }
+      // ✅ TRUE STREAMING: Don't re-send the full answer - it was already streamed!
+      // The return value is used for logging/analytics, not for display
+      console.log(`âœ… [STREAMING] Response already streamed. Final length: ${fixedAnswer.length} chars`);
 
       return fixedAnswer;
 
