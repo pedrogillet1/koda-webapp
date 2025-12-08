@@ -7265,7 +7265,12 @@ Provide a comprehensive answer addressing all parts of the query.`;
           isComparison: false,
           responseType: 'fallback'  // ✅ No title for fallback responses
         });
-        onChunk(structuredFallback.text);
+        // Apply format enforcement to fallback response
+        const formattedStructuredFallback = applyFormatEnforcement(structuredFallback.text, {
+          responseType: 'enhanced_fallback',
+          logPrefix: '[ENHANCED-FALLBACK FORMAT]'
+        });
+        onChunk(formattedStructuredFallback);
         perfTimer.measure('Enhanced Fallback Response', 'enhancedFallback');
 
         console.log(`âœ… [FALLBACK] ${fallbackCheck.fallbackType} fallback complete`);
@@ -7976,8 +7981,13 @@ async function streamLLMResponse(
         // All retries failed - send context-aware fallback
         console.error('âŒ [STREAMING] All retry attempts failed validation');
         const fallbackMessage = emptyResponsePrevention.getFallbackResponse(context, 'en');
-        onChunk(fallbackMessage);
-        return fallbackMessage;
+        // Apply format enforcement to fallback response
+        const formattedRetryFallback = applyFormatEnforcement(fallbackMessage, {
+          responseType: 'retry_fallback',
+          logPrefix: '[RETRY-FALLBACK FORMAT]'
+        });
+        onChunk(formattedRetryFallback);
+        return formattedRetryFallback;
       }
 
       let fixedAnswer = fixMarkdownTableCells(fullAnswer);
@@ -8944,7 +8954,12 @@ async function handleContentBasedLocationQuery(
     });
 
     if (!results.matches || results.matches.length === 0) {
-      onChunk(`I couldn't find any files about "${topic}" in your library.`);
+      const noMatchesMsg = `**I couldn't find any files about "${topic}"** in your library.\n\n• Try a different search term\n• Check if the document has been uploaded`;
+      const formattedNoMatches = applyFormatEnforcement(noMatchesMsg, {
+        responseType: 'no_matches_fallback',
+        logPrefix: '[NO-MATCHES FORMAT]'
+      });
+      onChunk(formattedNoMatches);
       return { sources: [] };
     }
 
@@ -8969,7 +8984,12 @@ async function handleContentBasedLocationQuery(
       .map(([docId]) => docId);
 
     if (topDocIds.length === 0) {
-      onChunk(`I couldn't find any files about "${topic}" in your library. Try a more specific search term.`);
+      const lowRelevanceMsg = `**I couldn't find relevant files about "${topic}"** in your library.\n\n• Try a more specific search term\n• Use different keywords`;
+      const formattedLowRelevance = applyFormatEnforcement(lowRelevanceMsg, {
+        responseType: 'low_relevance_fallback',
+        logPrefix: '[LOW-RELEVANCE FORMAT]'
+      });
+      onChunk(formattedLowRelevance);
       return { sources: [] };
     }
 
@@ -9085,7 +9105,12 @@ async function handleFileLocationQuery(
       'en', // TODO: Detect language from query
       similarFiles
     );
-    onChunk(fallbackMessage);
+    // Apply format enforcement to fallback response
+    const formattedFallback = applyFormatEnforcement(fallbackMessage, {
+      responseType: 'file_not_found_fallback',
+      logPrefix: '[FILE-NOT-FOUND FORMAT]'
+    });
+    onChunk(formattedFallback);
     return { sources: [] };
   }
 
@@ -10118,10 +10143,14 @@ export async function handleDeepFinancialAnalysis(
 
     if (financialDocs.length === 0) {
       const fallbackMsg = language === 'pt'
-        ? 'Não encontrei documentos financeiros com informações de ROI ou análise de viabilidade.'
-        : 'I could not find financial documents with ROI or feasibility analysis information.';
-      onChunk(fallbackMsg);
-      return { answer: fallbackMsg, sources: [] };
+        ? '**Não encontrei documentos financeiros** com informações de ROI ou análise de viabilidade.\n\n• Faça upload de documentos financeiros\n• Verifique se o documento contém dados de ROI'
+        : '**I could not find financial documents** with ROI or feasibility analysis information.\n\n• Upload financial documents\n• Check if your documents contain ROI data';
+      const formattedFinancialFallback = applyFormatEnforcement(fallbackMsg, {
+        responseType: 'financial_fallback',
+        logPrefix: '[FINANCIAL-FALLBACK FORMAT]'
+      });
+      onChunk(formattedFinancialFallback);
+      return { answer: formattedFinancialFallback, sources: [] };
     }
 
     const { baselineChunks, conservativeChunks, optimisticChunks } = await retrieveScenarioChunks(

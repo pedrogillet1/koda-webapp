@@ -8,18 +8,12 @@
  * - No documents matching query
  * - Low confidence results
  *
- * MANUS PRINCIPLES:
- * 1. Never blame the user
- * 2. Always explain WHY something happened
- * 3. Offer concrete alternatives/next steps
- * 4. Be helpful, not defensive
+ * FORMATTING REQUIREMENTS (Added 2025-12-08):
+ * - All responses MUST use **bold** for key terms
+ * - All responses MUST use bullet points (•) for lists
  */
 
 import geminiClient from './geminiClient.service';
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Types
-// ═══════════════════════════════════════════════════════════════════════════
 
 export interface FallbackContext {
   query: string;
@@ -42,243 +36,246 @@ export interface FallbackResponse {
   }>;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Language-aware Prompt Templates
-// ═══════════════════════════════════════════════════════════════════════════
-
 const LANGUAGE_PROMPTS: Record<string, Record<string, string>> = {
   file_not_found: {
-    en: `The user asked about a file that doesn't exist in their documents.
-User's query: "{query}"
-Searched for: "{searchedTerm}"
+    en: `The user asked about a file that doesn't exist.
+Query: "{query}", Searched: "{searchedTerm}", Alternatives: {alternatives}
 
-Generate a helpful, friendly response that:
-1. Acknowledges we couldn't find the file (never blame the user)
-2. Explains why this might happen (wrong name, not uploaded yet, in a different folder)
-3. Offers alternatives: {alternatives}
+Generate a helpful response. **FORMATTING REQUIREMENTS:**
+- Use **bold** for the file name (e.g., **"{searchedTerm}"**)
+- Use bullet points (•) for listing suggestions
+- Keep it concise (2-3 sentences + bullet list)
 
-Keep it concise (2-3 sentences). Be helpful, not apologetic.`,
+Example: **I couldn't find "{searchedTerm}"** in your documents.
+This might happen because:
+• The file name is different
+• It hasn't been uploaded yet`,
 
-    pt: `O usuário perguntou sobre um arquivo que não existe nos documentos dele.
-Consulta do usuário: "{query}"
-Pesquisou por: "{searchedTerm}"
+    pt: `O usuário perguntou sobre um arquivo que não existe.
+Consulta: "{query}", Pesquisou: "{searchedTerm}", Alternativas: {alternatives}
 
-Gere uma resposta útil e amigável que:
-1. Reconhece que não encontramos o arquivo (nunca culpe o usuário)
-2. Explica por que isso pode acontecer (nome errado, ainda não foi carregado, em outra pasta)
-3. Oferece alternativas: {alternatives}
+Gere uma resposta útil. **REQUISITOS DE FORMATAÇÃO:**
+- Use **negrito** para o nome do arquivo
+- Use marcadores (•) para listar sugestões
+- Seja conciso (2-3 frases + lista)
 
-Seja conciso (2-3 frases). Seja prestativo, não apologético.`,
+Exemplo: **Não encontrei "{searchedTerm}"** nos seus documentos.
+Isso pode acontecer porque:
+• O nome é diferente
+• Ainda não foi carregado`,
 
-    es: `El usuario preguntó sobre un archivo que no existe en sus documentos.
-Consulta del usuario: "{query}"
-Buscó: "{searchedTerm}"
+    es: `El usuario preguntó sobre un archivo que no existe.
+Consulta: "{query}", Buscó: "{searchedTerm}", Alternativas: {alternatives}
 
-Genera una respuesta útil y amigable que:
-1. Reconozca que no pudimos encontrar el archivo (nunca culpes al usuario)
-2. Explique por qué podría pasar (nombre incorrecto, aún no subido, en otra carpeta)
-3. Ofrezca alternativas: {alternatives}
-
-Sé conciso (2-3 oraciones). Sé útil, no apologético.`
+Genera una respuesta útil. **REQUISITOS DE FORMATO:**
+- Usa **negrita** para el nombre del archivo
+- Usa viñetas (•) para listar sugerencias
+- Sé conciso (2-3 oraciones + lista)`
   },
 
   folder_not_found: {
-    en: `The user asked about a folder that doesn't exist.
-User's query: "{query}"
-Searched for folder: "{searchedTerm}"
+    en: `User asked about a folder that doesn't exist.
+Query: "{query}", Folder: "{searchedTerm}", Available: {alternatives}
 
-Generate a helpful response that:
-1. Says the folder wasn't found
-2. Lists available folders if any: {alternatives}
-3. Suggests they might create it or check the name
+**FORMATTING:** Use **bold** for folder name, bullet points (•) for alternatives.`,
 
-Keep it concise (2-3 sentences).`,
+    pt: `Usuário perguntou sobre uma pasta que não existe.
+Consulta: "{query}", Pasta: "{searchedTerm}", Disponíveis: {alternatives}
 
-    pt: `O usuário perguntou sobre uma pasta que não existe.
-Consulta do usuário: "{query}"
-Pesquisou pela pasta: "{searchedTerm}"
+**FORMATAÇÃO:** Use **negrito** para nome da pasta, marcadores (•) para alternativas.`,
 
-Gere uma resposta útil que:
-1. Diz que a pasta não foi encontrada
-2. Lista pastas disponíveis se houver: {alternatives}
-3. Sugere que podem criar ou verificar o nome
+    es: `Usuario preguntó sobre una carpeta que no existe.
+Consulta: "{query}", Carpeta: "{searchedTerm}", Disponibles: {alternatives}
 
-Seja conciso (2-3 frases).`,
-
-    es: `El usuario preguntó sobre una carpeta que no existe.
-Consulta del usuario: "{query}"
-Buscó carpeta: "{searchedTerm}"
-
-Genera una respuesta útil que:
-1. Diga que la carpeta no fue encontrada
-2. Liste carpetas disponibles si hay: {alternatives}
-3. Sugiera que pueden crearla o verificar el nombre
-
-Sé conciso (2-3 oraciones).`
+**FORMATO:** Usa **negrita** para nombre de carpeta, viñetas (•) para alternativas.`
   },
 
   empty_folder: {
-    en: `The user asked about content in a folder that exists but is empty.
-User's query: "{query}"
-Folder name: "{searchedTerm}"
+    en: `User asked about an empty folder.
+Query: "{query}", Folder: "{searchedTerm}"
 
-Generate a helpful response that:
-1. Confirms the folder exists but is empty
-2. Suggests they can upload documents to it
-3. Mentions they can ask about other folders if needed
+**FORMATTING:** Use **bold** for folder name, bullet points (•) for suggestions.`,
 
-Keep it concise (2-3 sentences).`,
+    pt: `Usuário perguntou sobre uma pasta vazia.
+Consulta: "{query}", Pasta: "{searchedTerm}"
 
-    pt: `O usuário perguntou sobre conteúdo em uma pasta que existe mas está vazia.
-Consulta do usuário: "{query}"
-Nome da pasta: "{searchedTerm}"
+**FORMATAÇÃO:** Use **negrito** para nome da pasta, marcadores (•) para sugestões.`,
 
-Gere uma resposta útil que:
-1. Confirma que a pasta existe mas está vazia
-2. Sugere que podem fazer upload de documentos
-3. Menciona que podem perguntar sobre outras pastas
+    es: `Usuario preguntó sobre una carpeta vacía.
+Consulta: "{query}", Carpeta: "{searchedTerm}"
 
-Seja conciso (2-3 frases).`,
-
-    es: `El usuario preguntó sobre contenido en una carpeta que existe pero está vacía.
-Consulta del usuario: "{query}"
-Nombre de carpeta: "{searchedTerm}"
-
-Genera una respuesta útil que:
-1. Confirme que la carpeta existe pero está vacía
-2. Sugiera que pueden subir documentos
-3. Mencione que pueden preguntar sobre otras carpetas
-
-Sé conciso (2-3 oraciones).`
+**FORMATO:** Usa **negrita** para nombre de carpeta, viñetas (•) para sugerencias.`
   },
 
   no_documents: {
-    en: `The user doesn't have any documents uploaded yet.
-User's query: "{query}"
+    en: `User has no documents uploaded yet.
+Query: "{query}"
 
-Generate a welcoming response that:
-1. Explains they haven't uploaded documents yet
-2. Encourages them to upload files
-3. Briefly mentions what kinds of questions they can ask once they do
+Generate welcoming response. **FORMATTING:** Use **bold** for actions, bullet points (•) for capabilities.`,
 
-Keep it friendly and encouraging (2-3 sentences).`,
+    pt: `Usuário ainda não tem documentos.
+Consulta: "{query}"
 
-    pt: `O usuário ainda não tem documentos carregados.
-Consulta do usuário: "{query}"
+Gere resposta acolhedora. **FORMATAÇÃO:** Use **negrito** para ações, marcadores (•) para capacidades.`,
 
-Gere uma resposta acolhedora que:
-1. Explica que ainda não carregaram documentos
-2. Incentiva a fazer upload de arquivos
-3. Menciona brevemente que tipos de perguntas podem fazer depois
+    es: `Usuario no tiene documentos.
+Consulta: "{query}"
 
-Seja amigável e encorajador (2-3 frases).`,
-
-    es: `El usuario aún no tiene documentos subidos.
-Consulta del usuario: "{query}"
-
-Genera una respuesta acogedora que:
-1. Explique que aún no han subido documentos
-2. Los anime a subir archivos
-3. Mencione brevemente qué tipos de preguntas pueden hacer después
-
-Sé amigable y alentador (2-3 oraciones).`
+Genera respuesta acogedora. **FORMATO:** Usa **negrita** para acciones, viñetas (•) para capacidades.`
   },
 
   low_confidence: {
-    en: `We found some documents but with low confidence they match the query.
-User's query: "{query}"
-Best matches found: {alternatives}
-Confidence: Low
+    en: `Found documents with low confidence.
+Query: "{query}", Matches: {alternatives}
 
-Generate a response that:
-1. Shares what we found (tentatively)
-2. Explains we're not confident these are what they're looking for
-3. Asks if they want to refine their search
+**FORMATTING:** Use **bold** for document names, bullet points (•) for matches.`,
 
-Keep it helpful (2-3 sentences).`,
+    pt: `Encontramos documentos com baixa confiança.
+Consulta: "{query}", Correspondências: {alternatives}
 
-    pt: `Encontramos alguns documentos mas com baixa confiança de que correspondem à consulta.
-Consulta do usuário: "{query}"
-Melhores correspondências: {alternatives}
-Confiança: Baixa
+**FORMATAÇÃO:** Use **negrito** para nomes, marcadores (•) para correspondências.`,
 
-Gere uma resposta que:
-1. Compartilha o que encontramos (tentativamente)
-2. Explica que não estamos confiantes de que é o que procuram
-3. Pergunta se querem refinar a busca
+    es: `Encontramos documentos con baja confianza.
+Consulta: "{query}", Coincidencias: {alternatives}
 
-Seja útil (2-3 frases).`,
-
-    es: `Encontramos algunos documentos pero con baja confianza de que coinciden con la consulta.
-Consulta del usuario: "{query}"
-Mejores coincidencias: {alternatives}
-Confianza: Baja
-
-Genera una respuesta que:
-1. Comparta lo que encontramos (tentativamente)
-2. Explique que no estamos seguros de que sea lo que buscan
-3. Pregunte si quieren refinar la búsqueda
-
-Sé útil (2-3 oraciones).`
+**FORMATO:** Usa **negrita** para nombres, viñetas (•) para coincidencias.`
   }
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Fallback Response Service
-// ═══════════════════════════════════════════════════════════════════════════
+const STATIC_FALLBACKS: Record<string, Record<string, string>> = {
+  file_not_found: {
+    en: `**I couldn't find "{searchedTerm}"** in your documents.
+
+This might happen because:
+• The file name is slightly different
+• It hasn't been uploaded yet
+• It's in a different folder`,
+    pt: `**Não encontrei "{searchedTerm}"** nos seus documentos.
+
+Isso pode acontecer porque:
+• O nome do arquivo é diferente
+• Ainda não foi carregado
+• Está em outra pasta`,
+    es: `**No encontré "{searchedTerm}"** en tus documentos.
+
+Esto puede pasar porque:
+• El nombre del archivo es diferente
+• Aún no ha sido subido
+• Está en otra carpeta`
+  },
+  folder_not_found: {
+    en: `**I couldn't find the folder "{searchedTerm}"**.
+
+You can:
+• Check the folder name spelling
+• Create a new folder with this name`,
+    pt: `**Não encontrei a pasta "{searchedTerm}"**.
+
+Você pode:
+• Verificar a ortografia do nome
+• Criar uma nova pasta`,
+    es: `**No encontré la carpeta "{searchedTerm}"**.
+
+Puedes:
+• Verificar la ortografía
+• Crear una nueva carpeta`
+  },
+  empty_folder: {
+    en: `The folder **"{searchedTerm}"** exists but is **empty**.
+
+**What you can do:**
+• Upload documents to this folder
+• Check other folders`,
+    pt: `A pasta **"{searchedTerm}"** existe mas está **vazia**.
+
+**O que você pode fazer:**
+• Fazer upload de documentos
+• Verificar outras pastas`,
+    es: `La carpeta **"{searchedTerm}"** existe pero está **vacía**.
+
+**Lo que puedes hacer:**
+• Subir documentos
+• Revisar otras carpetas`
+  },
+  no_documents: {
+    en: `**You haven't uploaded any documents yet!**
+
+Once you upload files, I can help you:
+• Search and find information
+• Analyze documents
+• Answer questions`,
+    pt: `**Você ainda não tem documentos!**
+
+Depois de fazer upload, posso:
+• Buscar informações
+• Analisar documentos
+• Responder perguntas`,
+    es: `**¡Aún no has subido documentos!**
+
+Una vez que subas archivos, puedo:
+• Buscar información
+• Analizar documentos
+• Responder preguntas`
+  },
+  low_confidence: {
+    en: `I found some documents, but I'm **not sure** they match.
+
+Would you like to:
+• **Refine your search**
+• See possible matches anyway`,
+    pt: `Encontrei documentos, mas **não tenho certeza** se correspondem.
+
+Gostaria de:
+• **Refinar sua busca**
+• Ver possíveis correspondências`,
+    es: `Encontré documentos, pero **no estoy seguro** de que coincidan.
+
+¿Te gustaría:
+• **Refinar tu búsqueda**
+• Ver posibles coincidencias`
+  }
+};
 
 class FallbackResponseService {
-  /**
-   * Generate a dynamic fallback response based on context
-   */
   async generateFallback(context: FallbackContext): Promise<FallbackResponse> {
     const startTime = Date.now();
-    console.log(`🔄 [FALLBACK] Generating ${context.scenario} response for: "${context.query}"`);
+    console.log(`🔄 [FALLBACK] Generating ${context.scenario} response`);
 
     try {
-      // Get appropriate prompt template
       const lang = context.language || 'en';
       const promptTemplate = LANGUAGE_PROMPTS[context.scenario]?.[lang]
         || LANGUAGE_PROMPTS[context.scenario]?.['en']
-        || 'Generate a helpful response for: {query}';
+        || 'Generate a helpful response';
 
-      // Build alternatives string
       let alternatives = 'None available';
-      if (context.suggestedAlternatives && context.suggestedAlternatives.length > 0) {
+      if (context.suggestedAlternatives?.length) {
         alternatives = context.suggestedAlternatives.slice(0, 5).join(', ');
-      } else if (context.availableDocuments && context.availableDocuments.length > 0) {
+      } else if (context.availableDocuments?.length) {
         alternatives = context.availableDocuments.slice(0, 5).map(d => d.filename).join(', ');
-      } else if (context.availableFolders && context.availableFolders.length > 0) {
+      } else if (context.availableFolders?.length) {
         alternatives = context.availableFolders.slice(0, 5).map(f => f.name).join(', ');
       }
 
-      // Fill in the template
       const prompt = promptTemplate
         .replace(/{query}/g, context.query)
         .replace(/{searchedTerm}/g, context.searchedTerm || context.query)
         .replace(/{alternatives}/g, alternatives);
 
-      // Generate response with Gemini
       const model = geminiClient.getModel({
-        model: 'gemini-2.5-flash',
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 300,
-        }
+        model: 'gemini-2.0-flash',
+        generationConfig: { temperature: 0.7, maxOutputTokens: 400 }
       });
 
       const result = await model.generateContent(prompt);
       const message = result.response.text() || this.getStaticFallback(context);
 
-      const latency = Date.now() - startTime;
-      console.log(`✅ [FALLBACK] Generated response in ${latency}ms`);
+      console.log(`✅ [FALLBACK] Generated in ${Date.now() - startTime}ms`);
 
       return {
         message,
         suggestions: this.buildSuggestions(context),
         uiActions: this.buildUIActions(context)
       };
-
     } catch (error: any) {
       console.error('❌ [FALLBACK] Generation failed:', error.message);
       return {
@@ -289,170 +286,81 @@ class FallbackResponseService {
     }
   }
 
-  /**
-   * Generate file not found response
-   */
   async generateFileNotFoundResponse(
-    query: string,
-    searchedFilename: string,
-    userId: string,
-    language: string,
+    query: string, searchedFilename: string, userId: string, language: string,
     similarFiles?: Array<{ filename: string; id: string }>
   ): Promise<string> {
     const response = await this.generateFallback({
-      query,
-      userId,
-      language,
-      scenario: 'file_not_found',
-      searchedTerm: searchedFilename,
-      availableDocuments: similarFiles,
+      query, userId, language, scenario: 'file_not_found',
+      searchedTerm: searchedFilename, availableDocuments: similarFiles,
       suggestedAlternatives: similarFiles?.map(f => f.filename)
     });
     return response.message;
   }
 
-  /**
-   * Generate folder not found response
-   */
   async generateFolderNotFoundResponse(
-    query: string,
-    searchedFolderName: string,
-    userId: string,
-    language: string,
+    query: string, searchedFolderName: string, userId: string, language: string,
     availableFolders?: Array<{ name: string; id: string }>
   ): Promise<string> {
     const response = await this.generateFallback({
-      query,
-      userId,
-      language,
-      scenario: 'folder_not_found',
-      searchedTerm: searchedFolderName,
-      availableFolders,
+      query, userId, language, scenario: 'folder_not_found',
+      searchedTerm: searchedFolderName, availableFolders,
       suggestedAlternatives: availableFolders?.map(f => f.name)
     });
     return response.message;
   }
 
-  /**
-   * Generate empty folder response
-   */
   async generateEmptyFolderResponse(
-    query: string,
-    folderName: string,
-    userId: string,
-    language: string
+    query: string, folderName: string, userId: string, language: string
   ): Promise<string> {
     const response = await this.generateFallback({
-      query,
-      userId,
-      language,
-      scenario: 'empty_folder',
-      searchedTerm: folderName
+      query, userId, language, scenario: 'empty_folder', searchedTerm: folderName
     });
     return response.message;
   }
 
-  /**
-   * Get static fallback when LLM generation fails
-   */
   private getStaticFallback(context: FallbackContext): string {
     const lang = context.language || 'en';
-
-    const staticResponses: Record<string, Record<string, string>> = {
-      file_not_found: {
-        en: `I couldn't find "${context.searchedTerm}" in your documents. Make sure the file name is correct or try uploading it.`,
-        pt: `Não encontrei "${context.searchedTerm}" nos seus documentos. Verifique se o nome está correto ou tente fazer upload.`,
-        es: `No encontré "${context.searchedTerm}" en tus documentos. Verifica que el nombre esté correcto o intenta subirlo.`
-      },
-      folder_not_found: {
-        en: `I couldn't find a folder called "${context.searchedTerm}". Check the folder name or create a new one.`,
-        pt: `Não encontrei uma pasta chamada "${context.searchedTerm}". Verifique o nome ou crie uma nova.`,
-        es: `No encontré una carpeta llamada "${context.searchedTerm}". Verifica el nombre o crea una nueva.`
-      },
-      empty_folder: {
-        en: `The folder "${context.searchedTerm}" exists but is empty. Upload some documents to it!`,
-        pt: `A pasta "${context.searchedTerm}" existe mas está vazia. Faça upload de alguns documentos!`,
-        es: `La carpeta "${context.searchedTerm}" existe pero está vacía. ¡Sube algunos documentos!`
-      },
-      no_documents: {
-        en: "You haven't uploaded any documents yet. Upload some files and I can help you search and analyze them!",
-        pt: "Você ainda não tem documentos. Faça upload de alguns arquivos e posso ajudar a pesquisar e analisar!",
-        es: "Aún no has subido documentos. ¡Sube algunos archivos y puedo ayudarte a buscar y analizarlos!"
-      },
-      low_confidence: {
-        en: "I found some documents but I'm not sure they match what you're looking for. Could you be more specific?",
-        pt: "Encontrei alguns documentos mas não tenho certeza de que correspondem ao que você procura. Pode ser mais específico?",
-        es: "Encontré algunos documentos pero no estoy seguro de que coincidan con lo que buscas. ¿Podrías ser más específico?"
-      }
-    };
-
-    return staticResponses[context.scenario]?.[lang]
-      || staticResponses[context.scenario]?.['en']
-      || "I couldn't find what you're looking for. Please try a different search.";
+    let template = STATIC_FALLBACKS[context.scenario]?.[lang]
+      || STATIC_FALLBACKS[context.scenario]?.['en']
+      || "**I couldn't find what you're looking for.**";
+    return template.replace(/{searchedTerm}/g, context.searchedTerm || 'the item');
   }
 
-  /**
-   * Build suggestions based on context
-   */
   private buildSuggestions(context: FallbackContext): string[] {
     const suggestions: string[] = [];
     const lang = context.language || 'en';
 
-    if (context.scenario === 'file_not_found') {
-      if (context.availableDocuments && context.availableDocuments.length > 0) {
-        for (const doc of context.availableDocuments.slice(0, 3)) {
-          suggestions.push(lang === 'pt' ? `Buscar em "${doc.filename}"` :
-            lang === 'es' ? `Buscar en "${doc.filename}"` :
-            `Search in "${doc.filename}"`);
-        }
+    if (context.scenario === 'file_not_found' && context.availableDocuments?.length) {
+      for (const doc of context.availableDocuments.slice(0, 3)) {
+        suggestions.push(lang === 'pt' ? `Buscar em "${doc.filename}"` :
+          lang === 'es' ? `Buscar en "${doc.filename}"` : `Search in "${doc.filename}"`);
       }
     }
-
-    if (context.scenario === 'folder_not_found') {
-      if (context.availableFolders && context.availableFolders.length > 0) {
-        for (const folder of context.availableFolders.slice(0, 3)) {
-          suggestions.push(lang === 'pt' ? `Ver pasta "${folder.name}"` :
-            lang === 'es' ? `Ver carpeta "${folder.name}"` :
-            `View folder "${folder.name}"`);
-        }
+    if (context.scenario === 'folder_not_found' && context.availableFolders?.length) {
+      for (const folder of context.availableFolders.slice(0, 3)) {
+        suggestions.push(lang === 'pt' ? `Ver pasta "${folder.name}"` :
+          lang === 'es' ? `Ver carpeta "${folder.name}"` : `View folder "${folder.name}"`);
       }
     }
-
     if (context.scenario === 'no_documents') {
-      suggestions.push(
-        lang === 'pt' ? 'Fazer upload de documentos' :
-        lang === 'es' ? 'Subir documentos' :
-        'Upload documents'
-      );
+      suggestions.push(lang === 'pt' ? 'Fazer upload de documentos' :
+        lang === 'es' ? 'Subir documentos' : 'Upload documents');
     }
-
     return suggestions;
   }
 
-  /**
-   * Build UI actions based on context
-   */
   private buildUIActions(context: FallbackContext): FallbackResponse['uiActions'] {
     const actions: FallbackResponse['uiActions'] = [];
-
     if (context.scenario === 'file_not_found' && context.availableDocuments) {
-      actions.push({
-        type: 'show_files',
-        data: { files: context.availableDocuments.slice(0, 5) }
-      });
+      actions.push({ type: 'show_files', data: { files: context.availableDocuments.slice(0, 5) } });
     }
-
     if (context.scenario === 'folder_not_found' && context.availableFolders) {
-      actions.push({
-        type: 'show_folders',
-        data: { folders: context.availableFolders.slice(0, 5) }
-      });
+      actions.push({ type: 'show_folders', data: { folders: context.availableFolders.slice(0, 5) } });
     }
-
     if (context.scenario === 'no_documents') {
       actions.push({ type: 'upload_prompt' });
     }
-
     return actions;
   }
 }
