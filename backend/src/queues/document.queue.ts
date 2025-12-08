@@ -16,6 +16,50 @@ import pineconeService from '../services/pinecone.service';
 import { createBM25Chunks } from '../services/bm25ChunkCreation.service';
 import prisma from '../config/database';
 
+// ============================================================================
+// ✅ FIX #1: Wait for Prisma to be ready before processing
+// ============================================================================
+let prismaReady = false;
+
+async function ensurePrismaReady(): Promise<void> {
+  if (prismaReady) return;
+
+  console.log('⏳ [PRISMA] Waiting for Prisma client to be ready...');
+
+  try {
+    // Test Prisma connection
+    await prisma.$connect();
+    await prisma.$queryRaw`SELECT 1`;
+    prismaReady = true;
+    console.log('✅ [PRISMA] Prisma client is ready');
+  } catch (error) {
+    console.error('❌ [PRISMA] Failed to connect:', error);
+    throw new Error('Prisma client not ready');
+  }
+}
+
+// ============================================================================
+// ✅ FIX #3: Validate embeddings before sending to Pinecone
+// ============================================================================
+function validateEmbedding(embedding: number[], chunkContent: string): boolean {
+  // Check if embedding is all zeros
+  const hasNonZero = embedding.some(val => val !== 0);
+
+  if (!hasNonZero) {
+    console.warn(`⚠️  [EMBEDDING] Zero-vector detected for chunk: "${chunkContent.substring(0, 100)}..."`);
+    return false;
+  }
+
+  // Check if embedding has reasonable values
+  const maxValue = Math.max(...embedding.map(Math.abs));
+  if (maxValue > 10) {
+    console.warn(`⚠️  [EMBEDDING] Abnormal embedding values (max: ${maxValue}) for chunk: "${chunkContent.substring(0, 100)}..."`);
+    return false;
+  }
+
+  return true;
+}
+
 // Import io dynamically to avoid circular dependency
 let io: any = null;
 const getIO = () => {
@@ -173,6 +217,14 @@ export const addDocumentProcessingJob = async (data: DocumentProcessingJob) => {
 // Document processing worker
 const processDocument = async (job: Job<DocumentProcessingJob>) => {
   const { documentId, userId, encryptedFilename, mimeType } = job.data;
+
+  // ✅ FIX #1: Ensure Prisma is ready before processing
+  try {
+    await ensurePrismaReady();
+  } catch (error) {
+    console.error(`❌ [DOC:${documentId}] Prisma not ready, failing job:`, error);
+    throw new Error('Prisma client not initialized');
+  }
 
   console.log(`📄 [DOC:${documentId}] Processing for user ${userId}`);
   console.log(`📄 [DOC:${documentId}] Filename: ${encryptedFilename}, MIME: ${mimeType}`);
@@ -531,6 +583,13 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
         for (let i = 0; i < chunks.length; i++) {
           try {
             const embeddingResult = await embeddingService.generateEmbedding(chunks[i].content);
+
+            // ✅ FIX #3: Validate embedding before using
+            if (!validateEmbedding(embeddingResult.embedding, chunks[i].content)) {
+              console.warn(`⚠️  [DOC:${documentId}] Skipping chunk ${i} due to invalid embedding`);
+              continue; // Skip this chunk
+            }
+
             chunksWithEmbeddings.push({
               chunkIndex: i,
               content: chunks[i].content,
@@ -565,6 +624,16 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
             chunksWithEmbeddings
           );
           console.log(`✅ [DOC:${documentId}] Stored ${chunksWithEmbeddings.length} embeddings in Pinecone`);
+
+          // ✅ CRITICAL FIX: Update database to mark embeddings as generated
+          await prisma.document.update({
+            where: { id: documentId },
+            data: {
+              embeddingsGenerated: true,
+              chunksCount: chunksWithEmbeddings.length
+            }
+          });
+          console.log(`✅ [DOC:${documentId}] Updated database: embeddingsGenerated=true, chunksCount=${chunksWithEmbeddings.length}`);
         } else {
           console.warn(`⚠️ [DOC:${documentId}] No embeddings to store (doc: ${!!doc}, chunks: ${chunksWithEmbeddings.length})`);
         }
@@ -578,7 +647,7 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
 
     // ✅ CRITICAL FIX: Update status to 'completed' AFTER embeddings are stored
     // This prevents race condition where frontend queries before Pinecone has the data
-    await prisma.documents.update({
+    await prisma.document.update({
       where: { id: documentId },
       data: { status: 'completed' },
     });
@@ -720,22 +789,29 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
   } catch (error) {
     console.error(`❌ [DOC:${documentId}] Error processing document:`, error);
 
+    // ✅ FIX #4: Always update document status on failure with error message
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
     // Emit failure event
-    emitProcessingUpdate(userId, documentId, {
-      progress: 0,
+    await emitProcessingUpdate(userId, documentId, {
+      progress: 100,
       stage: 'failed',
-      message: 'Processing failed',
-      error: (error as Error).message,
+      message: errorMessage,
+      error: true,
     });
 
-    // Update document status to failed
+    // Update document status to failed WITH error message
     try {
-      await prisma.documents.update({
+      await prisma.document.update({
         where: { id: documentId },
-        data: { status: 'failed' },
+        data: {
+          status: 'failed',
+          error: errorMessage.substring(0, 500), // Limit error message length
+        },
       });
+      console.log(`✅ [DOC:${documentId}] Updated status to 'failed' with error: ${errorMessage.substring(0, 100)}`);
     } catch (dbError) {
-      console.error('Failed to update document status:', dbError);
+      console.error(`❌ [DOC:${documentId}] Failed to update document status:`, dbError);
     }
 
     throw error;
@@ -759,6 +835,11 @@ if (documentQueue && redisConnection && process.env.REDIS_URL) {
           maxRetriesPerRequest: null,
         },
         concurrency: 10, // Process 10 documents simultaneously for 10x throughput
+        // ✅ FIX #2: Increase lock duration to prevent false stalls
+        lockDuration: 300000, // 5 minutes (default is 30s) - allows longer processing
+        lockRenewTime: 150000, // Renew lock every 2.5 minutes
+        stalledInterval: 60000, // Check for stalled jobs every 60s (moved from settings)
+        maxStalledCount: 2, // Allow 2 stalls before failing (moved from settings)
       }
     );
 
