@@ -324,16 +324,15 @@ const CategoryGrid = () => {
                     >
                       {/* Edit Button */}
                       <button
-                        data-category-id={category.id}
                         onClick={(e) => {
                           e.stopPropagation();
-                          const categoryId = e.currentTarget.getAttribute('data-category-id');
-                          const targetCategory = categories.find(c => c.id.toString() === categoryId);
+                          const currentCategoryId = categoryMenuOpen;
+                          const targetCategory = categories.find(c => c.id === currentCategoryId);
                           if (targetCategory) {
                             setEditingCategory(targetCategory);
                             setShowEditModal(true);
-                            setCategoryMenuOpen(null);
                           }
+                          setCategoryMenuOpen(null);
                         }}
                         style={{
                           width: '100%',
@@ -361,12 +360,11 @@ const CategoryGrid = () => {
 
                       {/* Upload Button */}
                       <button
-                        data-category-id={category.id}
                         onClick={(e) => {
                           e.stopPropagation();
-                          const categoryId = e.currentTarget.getAttribute('data-category-id');
-                          if (categoryId) {
-                            setUploadCategoryId(parseInt(categoryId));
+                          const currentCategoryId = categoryMenuOpen;
+                          if (currentCategoryId) {
+                            setUploadCategoryId(currentCategoryId);
                             setShowUniversalUploadModal(true);
                             setCategoryMenuOpen(null);
                           }
@@ -397,16 +395,15 @@ const CategoryGrid = () => {
 
                       {/* Delete Button */}
                       <button
-                        data-category-id={category.id}
                         onClick={(e) => {
                           e.stopPropagation();
-                          const categoryId = e.currentTarget.getAttribute('data-category-id');
-                          const targetCategory = categories.find(c => c.id.toString() === categoryId);
+                          const currentCategoryId = categoryMenuOpen;
+                          const targetCategory = categories.find(c => c.id === currentCategoryId);
                           if (targetCategory) {
                             setItemToDelete({ type: 'category', id: targetCategory.id, name: targetCategory.name });
                             setShowDeleteModal(true);
-                            setCategoryMenuOpen(null);
                           }
+                          setCategoryMenuOpen(null);
                         }}
                         style={{
                           width: '100%',

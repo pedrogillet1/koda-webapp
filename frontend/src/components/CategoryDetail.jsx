@@ -2128,13 +2128,12 @@ const CategoryDetail = () => {
                               padding: 8
                             }}>
                               <button
-                                data-folder-id={folder.id}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   e.preventDefault();
-                                  const folderId = e.currentTarget.getAttribute('data-folder-id');
-                                  const targetFolder = subFolders.find(f => f.id.toString() === folderId);
-                                  console.log('✏️ [FOLDER EDIT] Button clicked for folder:', targetFolder ? targetFolder.name : 'unknown');
+                                  const currentFolderId = openFolderMenuId;
+                                  const targetFolder = subFolders.find(f => f.id === currentFolderId);
+                                  console.log('✏️ [FOLDER EDIT] Button clicked for folder:', targetFolder ? targetFolder.name : 'not found');
                                   if (targetFolder) {
                                     setItemToRename({ type: 'folder', id: targetFolder.id, name: targetFolder.name });
                                     setShowRenameModal(true);
