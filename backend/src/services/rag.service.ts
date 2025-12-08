@@ -7790,8 +7790,9 @@ Provide a comprehensive answer addressing all parts of the query.`;
     console.log(`âœ… [FORMAT] Enforcement complete - Violations:`, formatResult.violations.length);
     perfTimer.measure('Format Enforcement', 'formatEnforcement');
 
-    // Send the format-enforced response to client
-    onChunk(fullResponse);
+    // ✅ TRUE STREAMING: Don't re-send - response was already streamed chunk-by-chunk
+    // The format-enforced version is used for logging/analytics only
+    console.log(`âœ… [STREAMING] Response already streamed. Skipping duplicate send.`);
 
     if (extractedCitations.length > 0) {
       console.log(`ðŸ“Ž [CITATION] Using LLM-provided structured citations (${extractedCitations.length} docs)`);
@@ -10190,7 +10191,7 @@ ${financialContext}
 ${query}`;
 
     const model = geminiClient.getModel({
-      model: 'gemini-1.5-pro',
+      model: 'gemini-2.5-flash',
       systemInstruction: systemPrompt,
       generationConfig: {
         temperature: 0.2,
