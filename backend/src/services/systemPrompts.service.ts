@@ -14,6 +14,20 @@ import { createLanguageInstruction } from './languageDetection.service';
 
 export type AnswerLength = 'short' | 'medium' | 'summary' | 'long';
 
+/**
+ * QueryIntent - Intent-based format selection for Flexible Format System
+ * Determines the optimal response format based on query semantics
+ */
+export type QueryIntent =
+  | 'comparison'   // User wants to compare 2+ items → Table format
+  | 'list'         // User wants a list of items → Bullet format
+  | 'extraction'   // User wants specific data points → Direct answer
+  | 'explanation'  // User wants to understand something → Paragraphs
+  | 'analysis'     // User wants deep analysis → Structured sections
+  | 'greeting'     // User is greeting → Short response
+  | 'navigation'   // User wants to find/navigate → File/folder references
+  | 'creation';    // User wants to create a file → Acknowledgment
+
 // 6 Psychological Goals (replaces 8 hardcoded intents)
 export type PsychologicalGoal =
   | 'fast_answer'    // User wants quick factual data (passport number, date, cell value)
@@ -172,10 +186,33 @@ You: "I'll generate a comprehensive business plan document in Word format. This 
 - User wants to edit existing files → Suggest download and edit
 - User needs specific data → Use RAG to extract from their documents
 
-**KODA FORMAT RULES (ADAPTIVE BASED ON QUERY COMPLEXITY):**
+**KODA FORMAT RULES (FLEXIBLE FORMAT SYSTEM):**
 
 ═══════════════════════════════════════════════════════════════════════════════
-IMPORTANT: FORMAT DEPENDS ON QUERY TYPE - NOT ALL RESPONSES NEED STRUCTURE
+FORMAT FLEXIBILITY PRINCIPLES - CONTENT DRIVES STRUCTURE
+═══════════════════════════════════════════════════════════════════════════════
+
+**Core Philosophy: SUGGESTIVE TEMPLATES, NOT RIGID RULES**
+
+Templates provide guidance, but you should adapt based on:
+1. Actual content found in documents
+2. Natural information structure
+3. What best serves the user's understanding
+
+**AVOID THESE RIGID PATTERNS:**
+- Forcing exactly 4-6 bullet points when content has 2 or 10
+- Creating tables with arbitrary row counts
+- Truncating answers to hit word limits
+- Adding filler to reach minimum lengths
+
+**EMBRACE THESE FLEXIBLE PATTERNS:**
+- Lists have as many items as naturally exist
+- Tables have rows matching actual comparable aspects
+- Responses are as long as needed, no longer
+- Structure emerges from content, not templates
+
+═══════════════════════════════════════════════════════════════════════════════
+ADAPTIVE STRUCTURE BASED ON QUERY TYPE
 ═══════════════════════════════════════════════════════════════════════════════
 
 **NO TITLE/STRUCTURE for:**
@@ -769,40 +806,34 @@ DELETE:
 Be helpful, friendly, and proactive - like a knowledgeable colleague!`;
 
 /**
- * COMPARISON_RULES - Special formatting rules for comparison queries
- * ⚡ OPTIMIZED: Reduced from ~1,600 chars to ~800 chars (50% reduction)
+ * COMPARISON_RULES - Flexible formatting rules for comparison queries
+ * Updated to Flexible Format System - content-driven, not count-driven
  * These rules are appended to the system prompt when isComparison option is true
  */
 const COMPARISON_RULES = `
-## COMPARISON RULES
+## COMPARISON RULES (Flexible Format)
 
-**Table Format (ABSOLUTE RULES):**
+**Table Format (Technical Requirements):**
 - Format: | Aspect | Item 1 | Item 2 |
-- **CRITICAL:** Each row MUST be ONE physical line in markdown
-- **CRITICAL:** Cell content MUST NOT contain newline characters
-- **CRITICAL:** If content is long, summarize it to fit on one line
-- Each cell: <150 chars, complete content, NO line breaks
+- Each row MUST be ONE physical line in markdown (no newlines in cells)
 - MUST have separator row: |---------|----------|----------|
-- Use **bold** for emphasis
-- NO filenames as headers or in backticks
-- NO empty/incomplete cells
+- Each cell: <150 chars, summarize if needed
+- Use **bold** for key values
+- NO empty cells - use "Not specified" if data missing
 
-**What NOT to Do (BAD - multi-line cells break rendering):**
-| Purpose | Define property
-lease terms | Report financial
-performance |
+**Row Count Flexibility:**
+- Include ALL relevant comparison aspects found in documents
+- If documents have 3 comparable aspects, use 3 rows
+- If documents have 10 comparable aspects, use 10 rows
+- Let content determine structure, not arbitrary limits
 
-**GOOD (single-line cells):**
-| Purpose | Define property lease terms | Report financial performance |
-
-**Content:**
-- Use specific data (e.g., "Revenue $1.2M" not "financial details")
+**Content Quality:**
+- Use specific data (e.g., "Revenue **$1.2M**" not "financial details")
 - True apples-to-apples comparison per row
-- Use descriptive labels: "Legal Contract", "Financial Report"
+- Use descriptive aspect labels
 
 **After Table:**
-- Add 1-2 paragraphs analyzing insights
-- NO "Key Differences:" heading, NO "Next steps" section
+- Add 1-2 paragraphs analyzing key insights and implications
 `;
 
 /**
@@ -1157,66 +1188,67 @@ Cell B1 in Sheet 1 'ex1' is empty."
 
   /**
    * Get length configuration with instruction and token limits
-   * Updated to match new SIMPLE/MEDIUM/COMPLEX personality system
+   * Updated to match Flexible Format System - suggestive templates, not rigid rules
    */
   private getLengthConfiguration(answerLength: AnswerLength): LengthConfiguration {
     switch (answerLength) {
       case 'short':
-        // ⚡ FLASH OPTIMIZED: Reduced from 150 to 100 tokens (33% reduction)
+        // Flexible Format: Target ~150 tokens, suggestive guidance
         return {
           instruction: `**Query Complexity**: SIMPLE
 
-Use this format for direct, factual questions:
-- Answer directly in 1-2 sentences (30-60 words max)
-- Bold key information
-- Natural closing sentence
-- NO bullet points for simple questions
-- NO emojis - use {{DOC:::...}} markers for document citations
+**Suggested format** for direct, factual questions:
+- Answer directly in 1-3 sentences
+- Bold key information (**value**, **date**)
+- Natural closing if helpful
+- NO forced structure for simple answers
+- Use {{DOC:::...}} markers for document citations
 
-Example: "Your passport number is **123456789**, issued on **March 16, 2015**. You'll find it on page 2 of your passport document."`,
-          maxTokens: 100, // ⚡ FLASH: 150 → 100
+This is a SUGGESTION - adapt based on content needs. A complete answer is better than a truncated one.
+
+Example: "Your passport number is **123456789**, issued on **March 16, 2015**."`,
+          maxTokens: 150, // Flexible Format: 100 → 150 tokens
         };
 
       case 'medium':
-        // ⚡ FLASH OPTIMIZED: Reduced from 2000 to 300 tokens (85% reduction)
+        // Flexible Format: Target ~400 tokens, content-driven structure
         return {
           instruction: `**Query Complexity**: MEDIUM
 
-Use this format for questions needing more detail (100-220 words):
-- Short paragraph (2-3 sentences) explaining the answer
-- Use bullets ONLY when listing multiple items (3-6 bullets max)
+**Suggested format** for questions needing more detail:
+- Short paragraphs (2-4 sentences each)
+- Use bullets when listing 3+ items
 - Bold important terms throughout
-- Natural closing sentence
-- NO emojis - use {{DOC:::...}} markers for document citations
+- Use {{DOC:::...}} markers for document citations
 - INFORMATION DENSE: Every sentence = specific facts
 
-Example: "I found revenue information across three of your documents. Your **Business Plan** projects **$2.5M** by Year 2, while the **Financial Report** shows actual Q1 revenue of **$1.2M**. The **Investor Deck** includes a growth chart showing **45% year-over-year** increase."`,
-          maxTokens: 300, // ⚡ FLASH: 2000 → 300
+**Format flexibility**: If the answer naturally fits 2 paragraphs, use 2. If it needs 5 bullets, use 5. Let content dictate structure.
+
+Example: "I found revenue information across three of your documents. Your **Business Plan** projects **$2.5M** by Year 2, while the **Financial Report** shows actual Q1 revenue of **$1.2M**."`,
+          maxTokens: 400, // Flexible Format: 300 → 400 tokens
         };
 
       case 'summary':
       case 'long':
-        // ⚡ FLASH OPTIMIZED: Reduced from 2500-3500 to 900 tokens (74% reduction)
+        // Flexible Format: Target ~1200 tokens, comprehensive but not rigid
         return {
           instruction: `**Query Complexity**: COMPLEX
 
-Use this format for analysis, comparisons, or comprehensive explanations (350-750 words):
-- Multiple paragraphs organized by topic (4-7 sections)
-- Use bullets for lists within explanations (8-16 bullets total)
-- Use tables for comparing 3+ aspects
+**Suggested format** for analysis, comparisons, or comprehensive explanations:
+- Multiple paragraphs organized by topic
+- Use bullets for lists of items
+- Use tables for comparing entities with multiple attributes
 - Natural transitions between paragraphs
 - Bold key terms throughout
-- NO emojis - use {{DOC:::...}} markers for document citations
-- INFORMATION DENSE: 15-20% fact density, no filler words
+- Use {{DOC:::...}} markers for document citations
 
-Example structure:
-Paragraph 1: Main overview with key facts
-Paragraph 2: Specific details on aspect 1
-Paragraph 3: Specific details on aspect 2
-Paragraph 4: Summary and implications
+**Format flexibility**:
+- Tables: Use when comparing 2+ entities. Rows should match content needs (not fixed counts).
+- Bullets: Use when listing items. Count should match actual items found.
+- Paragraphs: Use for analysis and explanation.
 
 Stay conversational and natural - write like an executive assistant explaining something, not like a robot reading a report.`,
-          maxTokens: 900, // ⚡ FLASH: 2500-3500 → 900
+          maxTokens: 1200, // Flexible Format: 900 → 1200 tokens
         };
 
       default:
@@ -1298,7 +1330,7 @@ Follow the answer length guidelines specified.`;
    * Get adaptive system prompt based on query complexity and type (NEW - Unified Method)
    *
    * This is the NEW unified method that replaces all specialized prompt handlers.
-   * It supports comparison queries, greeting logic, and all context types.
+   * It supports comparison queries, greeting logic, intent detection, and all context types.
    *
    * @param query - User's question
    * @param answerLength - Desired answer length (short/medium/summary/long)
@@ -1316,6 +1348,18 @@ Follow the answer length guidelines specified.`;
     // Add answer length configuration
     const lengthConfig = this.getLengthConfiguration(answerLength);
     systemPrompt += '\n\n' + lengthConfig.instruction;
+
+    // 🎯 Flexible Format System: Detect intent and add format hint
+    const queryIntent = detectQueryIntent(query);
+    const formatHint = getFormatHint(queryIntent);
+    systemPrompt += '\n\n' + formatHint;
+    console.log(`🎯 [INTENT] Detected: ${queryIntent} for query: "${query.slice(0, 50)}..."`);
+
+    // Auto-detect comparison if not explicitly set
+    if (queryIntent === 'comparison' && !options.isComparison) {
+      options.isComparison = true;
+      console.log('📊 [COMPARISON] Auto-detected comparison intent');
+    }
 
     // Add greeting logic - only greet if this is truly the first message
     // Priority: Use explicit isFirstMessage flag from controller (based on DB message count)
@@ -1494,6 +1538,138 @@ export function detectQueryComplexity(query: string): QueryComplexity {
   }
 
   return 'Medium'; // Default fallback
+}
+
+/**
+ * Detect query intent for Flexible Format System
+ * This determines the optimal response format based on query semantics
+ *
+ * @param query - The user's query string
+ * @returns QueryIntent indicating the best format approach
+ */
+export function detectQueryIntent(query: string): QueryIntent {
+  const lowerQuery = query.toLowerCase().trim();
+
+  // Greeting patterns (check first - short circuit for greetings)
+  const greetingPatterns = [
+    /^(hi|hello|hey|hi\s+there|hello\s+there|good\s*(morning|afternoon|evening)|oi|olá|bom\s*dia|boa\s*(tarde|noite))[\s!.,?]*$/i,
+    /^(what'?s\s*up|how\s*(are\s*you|is\s*it\s*going)|como\s*vai)[\s!?,]*$/i,
+  ];
+  if (greetingPatterns.some((p) => p.test(lowerQuery))) {
+    return 'greeting';
+  }
+
+  // Creation patterns
+  const creationPatterns = [
+    /\b(create|generate|make|write|build)\s+(a\s+)?(file|document|report|pdf|markdown|docx|word)/i,
+    /\b(criar|gerar|fazer|escrever)\s+(um\s+)?(arquivo|documento|relatório|pdf)/i,
+  ];
+  if (creationPatterns.some((p) => p.test(lowerQuery))) {
+    return 'creation';
+  }
+
+  // Comparison patterns (compare X and Y, difference between, vs)
+  const comparisonPatterns = [
+    /\b(compare|comparison|versus|vs\.?|differ(ence|ent)|contrast)\b/i,
+    /\b(between|compared\s+to)\b/i,
+    /\b(comparar|diferença|comparação|versus)\b/i,
+  ];
+  if (comparisonPatterns.some((p) => p.test(lowerQuery))) {
+    return 'comparison';
+  }
+
+  // Analysis patterns (analyze, assess, evaluate, implications)
+  // Check BEFORE list patterns since "what are the implications" could match list patterns
+  const analysisPatterns = [
+    /\b(analyze|analyse|assess|evaluate|review|implications?|impact)\b/i,
+    /\b(in-depth|comprehensive|detailed\s+analysis)\b/i,
+    /\bwhat\s+(are\s+)?the\s+implications\b/i,
+    /\b(analisar|avaliar|impacto|implicações)\b/i,
+  ];
+  if (analysisPatterns.some((p) => p.test(lowerQuery))) {
+    return 'analysis';
+  }
+
+  // List patterns (list all, show all, what are the)
+  const listPatterns = [
+    /\b(list|enumerate|show\s+all|what\s+are\s+the|display\s+all)\b/i,
+    /\b(all\s+(the\s+)?(files|documents|items|properties|investments))\b/i,
+    /\b(listar|mostrar\s+todos?|quais\s+são)\b/i,
+  ];
+  if (listPatterns.some((p) => p.test(lowerQuery))) {
+    return 'list';
+  }
+
+  // Navigation patterns (find, where is, locate)
+  const navigationPatterns = [
+    /\b(find|locate|where\s+(is|are)|which\s+(folder|file|document))\b/i,
+    /\b(open|show\s+(me\s+)?(the\s+)?file|navigate\s+to)\b/i,
+    /\b(encontrar|onde\s+(está|estão)|localizar|abrir)\b/i,
+  ];
+  if (navigationPatterns.some((p) => p.test(lowerQuery))) {
+    return 'navigation';
+  }
+
+  // Extraction patterns (what is the value, get, extract specific)
+  const extractionPatterns = [
+    /\b(what\s+(is|was)\s+the\s+(value|amount|number|date|name))\b/i,
+    /\b(extract|get|retrieve|fetch)\s+(the\s+)?(value|data|info)/i,
+    /\b(cell\s+[A-Z]+\d+|value\s+of\s+cell)\b/i,
+    /\b(qual\s+(é|foi)\s+o?\s*(valor|data|nome))\b/i,
+  ];
+  if (extractionPatterns.some((p) => p.test(lowerQuery))) {
+    return 'extraction';
+  }
+
+  // Explanation patterns (explain, what is, how does, why)
+  const explanationPatterns = [
+    /\b(explain|describe|what\s+is|how\s+(does|do|to)|why\s+(is|does|do))\b/i,
+    /\b(explicar|descrever|o\s+que\s+é|como\s+(funciona|fazer)|por\s*que)\b/i,
+  ];
+  if (explanationPatterns.some((p) => p.test(lowerQuery))) {
+    return 'explanation';
+  }
+
+  // Default to explanation for general queries
+  return 'explanation';
+}
+
+/**
+ * Get format hint based on query intent
+ * Returns a suggestive format instruction for the LLM
+ *
+ * @param intent - The detected QueryIntent
+ * @returns Format hint string to append to system prompt
+ */
+export function getFormatHint(intent: QueryIntent): string {
+  switch (intent) {
+    case 'comparison':
+      return `**Format Suggestion**: Use a markdown table to compare the items. Include all relevant aspects found in the documents - don't limit to arbitrary row counts.`;
+
+    case 'list':
+      return `**Format Suggestion**: Use bullet points to list items. Include all items found - don't truncate to fit a fixed count.`;
+
+    case 'extraction':
+      return `**Format Suggestion**: Provide the requested value directly and concisely. Bold the key information.`;
+
+    case 'explanation':
+      return `**Format Suggestion**: Use clear paragraphs to explain. Add examples if helpful for understanding.`;
+
+    case 'analysis':
+      return `**Format Suggestion**: Use structured sections with headers for comprehensive analysis. Include quantitative insights where available.`;
+
+    case 'greeting':
+      return `**Format Suggestion**: Respond warmly and briefly. No need for structured format.`;
+
+    case 'navigation':
+      return `**Format Suggestion**: Use {{DOC:::...}} and {{FOLDER:::...}} citation markers to reference files and folders.`;
+
+    case 'creation':
+      return `**Format Suggestion**: Acknowledge the file creation request and confirm format and topic.`;
+
+    default:
+      return `**Format Suggestion**: Let content determine the best format.`;
+  }
 }
 
 /**
