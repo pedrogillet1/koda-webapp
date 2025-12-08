@@ -10,7 +10,8 @@
 
 import prisma from '../config/database';
 import { sendMessageToGemini, sendMessageToGeminiStreaming, generateConversationTitle } from './gemini.service';
-import ragService from './rag.service';
+// A+ RAG: Using new modular RAG orchestrator via adapter
+import ragService from './rag/rag-service-adapter';
 import cacheService from './cache.service';
 import { getIO } from './websocket.service';
 import * as memoryService from './memory.service';
@@ -18,6 +19,24 @@ import { detectLanguage } from './languageDetection.service';
 import { profileService } from './profile.service';
 import historyService from './history.service';
 import { conversationContextService } from './deletedServiceStubs';
+
+// ============================================================================
+// MODE-BASED RAG OPTIMIZATION
+// ============================================================================
+import {
+  type RAGMode,
+  type RAGModeConfig,
+  classifyQueryMode,
+  getModeConfig,
+  logModeClassification,
+} from './ragModes.service';
+
+import {
+  getSystemPromptForMode,
+} from './systemPromptTemplates.service';
+
+import geminiClient from './geminiClient.service';
+import { handleDeepFinancialAnalysis } from './rag.service';
 import OpenAI from 'openai';
 import { config } from '../config/env';
 import { analyticsTrackingService } from './analytics-tracking.service';
@@ -562,6 +581,242 @@ export const sendMessageStreaming = async (
     console.log('ℹ️ No user profile found - using default settings');
   }
 
+  // ============================================================================
+  // MODE CLASSIFICATION & CACHE CHECK
+  // ============================================================================
+
+  // Step 1: Classify query mode (<10ms)
+  const modeClassification = classifyQueryMode(content, conversationHistory);
+  const mode: RAGMode = modeClassification.mode;
+  const modeConfig: RAGModeConfig = getModeConfig(mode);
+
+  logModeClassification(content, modeClassification);
+  console.log(`🎯 [MODE] ${mode} (target: ${modeConfig.targetLatency})`);
+
+  // Step 2: Check cache BEFORE any processing
+  const cachedResponse = await cacheService.getCachedQueryResponse(userId, content, mode);
+
+  if (cachedResponse) {
+    console.log(`✅ [CACHE HIT] Returning cached response (saved ~${modeConfig.targetLatency})`);
+
+    // Stream cached response in chunks
+    const chunkSize = 50;
+    for (let i = 0; i < cachedResponse.answer.length; i += chunkSize) {
+      const chunk = cachedResponse.answer.substring(i, i + chunkSize);
+      fullResponse += chunk;
+      onChunk(chunk);
+      // Small delay to make streaming feel natural
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+
+    // Create messages in database
+    const [userMessage, assistantMessage] = await Promise.all([
+      userMessagePromise,
+      prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: cachedResponse.answer,
+          createdAt: new Date(),
+        },
+      })
+    ]);
+
+    // Update conversation timestamp (fire-and-forget)
+    prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    }).catch(err => console.error('❌ Error updating conversation timestamp:', err));
+
+    return {
+      userMessage,
+      assistantMessage,
+    };
+  }
+
+  console.log(`❌ [CACHE MISS] Processing query...`);
+
+  // Step 3: Handle ULTRA_FAST_META mode (greetings/meta queries)
+  if (mode === 'ULTRA_FAST_META') {
+    console.log('🚀 [ULTRA_FAST_META] Fast path activated');
+
+    // Check if it's a document count query
+    const isDocCountQuery = content.toLowerCase().includes('quantos documentos') ||
+                           content.toLowerCase().includes('how many documents') ||
+                           content.toLowerCase().includes('cuántos documentos');
+
+    if (isDocCountQuery) {
+      // Get document count from database
+      const countResult = await prisma.document.count({
+        where: { userId }
+      });
+      const docCount = countResult || 0;
+
+      const response = detectedLanguage === 'pt'
+        ? `Você tem **${docCount} documentos** no total.`
+        : `You have **${docCount} documents** in total.`;
+
+      fullResponse = response;
+      onChunk(response);
+
+      // Cache the response
+      await cacheService.cacheQueryResponse(userId, content, mode, {
+        answer: response,
+        sources: []
+      }, modeConfig.cacheTTL);
+
+      // Create messages
+      const [userMessage, assistantMessage] = await Promise.all([
+        userMessagePromise,
+        prisma.message.create({
+          data: {
+            conversationId,
+            role: 'assistant',
+            content: response,
+            createdAt: new Date(),
+          },
+        })
+      ]);
+
+      // Update conversation timestamp (fire-and-forget)
+      prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() },
+      }).catch(err => console.error('❌ Error updating conversation timestamp:', err));
+
+      return {
+        userMessage,
+        assistantMessage,
+      };
+    }
+
+    // For greetings, use tiny Flash call
+    const systemPrompt = getSystemPromptForMode(modeConfig.systemPromptType, {
+      language: detectedLanguage || 'en',
+      userProfile: profilePrompt,
+    });
+
+    try {
+      const model = geminiClient.getModel({
+        model: modeConfig.model,
+        systemInstruction: systemPrompt,
+        generationConfig: {
+          temperature: modeConfig.temperature,
+          maxOutputTokens: modeConfig.maxOutputTokens,
+        }
+      });
+
+      const streamResult = await model.generateContentStream(content);
+
+      for await (const chunk of streamResult.stream) {
+        const chunkText = chunk.text();
+        fullResponse += chunkText;
+        onChunk(chunkText);
+      }
+
+      // Cache the response
+      await cacheService.cacheQueryResponse(userId, content, mode, {
+        answer: fullResponse,
+        sources: []
+      }, modeConfig.cacheTTL);
+
+      // Create messages
+      const [userMessage, assistantMessage] = await Promise.all([
+        userMessagePromise,
+        prisma.message.create({
+          data: {
+            conversationId,
+            role: 'assistant',
+            content: fullResponse,
+            createdAt: new Date(),
+          },
+        })
+      ]);
+
+      // Update conversation timestamp (fire-and-forget)
+      prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() },
+      }).catch(err => console.error('❌ Error updating conversation timestamp:', err));
+
+      return {
+        userMessage,
+        assistantMessage,
+      };
+    } catch (error) {
+      console.error('❌ [ULTRA_FAST_META] Error:', error);
+      // Fall through to normal RAG
+    }
+  }
+
+  // ============================================================================
+  // STEP 4: Handle DEEP_FINANCIAL_ANALYSIS mode (ROI/payback calculations)
+  // ============================================================================
+  if (mode === 'DEEP_FINANCIAL_ANALYSIS') {
+    console.log('💰 [DEEP_FINANCIAL_ANALYSIS] Financial analysis mode activated');
+
+    const financialStartTime = Date.now();
+
+    try {
+      const result = await handleDeepFinancialAnalysis(
+        userId,
+        content,
+        conversationHistory,
+        detectedLanguage,
+        (chunk: string) => {
+          fullResponse += chunk;
+          onChunk(chunk);
+        }
+      );
+
+      // Cache the financial analysis response
+      await cacheService.cacheQueryResponse(
+        userId,
+        content,
+        mode,
+        {
+          answer: result.answer,
+          sources: result.sources
+        },
+        modeConfig.cacheTTL
+      );
+
+      console.log(`✅ [DEEP_FINANCIAL_ANALYSIS] Complete (${Date.now() - financialStartTime}ms)`);
+
+      // Create messages
+      const [userMessage, assistantMessage] = await Promise.all([
+        userMessagePromise,
+        prisma.message.create({
+          data: {
+            conversationId,
+            role: 'assistant',
+            content: fullResponse,
+            createdAt: new Date(),
+          },
+        })
+      ]);
+
+      // Update conversation timestamp (fire-and-forget)
+      prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() },
+      }).catch(err => console.error('❌ Error updating conversation timestamp:', err));
+
+      return {
+        userMessage,
+        assistantMessage,
+      };
+
+    } catch (error) {
+      console.error('❌ [DEEP_FINANCIAL_ANALYSIS] Error:', error);
+      // Fall through to normal RAG
+    }
+  }
+
+  // ============================================================================
+  // NORMAL RAG PROCESSING (for FAST_FACT_RAG, NORMAL_RAG, DEEP_ANALYSIS)
+  // ============================================================================
+
   // Call hybrid RAG service with streaming
   let isDocumentGeneration = false;
   let documentType: 'summary' | 'report' | 'analysis' | 'general' = 'general';
@@ -799,6 +1054,17 @@ export const sendMessageStreaming = async (
     userMessagePromise,
     assistantMessagePromise
   ]);
+
+  // ============================================================================
+  // CACHE RESPONSE FOR FUTURE QUERIES
+  // ============================================================================
+  // Cache the response with mode-specific TTL (fire-and-forget)
+  cacheService.cacheQueryResponse(userId, content, mode, {
+    answer: fullResponse,
+    sources: [] // Sources are already inline in fullResponse
+  }, modeConfig.cacheTTL)
+    .then(() => console.log(`💾 [CACHE] Cached query response (mode: ${mode}, TTL: ${modeConfig.cacheTTL}s)`))
+    .catch(err => console.error('❌ Error caching query response:', err));
 
   return {
     userMessage,

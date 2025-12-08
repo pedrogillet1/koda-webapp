@@ -11,6 +11,10 @@ import geminiCache from './geminiCache.service';
 import geminiClient from './geminiClient.service';  // Pre-import for fast bypass streaming
 import { systemPromptsService } from './systemPrompts.service';
 import ErrorMessagesService from './errorMessages.service';
+
+// Financial Analysis Services (DEEP_FINANCIAL_ANALYSIS mode)
+import { extractFinancialFacts, type FinancialFact, type NumericExtractionResult } from './numericFactsExtractor.service';
+import { calculateFinancialAnalysis, formatROI, formatPayback, formatCurrency, generateComparisonText, type FinancialAnalysisResult } from './financialCalculator.service';
 import * as languageDetectionService from './languageDetection.service';
 import { performHybridRetrieval, initializePineconeIndex, type HybridRetrievalResult } from './hybridRetrieval.service';
 
@@ -98,6 +102,24 @@ import { kodaCitationFormatService, type CitationSource as FormattedCitationSour
 // FIX: Import the simple intent detection service for unified routing
 // This replaces multiple conflicting intent detection services
 import { detectIntent as detectSimpleIntent, type SimpleIntentResult } from './simpleIntentDetection.service';
+
+// ============================================================================
+// MODE-BASED RAG OPTIMIZATION (4-Mode Performance System)
+// ============================================================================
+import {
+  type RAGMode,
+  type RAGModeConfig,
+  classifyQueryMode,
+  getModeConfig,
+  logModeClassification,
+  shouldSkipHandler,
+} from './ragModes.service';
+
+import {
+  getSystemPromptForMode,
+} from './systemPromptTemplates.service';
+
+import cacheService from './cache.service';
 
 // DOCUMENT INTELLIGENCE SYSTEM - Routing, Hybrid Search
 import { routeToDocument, routeToMultipleDocuments, type DocumentRoutingResult } from './documentRouter.service';
@@ -10011,5 +10033,267 @@ export default {
   getContext,
 };
 
+
+// ============================================================================
+// DEEP_FINANCIAL_ANALYSIS MODE - HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Handle DEEP_FINANCIAL_ANALYSIS mode
+ */
+export async function handleDeepFinancialAnalysis(
+  userId: string,
+  query: string,
+  conversationHistory: any[],
+  language: string,
+  onChunk: (chunk: string) => void
+): Promise<{ answer: string; sources: any[] }> {
+  console.log('💰 [DEEP_FINANCIAL_ANALYSIS] Starting financial analysis...');
+
+  try {
+    const financialDocs = await identifyFinancialDocuments(userId, query);
+    console.log(`💰 [FINANCIAL] Found ${financialDocs.length} financial documents`);
+
+    if (financialDocs.length === 0) {
+      const fallbackMsg = language === 'pt'
+        ? 'Não encontrei documentos financeiros com informações de ROI ou análise de viabilidade.'
+        : 'I could not find financial documents with ROI or feasibility analysis information.';
+      onChunk(fallbackMsg);
+      return { answer: fallbackMsg, sources: [] };
+    }
+
+    const { baselineChunks, conservativeChunks, optimisticChunks } = await retrieveScenarioChunks(
+      userId,
+      financialDocs,
+      query
+    );
+
+    const extractionResult: NumericExtractionResult = await extractFinancialFacts(
+      baselineChunks,
+      conservativeChunks,
+      optimisticChunks
+    );
+
+    const financialAnalysis: FinancialAnalysisResult = calculateFinancialAnalysis(extractionResult.facts);
+
+    const financialContext = buildFinancialContext(
+      extractionResult,
+      financialAnalysis,
+      baselineChunks,
+      conservativeChunks,
+      optimisticChunks
+    );
+
+    const systemPrompt = buildFinancialSystemPrompt(language);
+
+    const fullPrompt = `${systemPrompt}
+
+**FINANCIAL DATA:**
+${financialContext}
+
+**USER QUERY:**
+${query}`;
+
+    const model = geminiClient.getModel({
+      model: 'gemini-1.5-pro',
+      systemInstruction: systemPrompt,
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 2048,
+      }
+    });
+
+    let fullResponse = '';
+    const streamResult = await model.generateContentStream(fullPrompt);
+
+    for await (const chunk of streamResult.stream) {
+      const chunkText = chunk.text();
+      fullResponse += chunkText;
+      onChunk(chunkText);
+    }
+
+    const sources = [...baselineChunks, ...conservativeChunks, ...optimisticChunks]
+      .map(chunk => ({
+        documentId: chunk.documentId,
+        chunkId: chunk.id,
+        text: chunk.text?.substring(0, 200) || '',
+      }))
+      .slice(0, 10);
+
+    return { answer: fullResponse, sources };
+
+  } catch (error) {
+    console.error('❌ [DEEP_FINANCIAL_ANALYSIS] Error:', error);
+    const errorMsg = language === 'pt'
+      ? 'Ocorreu um erro ao processar a análise financeira.'
+      : 'An error occurred while processing the financial analysis.';
+    onChunk(errorMsg);
+    return { answer: errorMsg, sources: [] };
+  }
+}
+
+async function identifyFinancialDocuments(userId: string, query: string): Promise<any[]> {
+  const financialKeywords = [
+    'viabilidade', 'roi', 'investimento', 'cenario', 'scenario',
+    'payback', 'financeiro', 'financial', 'analise', 'analysis'
+  ];
+
+  const documents = await prisma.document.findMany({
+    where: {
+      userId,
+      OR: financialKeywords.map(keyword => ({
+        filename: {
+          contains: keyword,
+          mode: 'insensitive'
+        }
+      }))
+    },
+    select: {
+      id: true,
+      filename: true,
+      mimeType: true,
+    },
+    take: 10,
+  });
+
+  return documents;
+}
+
+async function retrieveScenarioChunks(
+  userId: string,
+  documents: any[],
+  query: string
+): Promise<{
+  baselineChunks: any[];
+  conservativeChunks: any[];
+  optimisticChunks: any[];
+}> {
+  const documentIds = documents.map(d => d.id);
+
+  const allChunks = await prisma.documentChunk.findMany({
+    where: {
+      documentId: { in: documentIds },
+    },
+    select: {
+      id: true,
+      documentId: true,
+      text: true,
+      page: true,
+    },
+  });
+
+  const baselineChunks: any[] = [];
+  const conservativeChunks: any[] = [];
+  const optimisticChunks: any[] = [];
+
+  for (const chunk of allChunks) {
+    const text = chunk.text?.toLowerCase() || '';
+
+    if (text.includes('baseline') || text.includes('base') || text.includes('atual')) {
+      baselineChunks.push(chunk);
+    } else if (text.includes('conservador') || text.includes('conservative') || text.includes('pessimista')) {
+      conservativeChunks.push(chunk);
+    } else if (text.includes('otimista') || text.includes('optimistic') || text.includes('melhor')) {
+      optimisticChunks.push(chunk);
+    } else {
+      baselineChunks.push(chunk);
+    }
+  }
+
+  return { baselineChunks, conservativeChunks, optimisticChunks };
+}
+
+function buildFinancialContext(
+  extraction: NumericExtractionResult,
+  analysis: FinancialAnalysisResult,
+  baselineChunks: any[],
+  conservativeChunks: any[],
+  optimisticChunks: any[]
+): string {
+  let context = '## EXTRACTED FINANCIAL FACTS\n\n';
+
+  const factsByScenario = {
+    BASELINE: extraction.facts.filter(f => f.scenario === 'BASELINE'),
+    CONSERVATIVE: extraction.facts.filter(f => f.scenario === 'CONSERVATIVE'),
+    OPTIMISTIC: extraction.facts.filter(f => f.scenario === 'OPTIMISTIC'),
+  };
+
+  for (const [scenario, facts] of Object.entries(factsByScenario)) {
+    context += `### ${scenario} Scenario\n`;
+    for (const fact of facts) {
+      context += `- ${formatMetric(fact.metric)}: ${formatValue(fact.value, fact.unit)}\n`;
+    }
+    context += '\n';
+  }
+
+  context += '## CALCULATED ANALYSIS\n\n';
+
+  if (analysis.dataCompleteness === 'FULL' || analysis.dataCompleteness === 'PARTIAL') {
+    context += `### Conservative Scenario\n`;
+    context += `- ROI: ${formatROI(analysis.roi_conservative)}\n`;
+    context += `- Payback: ${formatPayback(analysis.payback_conservative_years)}\n`;
+    context += `- Monthly Incremental Profit: ${formatCurrency(analysis.incremental_profit_conservative_monthly)}\n\n`;
+
+    context += `### Optimistic Scenario\n`;
+    context += `- ROI: ${formatROI(analysis.roi_optimistic)}\n`;
+    context += `- Payback: ${formatPayback(analysis.payback_optimistic_years)}\n`;
+    context += `- Monthly Incremental Profit: ${formatCurrency(analysis.incremental_profit_optimistic_monthly)}\n\n`;
+
+    if (analysis.roi_conservative && analysis.roi_optimistic) {
+      context += `### Comparison\n`;
+      context += generateComparisonText(
+        analysis.roi_conservative,
+        analysis.roi_optimistic,
+        analysis.payback_conservative_years,
+        analysis.payback_optimistic_years
+      );
+    }
+  } else {
+    context += `Data completeness: ${analysis.dataCompleteness}\n`;
+    context += `Missing metrics: ${analysis.missingMetrics.join(', ')}\n`;
+  }
+
+  return context;
+}
+
+function buildFinancialSystemPrompt(language: string): string {
+  if (language === 'pt') {
+    return `Você é Koda, um assistente especializado em análise financeira de documentos.
+Analise dados financeiros extraídos, calcule ROI e payback, compare cenários e forneça recomendações.
+Use markdown estruturado com títulos, listas e tabelas. Seja preciso com números e cite fontes.`;
+  }
+
+  return `You are Koda, an assistant specialized in financial document analysis.
+Analyze financial data, calculate ROI and payback, compare scenarios and provide recommendations.
+Use structured markdown with headings, lists and tables. Be precise with numbers and cite sources.`;
+}
+
+function formatMetric(metric: string): string {
+  const metricNames: Record<string, string> = {
+    NET_PROFIT: 'Lucro Líquido Mensal',
+    INVESTMENT: 'Investimento Total',
+    ADDITIONAL_REVENUE: 'Receita Adicional Mensal',
+    OPERATING_COST_PERCENT: 'Custo Operacional (%)',
+    LOCABLE_AREA: 'Área Locável',
+    OTHER: 'Outro',
+  };
+
+  return metricNames[metric] || metric;
+}
+
+function formatValue(value: number, unit: string): string {
+  switch (unit) {
+    case 'BRL':
+    case 'MONTHLY':
+    case 'YEARLY':
+      return formatCurrency(value);
+    case 'PERCENT':
+      return `${value.toFixed(1)}%`;
+    case 'M2':
+      return `${value.toLocaleString('pt-BR')} m²`;
+    default:
+      return value.toLocaleString('pt-BR');
+  }
+}
 
 // trigger reload Fri, Dec  5, 2025  5:59:47 PM

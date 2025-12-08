@@ -357,6 +357,9 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
   await invalidateUserCache(userId);
   // ⚡ PERFORMANCE: Invalidate file listing cache
   invalidateFileListingCache(userId);
+  // ⚡ MODE OPTIMIZATION: Invalidate query response cache (new documents = stale answers)
+  await cacheService.invalidateUserQueryCache(userId);
+  console.log(`🗑️  [MODE CACHE] Invalidated query cache after document upload`);
 
   // Return immediately with 'processing' status
   return document;
@@ -2959,6 +2962,10 @@ export const deleteDocument = async (documentId: string, userId: string) => {
 
   // ⚡ PERFORMANCE: Invalidate file listing cache for faster "what files do I have?" queries
   invalidateFileListingCache(userId);
+
+  // ⚡ MODE OPTIMIZATION: Invalidate query response cache (deleted documents = stale answers)
+  await cacheService.invalidateUserQueryCache(userId);
+  console.log(`🗑️  [MODE CACHE] Invalidated query cache after document deletion`);
 
   // Log any errors that occurred during cleanup (but deletion succeeded)
   if (deletionErrors.length > 0) {
