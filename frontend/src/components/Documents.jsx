@@ -1253,8 +1253,8 @@ const Documents = () => {
                       <DotsIcon style={{width: 24, height: 24}} />
                     </button>
                     {(() => {
-                      const targetCategory = categories.find(c => c.id === categoryMenuOpen);
-                      return targetCategory && targetCategory.id === category.id && (
+                      const targetIndex = categories.findIndex(c => c.id === categoryMenuOpen);
+                      return targetIndex >= 0 && targetIndex === index && (
                         <div
                           onClick={(e) => e.stopPropagation()}
                           style={{
@@ -1449,9 +1449,11 @@ const Documents = () => {
                     </div>
                     <div style={{position: 'relative'}} data-category-menu>
                       <button
+                        data-category-id={category.id}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (categoryMenuOpen === category.id) {
+                          const clickedId = e.currentTarget.getAttribute('data-category-id');
+                          if (categoryMenuOpen === clickedId) {
                             setCategoryMenu({ id: null, top: 0, left: 0 });
                           } else {
                             const buttonRect = e.currentTarget.getBoundingClientRect();
@@ -1464,7 +1466,7 @@ const Documents = () => {
                             leftPos = Math.max(8, Math.min(leftPos, window.innerWidth - dropdownWidth - 8));
                             // Single state update with both position and ID
                             setCategoryMenu({
-                              id: category.id,
+                              id: clickedId,
                               top: openUpward ? buttonRect.top - dropdownHeight - 4 : buttonRect.bottom + 4,
                               left: leftPos
                             });
@@ -1488,7 +1490,9 @@ const Documents = () => {
                       >
                         <DotsIcon style={{width: 24, height: 24}} />
                       </button>
-                      {categoryMenuOpen === category.id && (
+                      {(() => {
+                        const targetIndex = categories.findIndex(c => c.id === categoryMenuOpen);
+                        return targetIndex >= 0 && targetIndex === (index + 3) && (
                         <div
                           onClick={(e) => e.stopPropagation()}
                           style={{
@@ -1507,7 +1511,10 @@ const Documents = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setEditingCategory(category);
+                              const cat = categories.find(c => c.id === categoryMenuOpen);
+                              if (cat) {
+                                setEditingCategory(cat);
+                              }
                               setCategoryMenuOpen(null);
                             }}
                             style={{
@@ -1536,8 +1543,10 @@ const Documents = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setUploadCategoryId(category.id);
-                              setShowUploadModal(true);
+                              if (categoryMenuOpen) {
+                                setUploadCategoryId(categoryMenuOpen);
+                                setShowUploadModal(true);
+                              }
                               setCategoryMenuOpen(null);
                             }}
                             style={{
@@ -1566,8 +1575,11 @@ const Documents = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setItemToDelete({ type: 'category', id: category.id, name: category.name });
-                              setShowDeleteModal(true);
+                              const cat = categories.find(c => c.id === categoryMenuOpen);
+                              if (cat) {
+                                setItemToDelete({ type: 'category', id: cat.id, name: cat.name });
+                                setShowDeleteModal(true);
+                              }
                               setCategoryMenuOpen(null);
                             }}
                             style={{
@@ -1593,7 +1605,8 @@ const Documents = () => {
                             {t('common.delete')}
                           </button>
                         </div>
-                      )}
+                      );
+                    })()}
                     </div>
                   </div>
                 ))}
