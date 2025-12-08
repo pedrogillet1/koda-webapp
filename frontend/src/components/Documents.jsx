@@ -1514,6 +1514,7 @@ const Documents = () => {
                               const cat = categories.find(c => c.id === categoryMenuOpen);
                               if (cat) {
                                 setEditingCategory(cat);
+                                setShowEditModal(true);
                               }
                               setCategoryMenuOpen(null);
                             }}
@@ -1545,7 +1546,7 @@ const Documents = () => {
                               e.stopPropagation();
                               if (categoryMenuOpen) {
                                 setUploadCategoryId(categoryMenuOpen);
-                                setShowUploadModal(true);
+                                setShowUniversalUploadModal(true);
                               }
                               setCategoryMenuOpen(null);
                             }}
