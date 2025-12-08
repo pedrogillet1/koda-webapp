@@ -78,7 +78,7 @@ import { fallbackResponseService } from './fallbackResponse.service';
 
 // OLD: import { postProcessAnswer as qaPostProcessAnswer } from './outputPostProcessor.service';
 // NEW: Unified Post-Processor (replaces 6+ conflicting formatters)
-import { kodaUnifiedPostProcessor, type PostProcessingInput, detectLanguage, determineAnswerType } from './kodaUnifiedPostProcessor.service';
+import { kodaUnifiedPostProcessor, type PostProcessingInput, detectLanguage as detectQueryLanguage, determineAnswerType } from './kodaUnifiedPostProcessor.service';
 import groundingVerificationService, { GroundingVerificationResult } from './groundingVerification.service';
 import citationVerificationService, { CitationVerificationResult } from './citationVerification.service';
 import { checkAnswerQuality } from './answerQualityChecker.service';
@@ -8728,7 +8728,7 @@ export async function generateAnswer(
         documentName: s.documentName || s.filename || s.name,
         score: s.score,
       })) || [],
-      queryLanguage: detectLanguage(query),
+      queryLanguage: detectQueryLanguage(query),
       answerType: determineAnswerType(query, formatted.length),
     };
 
