@@ -274,8 +274,8 @@ interface FileActionResult {
 function detectFileAction(lowerQuery: string, originalQuery: string): FileActionResult {
   // CREATE FOLDER patterns
   const createFolderPatterns = [
-    /(?:create|make|new|criar|fazer|nueva?)\s+(?:a\s+)?(?:folder|pasta|carpeta)\s+(?:named|called|chamad[ao])?\s*["']?([^"'\n]+)["']?/i,
-    /(?:create|make|new|criar|fazer|nueva?)\s+(?:a\s+)?(?:folder|pasta|carpeta)/i,
+    /(?:create|make|new|criar|fazer|crear|nueva?)\s+(?:a\s+)?(?:folder|pasta|carpeta)\s+(?:named|called|chamad[ao]|llamad[ao])?\s*["']?([^"'\n]+)["']?/i,
+    /(?:create|make|new|criar|fazer|crear|nueva?)\s+(?:a\s+)?(?:folder|pasta|carpeta)/i,
   ];
 
   for (const pattern of createFolderPatterns) {
@@ -299,9 +299,27 @@ function detectFileAction(lowerQuery: string, originalQuery: string): FileAction
     return { action: 'rename', confidence: 0.90 };
   }
 
-  // DELETE patterns
-  if (/(?:delete|remove|apagar|excluir|eliminar)\s+(?:the\s+)?(?:file|folder|document|pasta|arquivo|carpeta)/i.test(originalQuery)) {
-    return { action: 'delete', confidence: 0.90 };
+  // DELETE patterns - expanded to catch more variations
+  const deletePatterns = [
+    // English - with explicit file/document words
+    /(?:delete|remove|trash|erase)\s+(?:the\s+)?(?:file|folder|document)\s+["']?([^"'\n]+)["']?/i,
+    // English - direct filename (e.g., "delete old.pdf")
+    /(?:delete|remove|trash|erase)\s+["']?([^"'\s]+\.[a-z]{2,4})["']?/i,
+    // Portuguese
+    /(?:apagar|excluir|remover|deletar)\s+(?:o\s+)?(?:arquivo|documento|pasta)?\s*["']?([^"'\n]+)["']?/i,
+    // Spanish
+    /(?:eliminar|borrar|quitar)\s+(?:el\s+)?(?:archivo|documento|carpeta)?\s*["']?([^"'\n]+)["']?/i,
+  ];
+
+  for (const pattern of deletePatterns) {
+    const match = originalQuery.match(pattern);
+    if (match) {
+      return {
+        action: 'delete',
+        confidence: 0.90,
+        extractedValue: match[1]?.trim() || undefined
+      };
+    }
   }
 
   return { action: null, confidence: 0 };
@@ -341,32 +359,94 @@ function detectMetadataQuery(lowerQuery: string, originalQuery: string): Metadat
     }
   }
 
-  // FILE COUNT patterns - "how many files"
+  // FILE COUNT patterns - "how many files" (flexible)
   const countPatterns = [
-    /how\s+many\s+(files|documents)/i,
+    // English
+    /how\s+many\s+(files|documents)\s*(?:do\s+i\s+have)?/i,
     /(file|document)\s+count/i,
-    /total\s+(files|documents)/i,
+    /total\s+(?:number\s+of\s+)?(files|documents)/i,
     /number\s+of\s+(files|documents)/i,
-    /quantos\s+(arquivos|documentos)/i,
-    /cu[aá]ntos\s+(archivos|documentos)/i,
+    /count\s+(?:my\s+)?(files|documents)/i,
+    // Portuguese
+    /quantos\s+(arquivos|documentos|ficheiros)\s*(?:tenho|eu\s+tenho)?/i,
+    /(?:qual|quantos)\s+(?:é\s+)?(?:o\s+)?(?:número|total)\s+(?:de\s+)?(arquivos|documentos)/i,
+    // Spanish
+    /cu[aá]ntos\s+(archivos|documentos)\s*(?:tengo)?/i,
+    /(?:cu[aá]l|cu[aá]ntos)\s+(?:es\s+)?(?:el\s+)?(?:n[uú]mero|total)\s+(?:de\s+)?(archivos|documentos)/i,
+    // French
+    /combien\s+(?:de\s+)?(fichiers|documents)/i,
+    // German
+    /wie\s+viele\s+(dateien|dokumente)/i,
   ];
 
   if (countPatterns.some(p => p.test(originalQuery))) {
     return { isMetadata: true, confidence: 0.95 };
   }
 
-  // LIST ALL FILES patterns
+  // LIST ALL FILES patterns - show/list my documents/files (flexible)
   const listAllPatterns = [
-    /show\s+me\s+all\s+(files|documents)/i,
-    /list\s+all\s+(files|documents)/i,
+    // English - flexible patterns
+    /show\s+(?:me\s+)?(?:all\s+)?(?:my\s+)?(files|documents)/i,
+    /list\s+(?:all\s+)?(?:my\s+)?(files|documents)/i,
+    /what\s+(?:are\s+)?(?:my\s+)?(files|documents)/i,
     /what\s+files\s+do\s+i\s+have/i,
     /what\s+documents\s+do\s+i\s+have/i,
-    /mostre\s+todos\s+os\s+(arquivos|documentos)/i,
-    /mu[eé]strame\s+todos\s+los\s+(archivos|documentos)/i,
+    /(?:show|display|view|get)\s+(?:my\s+)?(files|documents)/i,
+    /my\s+(files|documents)/i,
+    // Portuguese - flexible patterns
+    /mostr[ae]\s+(?:todos\s+)?(?:os\s+)?(?:meus\s+)?(arquivos|documentos|ficheiros)/i,
+    /list[ae]\s+(?:todos\s+)?(?:os\s+)?(?:meus\s+)?(arquivos|documentos|ficheiros)/i,
+    /(?:quais|que)\s+(?:são\s+)?(?:os\s+)?(?:meus\s+)?(arquivos|documentos)/i,
+    /(?:ver|exibir)\s+(?:os\s+)?(?:meus\s+)?(arquivos|documentos|ficheiros)/i,
+    /meus\s+(arquivos|documentos|ficheiros)/i,
+    // Spanish - flexible patterns
+    /mu[eé]str[ae](?:me)?\s+(?:todos\s+)?(?:los\s+)?(?:mis\s+)?(archivos|documentos)/i,
+    /list[ae]\s+(?:todos\s+)?(?:los\s+)?(?:mis\s+)?(archivos|documentos)/i,
+    /(?:cu[aá]les|qu[eé])\s+(?:son\s+)?(?:mis\s+)?(archivos|documentos)/i,
+    /(?:ver|mostrar)\s+(?:los\s+)?(?:mis\s+)?(archivos|documentos)/i,
+    /mis\s+(archivos|documentos)/i,
+    // French
+    /montr[ez]\s+(?:tous\s+)?(?:mes\s+)?(fichiers|documents)/i,
+    /(?:quels|mes)\s+(fichiers|documents)/i,
+    // German
+    /zeig[et]?\s+(?:mir\s+)?(?:alle\s+)?(?:meine\s+)?(dateien|dokumente)/i,
+    /(?:meine|welche)\s+(dateien|dokumente)/i,
   ];
 
   if (listAllPatterns.some(p => p.test(originalQuery))) {
     return { isMetadata: true, confidence: 0.90 };
+  }
+
+  // FILE TYPE SPECIFIC patterns - "show my pdfs", "list my excel files", etc.
+  // Supported types: pdf, docx, pptx, excel, png, jpg, mov, word, powerpoint
+  const fileTypePatterns = [
+    // English - file type queries
+    /show\s+(?:me\s+)?(?:all\s+)?(?:my\s+)?(pdfs?|docx?|pptx?|excel\s*(?:files?)?|spreadsheets?|word\s*(?:doc(?:ument)?s?)?|powerpoints?|presentations?|png|jpe?g|images?|photos?|mov|videos?)/i,
+    /list\s+(?:all\s+)?(?:my\s+)?(pdfs?|docx?|pptx?|excel\s*(?:files?)?|spreadsheets?|word\s*(?:doc(?:ument)?s?)?|powerpoints?|presentations?|png|jpe?g|images?|photos?|mov|videos?)/i,
+    /what\s+(pdfs?|docx?|pptx?|excel\s*(?:files?)?|spreadsheets?|word\s*(?:doc(?:ument)?s?)?|powerpoints?|presentations?|png|jpe?g|images?|photos?|mov|videos?)\s+do\s+i\s+have/i,
+    /how\s+many\s+(pdfs?|docx?|pptx?|excel\s*(?:files?)?|spreadsheets?|word\s*(?:doc(?:ument)?s?)?|powerpoints?|presentations?|png|jpe?g|images?|photos?|mov|videos?)/i,
+    /(?:my|all\s+my)\s+(pdfs?|docx?|pptx?|excel\s*(?:files?)?|spreadsheets?|word\s*(?:doc(?:ument)?s?)?|powerpoints?|presentations?|png|jpe?g|images?|photos?|mov|videos?)/i,
+    // Portuguese
+    /mostr[ae]\s+(?:os\s+)?(?:meus\s+)?(pdfs?|docx?|pptx?|excels?|planilhas?|words?|powerpoints?|apresenta[çc][õo]es?|png|jpe?g|imagens?|fotos?|mov|v[ií]deos?)/i,
+    /(?:meus|quantos)\s+(pdfs?|docx?|pptx?|excels?|planilhas?|words?|powerpoints?|apresenta[çc][õo]es?|png|jpe?g|imagens?|fotos?|mov|v[ií]deos?)/i,
+    // Spanish
+    /mu[eé]str[ae](?:me)?\s+(?:mis\s+)?(pdfs?|docx?|pptx?|excels?|hojas?\s*de\s*c[aá]lculo|words?|powerpoints?|presentaciones?|png|jpe?g|im[aá]genes?|fotos?|mov|videos?)/i,
+    /(?:mis|cu[aá]ntos)\s+(pdfs?|docx?|pptx?|excels?|hojas?\s*de\s*c[aá]lculo|words?|powerpoints?|presentaciones?|png|jpe?g|im[aá]genes?|fotos?|mov|videos?)/i,
+  ];
+
+  for (const pattern of fileTypePatterns) {
+    const match = originalQuery.match(pattern);
+    if (match) {
+      // Extract and normalize file type
+      let fileType = match[1].toLowerCase().replace(/s$/, ''); // remove plural
+      // Normalize common aliases to actual extensions
+      if (fileType === 'spreadsheet' || fileType === 'planilha' || fileType.startsWith('excel')) fileType = 'excel';
+      if (fileType === 'word' || fileType.startsWith('word ')) fileType = 'docx';
+      if (fileType === 'powerpoint' || fileType === 'presentation' || fileType === 'apresentação' || fileType === 'apresentacao' || fileType === 'presentacion') fileType = 'pptx';
+      if (fileType === 'image' || fileType === 'photo' || fileType === 'imagem' || fileType === 'foto' || fileType === 'imagen') fileType = 'png';
+      if (fileType === 'video' || fileType === 'vídeo') fileType = 'mov';
+      return { isMetadata: true, confidence: 0.92, extractedValue: fileType };
+    }
   }
 
   // FOLDER CONTENTS patterns
@@ -460,7 +540,7 @@ export const Intent = {
   // Metadata/Navigation
   DESCRIBE_FOLDER: 'DESCRIBE_FOLDER',
   LIST_DOCUMENTS: 'LIST_DOCUMENTS',
-  LIST_FILES: 'LIST_FILES',
+  LIST_FILES: 'list_files',
   FIND_FILE: 'FIND_FILE',
   FIND_DOCUMENT_LOCATION: 'FIND_DOCUMENT_LOCATION',
   FIND_DUPLICATES: 'FIND_DUPLICATES',
@@ -505,14 +585,24 @@ export function toLegacyIntent(result: SimpleIntentResult): {
     comparison: Intent.COMPARE_DOCUMENTS,
     file_action: result.fileAction || Intent.RAG_QUERY,
     list_folders: Intent.LIST_FOLDERS,
-    metadata: Intent.METADATA_QUERY,
+    metadata: Intent.LIST_FILES,  // FAST PATH: List files
     general: Intent.RAG_QUERY
   };
+
+  // Build parameters object
+  const parameters: Record<string, any> = {};
+  if (result.extractedValue) {
+    parameters.value = result.extractedValue;
+    // For file type queries (metadata type), also set fileType for chat.service.ts
+    if (result.type === 'metadata') {
+      parameters.fileType = result.extractedValue;
+    }
+  }
 
   return {
     intent: intentMap[result.type],
     confidence: result.confidence,
-    parameters: result.extractedValue ? { value: result.extractedValue } : {},
+    parameters,
     entities: result.extractedValue ? { documentName: result.extractedValue } : {}
   };
 }
