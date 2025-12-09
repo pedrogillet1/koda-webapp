@@ -480,7 +480,7 @@ async function uploadFiles(files, folderId, onProgress) {
           completedCount++;
         } catch (error) {
           console.error(`❌ Failed to upload large file ${file.name}:`, error);
-          results.push({ success: false, fileName: file.name, error: error.message });
+          results.push({ success: false, fileName: file.name, error: error?.message || String(error) });
           completedCount++;
         }
       }
@@ -665,7 +665,7 @@ async function uploadFolder(files, onProgress, existingCategoryId = null) {
           completedCount++;
         } catch (error) {
           console.error(`❌ Failed to upload large file ${fileInfo.fileName}:`, error);
-          results.push({ success: false, fileName: fileInfo.fileName, error: error.message });
+          results.push({ success: false, fileName: fileInfo.fileName, error: error?.message || String(error) });
           completedCount++;
         }
       }
