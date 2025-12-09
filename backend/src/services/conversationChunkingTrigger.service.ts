@@ -18,7 +18,8 @@
 
 import { PrismaClient } from '@prisma/client';
 import conversationChunking from './conversationChunking.service';
-import conversationEmbedding from './conversationEmbedding.service';
+// DEPRECATED: conversationEmbedding.service moved to deletedServiceStubs
+import { conversationEmbeddingService as conversationEmbedding } from './deletedServiceStubs';
 import { INFINITE_MEMORY_CONFIG } from '../config/infinite-memory.config';
 
 const prisma = new PrismaClient();

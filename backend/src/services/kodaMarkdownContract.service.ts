@@ -362,30 +362,17 @@ export function formatDocumentNamesContract(markdown: string): string {
 
 /**
  * Build sources section with contract rules
- * - Use ## Sources (not # Sources)
- * - Tight list (no blank lines)
- * - Bold document names
+ *
+ * @deprecated DISABLED - Sources are now displayed as:
+ * 1. Inline hyperlinks in the answer text (document names as clickable links)
+ * 2. Interactive buttons in the frontend (ragSources array)
+ *
+ * This function now returns empty string to prevent "## Sources" sections.
  */
 export function buildSourcesSection(documentNames: string[]): string {
-  if (documentNames.length === 0) {
-    return '';
-  }
-
-  const lines: string[] = [];
-  lines.push('## Sources');
-  lines.push('');
-
-  // Deduplicate
-  const unique = Array.from(new Set(documentNames));
-
-  // Format as tight list
-  for (const name of unique) {
-    // Normalize name
-    const normalized = name.replace(/[_-]/g, ' ').trim();
-    lines.push(`- **${normalized}**`);
-  }
-
-  return lines.join('\n');
+  // ✅ DISABLED: Sources section removed per user request
+  // Sources should be inline references only, not a separate section
+  return '';
 }
 
 /**
@@ -410,11 +397,14 @@ export function processAnswerWithContract(
   // 4. Format document names
   result = formatDocumentNamesContract(result);
 
-  // 5. Add sources section (if documents used)
-  if (documentNames.length > 0) {
-    const sourcesSection = buildSourcesSection(documentNames);
-    result += '\n\n' + sourcesSection;
-  }
+  // 5. Sources section - DISABLED
+  // ✅ Sources are now displayed as inline hyperlinks in the answer text
+  // ✅ The frontend shows ragSources as interactive buttons
+  // ❌ DO NOT add a separate "## Sources" or "Fontes:" section
+  // if (documentNames.length > 0) {
+  //   const sourcesSection = buildSourcesSection(documentNames);
+  //   result += '\n\n' + sourcesSection;
+  // }
 
   // 6. Final validation
   const violations = validateMarkdownContract(result);

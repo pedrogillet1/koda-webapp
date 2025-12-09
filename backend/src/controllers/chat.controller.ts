@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import chatService from '../services/chat.service';
-import { transcribeAudioWithWhisper } from '../services/gemini.service';
+import { transcribeAudioWithWhisper } from '../services/openai.service';
 import { emitToUser } from '../services/websocket.service';
 import prisma from '../config/database';
 import cacheService from '../services/cache.service';

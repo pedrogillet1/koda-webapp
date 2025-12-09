@@ -9,7 +9,7 @@
  */
 
 import prisma from '../config/database';
-import { sendMessageToGemini, sendMessageToGeminiStreaming, generateConversationTitle } from './gemini.service';
+import { sendMessageToGemini, sendMessageToGeminiStreaming, generateConversationTitle } from './openai.service';
 // A+ RAG: Using new modular RAG orchestrator via adapter
 import ragService from './rag.service';
 import cacheService from './cache.service';
@@ -49,7 +49,7 @@ import geminiClient from './geminiClient.service';
 import { handleDeepFinancialAnalysis } from './rag.service';
 import OpenAI from 'openai';
 import { config } from '../config/env';
-import { analyticsTrackingService } from './analytics-tracking.service';
+import { analyticsTrackingService } from './analyticsEngine.service';
 import {
   formatFileListingResponse,
   generateFolderListingResponse,

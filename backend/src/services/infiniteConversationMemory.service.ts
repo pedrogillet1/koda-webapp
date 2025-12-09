@@ -10,7 +10,8 @@
 
 import { PrismaClient } from '@prisma/client';
 import conversationChunking from './conversationChunking.service';
-import conversationEmbedding from './conversationEmbedding.service';
+// DEPRECATED: conversationEmbedding.service moved to deletedServiceStubs
+import { conversationEmbeddingService as conversationEmbedding } from './deletedServiceStubs';
 import { formatConversationContext, getConversationContext, updateContextState, findConversationByQuery, getContextStats } from './conversationRetrieval.service';
 import contextCompression from './contextCompression.service';
 

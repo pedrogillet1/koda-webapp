@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { personaService } from '../services/persona.service';
-import { sendMessageToGeminiStreaming } from '../services/gemini.service';
+import { sendMessageToGeminiStreaming } from '../services/openai.service';
 
 /**
  * AI Creativity Engine Controller

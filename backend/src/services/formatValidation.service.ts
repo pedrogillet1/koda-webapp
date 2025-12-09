@@ -42,6 +42,7 @@ export interface FormatStats {
   hasProperSpacing: boolean;
   hasSectionHeaders: boolean;
   hasClosing: boolean;
+  hasFollowUpQuestion: boolean; // Response ends with a question
 }
 
 export type FormatType =
@@ -94,6 +95,7 @@ class FormatValidationService {
     correctedText = this.validateBulletLists(correctedText, violations);
     correctedText = this.validateEmphasis(correctedText, violations);
     correctedText = this.validateClosing(correctedText, violations);
+    correctedText = this.validateFollowUpQuestion(correctedText, violations); // RULE 7: Follow-up question
 
     // Calculate stats
     const stats = this.calculateStats(correctedText);
@@ -334,6 +336,135 @@ class FormatValidationService {
   }
 
   /**
+   * RULE 7: Follow-up Question
+   * All responses should end with a follow-up question (1 line, neutral tone)
+   */
+  private validateFollowUpQuestion(text: string, violations: FormatViolation[]): string {
+    const lines = text.trim().split('\n');
+    const lastLine = lines[lines.length - 1].trim();
+
+    // Check if last line ends with question mark
+    const hasQuestionMark = lastLine.endsWith('?');
+
+    if (!hasQuestionMark) {
+      violations.push({
+        rule: 'FOLLOW_UP_QUESTION',
+        severity: 'error',
+        message: 'Response must end with a follow-up question',
+        location: 'End of response',
+        autoCorrected: true
+      });
+
+      // AUTO-CORRECT: Add a contextual follow-up question
+      const followUpQuestion = this.generateFollowUpQuestion(text);
+      return text.trim() + '\n\n' + followUpQuestion;
+    }
+
+    // Check if question is on its own line (not inline)
+    if (hasQuestionMark && lastLine.length > 100) {
+      violations.push({
+        rule: 'FOLLOW_UP_QUESTION_FORMAT',
+        severity: 'warning',
+        message: 'Follow-up question should be on its own line (max 100 chars)',
+        location: lastLine.substring(0, 50) + '...',
+        autoCorrected: false
+      });
+    }
+
+    return text;
+  }
+
+  /**
+   * Generate contextual follow-up question based on response content
+   */
+  private generateFollowUpQuestion(text: string): string {
+    const lowerText = text.toLowerCase();
+
+    // Detect language
+    const isPortuguese = lowerText.includes('você') || lowerText.includes('quer') ||
+                         lowerText.includes('precisa') || lowerText.includes('documento') ||
+                         lowerText.includes('análise') || lowerText.includes('informações');
+    const isSpanish = lowerText.includes('usted') || lowerText.includes('quiere') ||
+                      lowerText.includes('necesita') || lowerText.includes('documento') ||
+                      lowerText.includes('análisis');
+
+    // Detect content type
+    const hasNumbers = /\d+/.test(text);
+    const hasDocuments = text.includes('{{DOC:::') || lowerText.includes('documento') ||
+                         lowerText.includes('arquivo') || lowerText.includes('pdf');
+    const hasComparison = lowerText.includes('comparar') || lowerText.includes('compare') ||
+                          lowerText.includes('diferença') || lowerText.includes('versus');
+    const hasAnalysis = lowerText.includes('análise') || lowerText.includes('analysis') ||
+                        lowerText.includes('análisis') || lowerText.includes('analisar');
+    const hasDetails = lowerText.includes('detalhes') || lowerText.includes('details') ||
+                       lowerText.includes('detalles') || lowerText.includes('específico');
+    const hasList = text.includes('•') || text.includes('- ');
+
+    // Generate contextual follow-up questions
+    if (isPortuguese) {
+      if (hasComparison) {
+        return 'Quer ver uma comparação mais detalhada ou analisar outros aspectos?';
+      }
+      if (hasAnalysis) {
+        return 'Gostaria de aprofundar em algum ponto específico dessa análise?';
+      }
+      if (hasNumbers) {
+        return 'Quer ver o detalhamento desses números ou comparar com outros períodos?';
+      }
+      if (hasDocuments) {
+        return 'Precisa de mais informações desses documentos ou quer ver outros arquivos relacionados?';
+      }
+      if (hasDetails) {
+        return 'Quer explorar algum detalhe específico ou ver informações adicionais?';
+      }
+      if (hasList) {
+        return 'Quer mais detalhes sobre algum item específico dessa lista?';
+      }
+      // Default Portuguese
+      return 'Posso ajudar com mais alguma informação sobre isso?';
+    }
+
+    if (isSpanish) {
+      if (hasComparison) {
+        return '¿Quiere ver una comparación más detallada o analizar otros aspectos?';
+      }
+      if (hasAnalysis) {
+        return '¿Le gustaría profundizar en algún punto específico de este análisis?';
+      }
+      if (hasNumbers) {
+        return '¿Quiere ver el desglose de estos números o comparar con otros períodos?';
+      }
+      if (hasDocuments) {
+        return '¿Necesita más información de estos documentos o quiere ver otros archivos relacionados?';
+      }
+      if (hasList) {
+        return '¿Quiere más detalles sobre algún elemento específico de esta lista?';
+      }
+      // Default Spanish
+      return '¿Puedo ayudar con más información sobre esto?';
+    }
+
+    // Default English
+    if (hasComparison) {
+      return 'Would you like to see a more detailed comparison or analyze other aspects?';
+    }
+    if (hasAnalysis) {
+      return 'Would you like to dive deeper into any specific point of this analysis?';
+    }
+    if (hasNumbers) {
+      return 'Want to see the breakdown of these numbers or compare with other periods?';
+    }
+    if (hasDocuments) {
+      return 'Need more information from these documents or want to see other related files?';
+    }
+    if (hasList) {
+      return 'Would you like more details on any specific item from this list?';
+    }
+
+    return 'Can I help with any other information about this?';
+  }
+
+  /**
    * Calculate formatting statistics
    */
   private calculateStats(text: string): FormatStats {
@@ -353,6 +484,11 @@ class FormatValidationService {
       }
     }
 
+    // Check for follow-up question
+    const lines = text.trim().split('\n');
+    const lastLine = lines[lines.length - 1].trim();
+    const hasFollowUpQuestion = lastLine.endsWith('?');
+
     return {
       totalParagraphs: paragraphs.length,
       longParagraphs,
@@ -361,7 +497,8 @@ class FormatValidationService {
       boldPercentage,
       hasProperSpacing: !text.includes('\n\n\n'),
       hasSectionHeaders: text.includes('**') && text.includes(':**'),
-      hasClosing: text.includes('**Bottom Line:**')
+      hasClosing: text.includes('**Bottom Line:**'),
+      hasFollowUpQuestion
     };
   }
 
@@ -465,6 +602,7 @@ class FormatValidationService {
     report += `- Proper spacing: ${stats.hasProperSpacing ? 'Yes' : 'No'}\n`;
     report += `- Section headers: ${stats.hasSectionHeaders ? 'Yes' : 'No'}\n`;
     report += `- Has closing: ${stats.hasClosing ? 'Yes' : 'No'}\n`;
+    report += `- Has follow-up question: ${stats.hasFollowUpQuestion ? 'Yes' : 'No'}\n`;
     report += '================================\n';
 
     return report;

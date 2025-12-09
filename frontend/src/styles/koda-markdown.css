@@ -44,7 +44,7 @@
    2. CONSISTENT BOTTOM SPACING
    ============================================================================ */
 
-/* All block elements get same bottom spacing */
+/* All block elements get balanced bottom spacing */
 .koda-markdown p,
 .koda-markdown ul,
 .koda-markdown ol,
@@ -52,7 +52,13 @@
 .koda-markdown h3,
 .koda-markdown h4,
 .koda-markdown blockquote {
-  margin-bottom: 0.75rem; /* 12px */
+  margin-bottom: 0.375rem !important; /* 6px - balanced spacing */
+}
+
+/* Paragraph followed by list - MORE SPACING */
+.koda-markdown p + ol,
+.koda-markdown p + ul {
+  margin-top: 1rem !important; /* 16px */
 }
 
 /* Code blocks get slightly more spacing */
@@ -120,7 +126,19 @@
 .koda-markdown ul,
 .koda-markdown ol {
   padding-left: 1.25rem; /* 20px - indentation */
-  margin-bottom: 0.75rem; /* 12px */
+  margin-bottom: 0.375rem !important; /* 6px */
+  margin-top: 0.375rem !important;
+}
+
+/* Top-level numbered list - section spacing */
+.koda-markdown > ol > li + li {
+  margin-top: 1.5rem !important; /* 24px between sections */
+}
+
+/* Bullet points inside sections */
+.koda-markdown li > ul > li + li,
+.koda-markdown li > ol > li + li {
+  margin-top: 0.375rem !important; /* 6px normal spacing */
 }
 
 /* List items */
@@ -156,7 +174,7 @@
   font-size: 0.875rem; /* 14px */
   line-height: 1.6;
   color: inherit;
-  margin-bottom: 0.75rem; /* 12px */
+  margin-bottom: 0.375rem !important; /* 6px */
 }
 
 /* Strong (bold) text */
@@ -210,7 +228,7 @@
   padding-left: 1rem;
   margin-left: 0;
   margin-right: 0;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem; /* 8px - REDUCED FROM 12px */
   font-style: italic;
   color: rgba(0, 0, 0, 0.7);
 }
@@ -220,13 +238,14 @@
    ============================================================================ */
 
 .koda-markdown a {
-  color: #0066cc;
-  text-decoration: none;
-  font-weight: 500;
+  color: #1a1a1a !important; /* ✅ BLACK - no blue */
+  text-decoration: none !important;
+  font-weight: 600 !important;
 }
 
 .koda-markdown a:hover {
-  text-decoration: underline;
+  color: #000000 !important; /* ✅ BLACK on hover */
+  text-decoration: none !important; /* ✅ NO underline */
 }
 
 /* ============================================================================
@@ -270,13 +289,14 @@
 .koda-markdown .document-name {
   display: inline;
   font-weight: 600;
-  color: #0066cc;
+  color: #1a1a1a !important; /* ✅ BLACK - no blue */
   cursor: pointer;
-  text-decoration: none;
+  text-decoration: none !important;
 }
 
 .koda-markdown .document-name:hover {
-  text-decoration: underline;
+  color: #000000 !important; /* ✅ BLACK on hover */
+  text-decoration: none !important; /* ✅ NO underline */
 }
 
 /* ============================================================================

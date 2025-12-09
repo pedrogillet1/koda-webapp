@@ -336,6 +336,35 @@ interface MetadataResult {
 }
 
 function detectMetadataQuery(lowerQuery: string, originalQuery: string): MetadataResult {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EXCLUSION: Content analysis queries that LOOK like file listing queries
+  // ═══════════════════════════════════════════════════════════════════════════
+  // These patterns contain "documents/files" but are asking about CONTENT, not listing files
+  const contentAnalysisExclusions = [
+    // "What are the main X in my documents?"
+    /what\s+(?:are|is)\s+(?:the\s+)?(main|key|primary|important|significant|top|major)\s+\w+/i,
+    // "What topics/subjects/themes in documents?"
+    /what\s+(?:are|is)\s+(?:the\s+)?(topics?|subjects?|themes?|issues?|points?|findings?|conclusions?|recommendations?|risks?|benefits?|advantages?|disadvantages?|goals?|objectives?)/i,
+    // "discussed/mentioned/covered in documents"
+    /\b(discussed|mentioned|covered|addressed|described|explained|presented|analyzed|summarized)\s+(?:in|by)\s+/i,
+    // "topics discussed in my documents"
+    /\b(topics?|subjects?|themes?|content|information|data|details)\s+(?:discussed|mentioned|covered|in)\b/i,
+    // "tell me about / explain / summarize documents"
+    /\b(tell\s+me\s+about|explain|summarize|analyze|describe)\s+(?:the\s+)?(?:content|topics?|main\s+points?)/i,
+    // Portuguese exclusions
+    /(?:quais|qual)\s+(?:são|é)\s+(?:os?|as?)?\s*(principais|importantes|tópicos?|assuntos?|temas?)/i,
+    /\b(discutido|mencionado|abordado|apresentado)\s+(?:nos?|em)\s+/i,
+    // Spanish exclusions
+    /(?:cuáles?|qué)\s+(?:son|es)\s+(?:los?|las?)?\s*(principales|importantes|temas?|asuntos?)/i,
+    /\b(discutido|mencionado|abordado|presentado)\s+(?:en)\s+/i,
+  ];
+
+  if (contentAnalysisExclusions.some(p => p.test(originalQuery))) {
+    // This is a content analysis query, NOT a file listing request
+    console.log('📊 [Intent] Content analysis query detected, NOT file listing');
+    return { isMetadata: false, confidence: 0 };
+  }
+
   // FILE LOCATION patterns - "where is X"
   const locationPatterns = [
     /where\s+is\s+(.+)/i,

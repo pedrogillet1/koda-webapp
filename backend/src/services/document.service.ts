@@ -4,7 +4,7 @@ import { uploadFile, downloadFile, getSignedUrl, deleteFile, bucket, fileExists 
 import { config } from '../config/env';
 import * as textExtractionService from './textExtraction.service';
 import * as visionService from './vision.service';
-import * as geminiService from './gemini.service';
+import * as geminiService from './openai.service';
 import * as folderService from './folder.service';
 import { generateDocumentTitleOnly } from './titleGeneration.service';
 import markdownConversionService from './markdownConversion.service';
@@ -727,22 +727,23 @@ async function processDocumentWithTimeout(
       fs.writeFileSync(tempPdfPath, fileBuffer);
 
       try {
-        // Import Mistral OCR service
-        const mistralOCR = (await import('./mistral-ocr.service')).default;
+        // Import OCR service (consolidated from mistral-ocr.service)
+        const mistralOCR = (await import('./ocr.service')).default;
 
         // Check if PDF is scanned (with fallback if check fails)
         let isScanned = false;
         try {
-          isScanned = await mistralOCR.isScannedPDF(fileBuffer);
+          isScanned = await mistralOCR.isScannedPDF(tempPdfPath);
         } catch (scanCheckError: any) {
           isScanned = false; // Assume text-based if check fails
         }
 
         if (isScanned && mistralOCR.isAvailable()) {
-          // Scanned PDF - try Mistral OCR first, fallback to Google Cloud Vision
+          // Scanned PDF - try OCR service first, fallback to Google Cloud Vision
           try {
-            extractedText = await mistralOCR.processScannedPDF(fileBuffer);
-            ocrConfidence = 0.95; // High confidence for Mistral OCR (95-98% accuracy)
+            // processScannedPDF returns a string directly
+            extractedText = await mistralOCR.processScannedPDF(tempPdfPath);
+            ocrConfidence = 0.95; // High confidence for OCR (95-98% accuracy)
           } catch (mistralError: any) {
             console.error('❌ Mistral OCR failed:', mistralError.message);
 

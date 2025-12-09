@@ -590,4 +590,38 @@ export class KodaIntentEngine {
   }
 }
 
+/**
+ * FAST-PATH OPTIMIZATION
+ * Bypass heavy processing for trivial queries
+ */
+export function isFastPathEligible(query: string): boolean {
+  const queryLower = query.toLowerCase().trim();
+
+  // Greetings
+  const greetings = ['olá', 'oi', 'hello', 'hi', 'hey', 'bom dia', 'boa tarde', 'boa noite'];
+  if (greetings.some(g => queryLower === g || queryLower.startsWith(g + ' ') || queryLower.startsWith(g + '!'))) {
+    return true;
+  }
+
+  // Document count
+  if (queryLower.match(/quantos documentos|how many documents/)) return true;
+
+  // Document list
+  if (queryLower.match(/liste (meus )?documentos|list (my )?documents/)) return true;
+
+  return false;
+}
+
+/**
+ * Helper function to analyze intent with a simple function call
+ */
+export async function analyzeIntent(options: {
+  query: string;
+  userId?: string;
+  conversationId?: string;
+}): Promise<IntentAnalysis> {
+  const engine = new KodaIntentEngine();
+  return engine.analyzeQuery(options.query, null, options.userId);
+}
+
 export default KodaIntentEngine;

@@ -15,7 +15,7 @@ interface ValidationContext {
   documents?: Array<{ id: string; name: string; content?: string }>;
   conversationHistory?: Array<{ role: string; content: string }>;
   userId?: string;
-  language?: string;
+  language?: string;  // Expected language from conversation state (en, pt, es, fr)
 }
 
 interface ValidationResult {
@@ -29,11 +29,12 @@ interface ValidationResult {
     completeness: number;
     toneConsistency: number;
     personaCompliance: number;
+    languageConsistency: number;  // NEW: Language consistency score
   };
 }
 
 interface ValidationIssue {
-  type: 'hallucination' | 'citation' | 'contradiction' | 'incomplete' | 'tone' | 'persona' | 'safety';
+  type: 'hallucination' | 'citation' | 'contradiction' | 'incomplete' | 'tone' | 'persona' | 'safety' | 'language';
   severity: 'critical' | 'high' | 'medium' | 'low';
   description: string;
   location?: string;
@@ -150,6 +151,17 @@ class KodaAnswerValidationEngine {
     const safetyIssues = this.checkSafety(answer);
     issues.push(...safetyIssues);
 
+    // Step 8: Language consistency check (NEW)
+    const languageConsistency = this.checkLanguageConsistency(answer, context);
+    if (languageConsistency < 70 && context.language && context.language !== 'en') {
+      issues.push({
+        type: 'language',
+        severity: 'high',
+        description: `Answer may be in wrong language. Expected: ${context.language}`,
+        suggestion: `Ensure ALL text is in ${context.language}, including confirmations like "Yes, I remember" → "Sim, lembro"`,
+      });
+    }
+
     // Calculate overall score
     const score = this.calculateOverallScore({
       hallucinationScore,
@@ -157,6 +169,7 @@ class KodaAnswerValidationEngine {
       completeness,
       toneConsistency,
       personaCompliance,
+      languageConsistency,
     });
 
     // Generate corrections if needed
@@ -173,6 +186,7 @@ class KodaAnswerValidationEngine {
         completeness,
         toneConsistency,
         personaCompliance,
+        languageConsistency,
       },
     };
   }
@@ -618,6 +632,94 @@ class KodaAnswerValidationEngine {
   }
 
   /**
+   * Check language consistency
+   * Detects if the answer is in the wrong language (e.g., English in a Portuguese conversation)
+   */
+  private checkLanguageConsistency(answer: string, context: ValidationContext): number {
+    const expectedLanguage = context.language || 'en';
+
+    // If expected language is English, assume correct (most common case)
+    if (expectedLanguage === 'en') {
+      return 100;
+    }
+
+    // Common English phrases that indicate wrong language in non-English conversations
+    const englishIndicators = [
+      /\byes,?\s+i\s+(remember|recall)\b/i,
+      /\bi\s+remember\b/i,
+      /\bin\s+the\s+previous\s+(interaction|question|message)\b/i,
+      /\byou\s+asked\s+(about|for)\b/i,
+      /\bas\s+mentioned\s+(earlier|before)\b/i,
+      /\bhere\s+(is|are)\s+(the|what)\b/i,
+      /\blet\s+me\s+(check|see|find)\b/i,
+      /\bi\s+(can|will)\s+help\b/i,
+      /\bsure,?\s+i\s+(can|will)\b/i,
+      /\bi\s+found\s+(the|these)\b/i,
+      /\bthe\s+(documents?|files?)\s+(you|that)\b/i,
+    ];
+
+    // Check for English patterns
+    const answerLower = answer.toLowerCase();
+    let englishScore = 0;
+
+    for (const pattern of englishIndicators) {
+      if (pattern.test(answerLower)) {
+        englishScore += 15; // Each English pattern reduces score
+      }
+    }
+
+    // Check for expected language patterns
+    const languagePatterns: Record<string, RegExp[]> = {
+      'pt': [
+        /\bsim,?\s+(lembro|me\s+lembro)\b/i,
+        /\bna\s+(última|anterior)\s+(pergunta|mensagem)\b/i,
+        /\bvocê\s+perguntou\b/i,
+        /\baquí\s+está\b/i,
+        /\bencontrei\b/i,
+        /\bos?\s+documentos?\b/i,
+        /\bposso\s+ajudar\b/i,
+      ],
+      'es': [
+        /\bsí,?\s+(recuerdo|me\s+acuerdo)\b/i,
+        /\ben\s+la\s+(última|anterior)\s+pregunta\b/i,
+        /\bpreguntaste\b/i,
+        /\baquí\s+está\b/i,
+        /\bencontré\b/i,
+        /\blos?\s+documentos?\b/i,
+        /\bpuedo\s+ayudar\b/i,
+      ],
+      'fr': [
+        /\boui,?\s+je\s+me\s+souviens\b/i,
+        /\bdans\s+(la|votre)\s+(dernière|précédente)\s+question\b/i,
+        /\bvous\s+avez\s+demandé\b/i,
+        /\bvoici\b/i,
+        /\bj'ai\s+trouvé\b/i,
+        /\bles?\s+documents?\b/i,
+        /\bje\s+peux\s+aider\b/i,
+      ],
+    };
+
+    const expectedPatterns = languagePatterns[expectedLanguage] || [];
+    let correctLangScore = 0;
+
+    for (const pattern of expectedPatterns) {
+      if (pattern.test(answerLower)) {
+        correctLangScore += 15; // Each correct language pattern increases score
+      }
+    }
+
+    // Calculate final score
+    // Start at 100, subtract English patterns, add correct language patterns
+    const finalScore = Math.max(0, Math.min(100, 100 - englishScore + correctLangScore));
+
+    if (finalScore < 70) {
+      console.log(`⚠️ [VALIDATION] Language consistency issue detected. Expected: ${expectedLanguage}, Score: ${finalScore}`);
+    }
+
+    return finalScore;
+  }
+
+  /**
    * Calculate overall quality score
    */
   private calculateOverallScore(metrics: {
@@ -626,22 +728,49 @@ class KodaAnswerValidationEngine {
     completeness: number;
     toneConsistency: number;
     personaCompliance: number;
+    languageConsistency?: number;
   }): number {
-    // Weighted average
-    const weights = {
-      hallucinationScore: 0.30,
-      citationAccuracy: 0.15,
-      completeness: 0.20,
-      toneConsistency: 0.10,
-      personaCompliance: 0.25,
-    };
+    // Check if language consistency is included
+    const hasLanguageMetric = metrics.languageConsistency !== undefined;
 
-    const score =
-      metrics.hallucinationScore * weights.hallucinationScore +
-      metrics.citationAccuracy * weights.citationAccuracy +
-      metrics.completeness * weights.completeness +
-      metrics.toneConsistency * weights.toneConsistency +
-      metrics.personaCompliance * weights.personaCompliance;
+    // Weighted average (adjusted for language consistency)
+    let score: number;
+
+    if (hasLanguageMetric) {
+      // With language consistency metric (non-English conversations)
+      const weights = {
+        hallucinationScore: 0.25,
+        citationAccuracy: 0.12,
+        completeness: 0.18,
+        toneConsistency: 0.08,
+        personaCompliance: 0.22,
+        languageConsistency: 0.15,
+      };
+
+      score =
+        metrics.hallucinationScore * weights.hallucinationScore +
+        metrics.citationAccuracy * weights.citationAccuracy +
+        metrics.completeness * weights.completeness +
+        metrics.toneConsistency * weights.toneConsistency +
+        metrics.personaCompliance * weights.personaCompliance +
+        (metrics.languageConsistency || 100) * weights.languageConsistency;
+    } else {
+      // Without language consistency (English conversations)
+      const weights = {
+        hallucinationScore: 0.30,
+        citationAccuracy: 0.15,
+        completeness: 0.20,
+        toneConsistency: 0.10,
+        personaCompliance: 0.25,
+      };
+
+      score =
+        metrics.hallucinationScore * weights.hallucinationScore +
+        metrics.citationAccuracy * weights.citationAccuracy +
+        metrics.completeness * weights.completeness +
+        metrics.toneConsistency * weights.toneConsistency +
+        metrics.personaCompliance * weights.personaCompliance;
+    }
 
     return Math.round(score);
   }

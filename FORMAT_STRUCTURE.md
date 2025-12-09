@@ -16,6 +16,7 @@ Updated: 2025-12-09 (Koda Markdown Contract Integration)
 7. [Examples by Query Type](#examples-by-query-type)
 8. [Prompt Template Structure](#prompt-template-structure)
 9. [Koda Markdown Contract](#koda-markdown-contract) *(NEW)*
+10. [Koda Memory Engine 4.0](#koda-memory-engine-40-new---2025-12-09) *(NEW)*
 
 ---
 
@@ -48,6 +49,94 @@ The Koda Markdown Contract is a strict frontend/backend agreement for ChatGPT-li
 - `h3`: 15px
 - Lists: 2px spacing between items (tight)
 - Paragraphs: 12px bottom margin
+
+---
+
+## KODA MEMORY ENGINE 4.0 (NEW - 2025-12-09)
+
+ChatGPT-style conversation memory with 3 layers for context persistence.
+
+### Memory Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    KODA MEMORY ENGINE 4.0                           │
+├─────────────────────────────────────────────────────────────────────┤
+│  Layer 1: SHORT-TERM BUFFER                                        │
+│  - Last 50 messages (user + assistant)                             │
+│  - Full text, no compression                                       │
+│  - Loaded from database on each request                            │
+├─────────────────────────────────────────────────────────────────────┤
+│  Layer 2: ROLLING SUMMARY + CONVERSATION STATE                     │
+│  - Generated every 10 turns (background)                           │
+│  - 1-3 sentence summary                                            │
+│  - Tracks: userGoal, currentDocument, currentTopic                 │
+│  - Tracks: knownSections, knownDocuments                           │
+├─────────────────────────────────────────────────────────────────────┤
+│  Layer 3: INFINITE MEMORY (Optional)                               │
+│  - Semantic search over old conversations                          │
+│  - Triggered by recall queries ("do you remember", "earlier")      │
+│  - Returns relevant snippets from past discussions                 │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Functions
+
+| Function | Purpose |
+|----------|---------|
+| `getConversationMemory()` | Load all 3 layers at start of request |
+| `updateConversationMemory()` | Update state after each answer |
+| `isMemoryRecallQuery()` | Detect queries that need infinite memory |
+| `isFollowUpQuery()` | Detect follow-up questions (pronouns) |
+| `inferTopicFromQuery()` | Auto-detect current topic |
+| `inferUserGoalFromQuery()` | Auto-detect user's goal |
+| `buildFormattedContext()` | Build LLM prompt context string |
+
+### Files Involved
+
+- **Backend**: `kodaMemoryEngine.service.ts` - Main memory engine (3 layers)
+- **Backend**: `rollingConversationSummary.service.ts` - Rolling summary generation
+- **Backend**: `infiniteConversationMemory.service.ts` - Semantic search memory
+- **Backend**: `rag.service.ts` - Integration points (loads/updates memory)
+- **Database**: `ConversationState` table (Prisma schema)
+
+### Integration in RAG Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ generateAnswerStream()                                              │
+├─────────────────────────────────────────────────────────────────────┤
+│ 1. Load Memory (getConversationMemory)                             │
+│    ↓                                                                │
+│ 2. Fast path checks (greetings, doc count)                         │
+│    ↓                                                                │
+│ 3. Intent detection (with memory context)                          │
+│    ↓                                                                │
+│ 4. Document retrieval                                               │
+│    ↓                                                                │
+│ 5. Answer generation (memory in prompt)                            │
+│    ↓                                                                │
+│ 6. Update Memory (updateConversationMemory)                        │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### ConversationState Schema
+
+```prisma
+model ConversationState {
+  id                     String   @id @default(cuid())
+  conversationId         String   @unique
+  userId                 String
+  userGoal               String   @default("Exploring documents")
+  currentDocument        String?
+  currentTopic           String   @default("General inquiry")
+  knownSections          String[] @default([])
+  knownDocuments         String[] @default([])
+  lastSummaryAt          DateTime @default(now())
+  turnsSinceLastSummary  Int      @default(0)
+  summary                String   @default("Conversation just started.")
+}
+```
 
 ---
 

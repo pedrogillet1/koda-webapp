@@ -608,7 +608,55 @@ export function hasInlineDocuments(text: string): boolean {
 }
 
 /**
+ * Localized strings for file listing
+ */
+const FILE_LISTING_STRINGS: Record<string, {
+  found: (count: number) => string;
+  noFiles: string;
+  ofType: (type: string) => string;
+  inFolder: (folder: string) => string;
+}> = {
+  'pt': {
+    found: (count: number) => `**Encontr${count === 1 ? 'ei' : 'ei'} ${count} arquivo${count !== 1 ? 's' : ''}**`,
+    noFiles: 'Nenhum arquivo encontrado',
+    ofType: (type: string) => ` do tipo **${type.toUpperCase().replace('.', '')}**`,
+    inFolder: (folder: string) => ` na pasta **"${folder}"**`,
+  },
+  'pt-BR': {
+    found: (count: number) => `**Encontr${count === 1 ? 'ei' : 'ei'} ${count} arquivo${count !== 1 ? 's' : ''}**`,
+    noFiles: 'Nenhum arquivo encontrado',
+    ofType: (type: string) => ` do tipo **${type.toUpperCase().replace('.', '')}**`,
+    inFolder: (folder: string) => ` na pasta **"${folder}"**`,
+  },
+  'es': {
+    found: (count: number) => `**Encontr${count === 1 ? 'é' : 'é'} ${count} archivo${count !== 1 ? 's' : ''}**`,
+    noFiles: 'No se encontraron archivos',
+    ofType: (type: string) => ` de tipo **${type.toUpperCase().replace('.', '')}**`,
+    inFolder: (folder: string) => ` en la carpeta **"${folder}"**`,
+  },
+  'fr': {
+    found: (count: number) => `**Trouvé ${count} fichier${count !== 1 ? 's' : ''}**`,
+    noFiles: 'Aucun fichier trouvé',
+    ofType: (type: string) => ` de type **${type.toUpperCase().replace('.', '')}**`,
+    inFolder: (folder: string) => ` dans le dossier **"${folder}"**`,
+  },
+  'de': {
+    found: (count: number) => `**${count} Datei${count !== 1 ? 'en' : ''} gefunden**`,
+    noFiles: 'Keine Dateien gefunden',
+    ofType: (type: string) => ` vom Typ **${type.toUpperCase().replace('.', '')}**`,
+    inFolder: (folder: string) => ` im Ordner **"${folder}"**`,
+  },
+  'en': {
+    found: (count: number) => `**Found ${count} file${count !== 1 ? 's' : ''}**`,
+    noFiles: 'No files found',
+    ofType: (type: string) => ` of type **${type.toUpperCase().replace('.', '')}**`,
+    inFolder: (folder: string) => ` in folder **"${folder}"**`,
+  },
+};
+
+/**
  * Format file listing response with inline documents (LEGACY - enhanced)
+ * Now supports multilingual responses
  */
 export function formatFileListingResponse(
   documents: any[],
@@ -617,22 +665,27 @@ export function formatFileListingResponse(
     folderName?: string;
     maxInline?: number;
     includeMetadata?: boolean;
+    language?: string;  // NEW: Language parameter for localized responses
   } = {}
 ): string {
-  const { fileType, folderName, maxInline = 15, includeMetadata = true } = options;
+  const { fileType, folderName, maxInline = 15, includeMetadata = true, language = 'en' } = options;
+
+  // Get localized strings (default to English)
+  const lang = language?.toLowerCase().split('-')[0] || 'en';
+  const strings = FILE_LISTING_STRINGS[lang] || FILE_LISTING_STRINGS['en'];
 
   if (!documents || documents.length === 0) {
-    let message = 'No files found';
-    if (fileType) message += ` of type "${fileType}"`;
-    if (folderName) message += ` in folder "${folderName}"`;
+    let message = strings.noFiles;
+    if (fileType) message += strings.ofType(fileType);
+    if (folderName) message += strings.inFolder(folderName);
     message += '.';
     return message;
   }
 
-  // Build header
-  let header = `**Found ${documents.length} file${documents.length !== 1 ? 's' : ''}**`;
-  if (fileType) header += ` of type **${fileType.toUpperCase().replace('.', '')}**`;
-  if (folderName) header += ` in folder **"${folderName}"**`;
+  // Build header with localized text
+  let header = strings.found(documents.length);
+  if (fileType) header += strings.ofType(fileType);
+  if (folderName) header += strings.inFolder(folderName);
   header += ':';
 
   // Convert documents to InlineDocument format

@@ -273,29 +273,11 @@ export class KodaCitationFormatService {
 
   /**
    * Format sources section for markdown
+   * ✅ DISABLED: Sources now appear as inline hyperlinks, not a separate section
    */
   formatSourcesSection(sources: CitationSource[]): string {
-    if (sources.length === 0) {
-      return '';
-    }
-
-    const lines: string[] = [
-      '',
-      '---',
-      '',
-      '**Sources:**',
-      ''
-    ];
-
-    sources.forEach((source, idx) => {
-      const citation = `[${idx + 1}] **${source.filename}**`;
-      const location = source.location !== source.filename ? ` - ${source.location}` : '';
-      const relevance = ` (${source.relevanceScore}% relevant)`;
-
-      lines.push(`${citation}${location}${relevance}`);
-    });
-
-    return lines.join('\n');
+    // Return empty - sources are displayed as inline hyperlinks only
+    return '';
   }
 
   /**

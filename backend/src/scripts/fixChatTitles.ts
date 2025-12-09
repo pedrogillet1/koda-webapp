@@ -4,7 +4,7 @@
  */
 
 import prisma from '../config/database';
-import { generateConversationTitle } from '../services/gemini.service';
+import { generateConversationTitle } from '../services/openai.service';
 
 async function fixChatTitles() {
   console.log('🔧 Starting chat title fix...');

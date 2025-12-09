@@ -274,19 +274,35 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
     };
 
     // Helper function to strip visible document sources from message content
-    // The AI sometimes outputs "Document Sources" text which we already display via the UI component
+    // Sources are displayed via ragSources UI component, not inline text
     const stripDocumentSources = (content) => {
         if (!content) return content;
 
-        // Remove patterns like:
-        // ---\n\nDocument Sources (1)\n\n• filename.xlsx
-        // or: \n---\n\nDocument Sources (N)\n\n• file1\n• file2
-        // Also remove: \n\n---\n\nDocument Sources
         let result = content;
+
+        // ✅ Remove "## Sources" section (markdown heading style)
+        result = result.replace(/\n*##\s*Sources?\s*\n+(?:[•\-*]\s*\*\*.+\*\*\n*)+$/gi, '');
+        result = result.replace(/\n*##\s*Fontes?\s*\n+(?:[•\-*]\s*\*\*.+\*\*\n*)+$/gi, '');
+
+        // ✅ Remove "Fontes:" section (Portuguese) - with HR line before it
+        result = result.replace(/\n*---\n*\**Fontes:?\**\s*\n+(?:\d+\.\s*.+\n*)+$/gi, '');
+        // ✅ Remove "Fontes:" section without HR
+        result = result.replace(/\n*\**Fontes:?\**\s*\n+(?:\d+\.\s*.+\n*)+$/gi, '');
+        // ✅ Remove "Fontes:" section with bullet points
+        result = result.replace(/\n*\**Fontes:?\**\s*\n+(?:[•\-*]\s*.+\n*)+$/gi, '');
+
+        // ✅ Remove "Sources:" section (English) - with HR line before it
+        result = result.replace(/\n*---\n*\**Sources:?\**\s*\n+(?:\d+\.\s*.+\n*)+$/gi, '');
+        // ✅ Remove "Sources:" section without HR
+        result = result.replace(/\n*\**Sources:?\**\s*\n+(?:\d+\.\s*.+\n*)+$/gi, '');
+        // ✅ Remove "Sources:" section with bullet points
+        result = result.replace(/\n*\**Sources:?\**\s*\n+(?:[•\-*]\s*.+\n*)+$/gi, '');
+
         // Remove "---" followed by "Document Sources" section at the end
         result = result.replace(/\n*---\n*[*]*Document Sources?[*]*\s*\(\d+\)[*]*\s*\n+(?:[•\-*]\s*.+\n*)+$/gi, '');
         // Remove standalone "Document Sources" section without HR
         result = result.replace(/\n*[*]*Document Sources?[*]*\s*\(\d+\)[*]*\s*\n+(?:[•\-*]\s*.+\n*)+$/gi, '');
+
         // Remove trailing HR that might be left over
         result = result.replace(/\n*---\s*$/g, '');
         return result.trim();
@@ -303,19 +319,25 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                     href="#"
                     onClick={(e) => {
                         e.preventDefault();
-                        navigate(`/document/${documentId}`);
+                        console.log('[DocumentLink] Opening preview for document:', documentId);
+                        // Open preview modal instead of navigating
+                        setPreviewDocument({
+                            id: documentId,
+                            documentId: documentId,
+                        });
                     }}
                     style={{
-                        color: '#3B82F6',
-                        textDecoration: 'underline',
+                        color: '#1a1a1a', // ✅ BLACK - no blue
+                        textDecoration: 'none',
                         cursor: 'pointer',
-                        fontWeight: '600'
+                        fontWeight: '600',
+                        borderBottom: 'none'
                     }}
                     onMouseEnter={(e) => {
-                        e.target.style.color = '#2563EB';
+                        e.target.style.color = '#000000'; // ✅ BLACK on hover
                     }}
                     onMouseLeave={(e) => {
-                        e.target.style.color = '#3B82F6';
+                        e.target.style.color = '#1a1a1a'; // ✅ BLACK
                     }}
                 >
                     {children}
@@ -2708,20 +2730,20 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                     msg.isRegenerating && !msg.content ? (
                                         <TypingIndicator userName="Koda" stage={currentStage} />
                                     ) : (
-                                    <div className="assistant-message" style={{display: 'flex', gap: 16, alignItems: 'flex-start', maxWidth: '100%', width: '100%'}}>
+                                    <div className="assistant-message" style={{display: 'flex', gap: 12, alignItems: 'flex-start', maxWidth: '100%', width: '100%'}}>
                                         {/* Koda Avatar - Sphere Icon (42px per spec) */}
                                         <img src={sphere} alt="Koda" style={{
-                                            width: 42,
-                                            height: 42,
+                                            width: 32,
+                                            height: 32,
                                             flexShrink: 0,
-                                            marginTop: -8
+                                            marginTop: 2
                                         }} />
-                                        <div style={{display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start', flex: 1, maxWidth: 720}}>
-                                        <div style={{background: 'transparent', borderRadius: 0, padding: '0', width: '100%', maxWidth: 720, justifyContent: 'flex-start', alignItems: 'flex-start', gap: 10, display: 'flex'}}>
-                                            <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 16, display: 'flex'}}>
-                                                <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 12, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
-                                                        <div style={{flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 4, display: 'flex', width: '100%'}}>
-                                                            <div className="markdown-preview-container" style={{color: '#1a1a1a', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: 1.6, width: '100%', whiteSpace: 'pre-line', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
+                                        <div style={{display: 'flex', flexDirection: 'column', gap: 0, alignItems: 'flex-start', flex: 1, maxWidth: 720}}>
+                                        <div style={{background: 'transparent', borderRadius: 0, padding: '0', width: '100%', maxWidth: 720, justifyContent: 'flex-start', alignItems: 'flex-start', gap: 0, display: 'flex'}}>
+                                            <div style={{flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 0, display: 'flex'}}>
+                                                <div style={{justifyContent: 'flex-start', alignItems: 'flex-start', gap: 0, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0}}>
+                                                        <div style={{flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', gap: 0, display: 'flex', width: '100%'}}>
+                                                            <div className="markdown-preview-container" style={{color: '#1a1a1a', fontSize: 16, fontFamily: 'Plus Jakarta Sans', fontWeight: '400', lineHeight: 1.6, width: '100%', whiteSpace: 'normal', wordWrap: 'break-word', overflowWrap: 'break-word'}}>
                                                                 {(() => {
                                                                     const content = stripDocumentSources(msg.content);
 
@@ -2856,20 +2878,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                 })()}
                                                             </div>
 
-                                                            {/* Document Sources Dropdown - only show when NOT a file listing response */}
-                                                            {/* If inline markers are rendered as buttons, don't show duplicate dropdown */}
-                                                            {!hasMarkers(msg.content || '') && (
-                                                                <DocumentSources
-                                                                    sources={[
-                                                                        ...(msg.ragSources || []),
-                                                                        ...parseInlineDocuments(msg.content || '')
-                                                                    ]}
-                                                                    onDocumentClick={(doc) => {
-                                                                        console.log('[DOC SOURCES] Opening preview:', doc);
-                                                                        setPreviewDocument(doc);
-                                                                    }}
-                                                                />
-                                                            )}
+                                                            {/* ✅ REMOVED: Document Sources Dropdown - "Fontes:" section
+                                                               Document links now appear inline as hyperlinks instead */}
 
                                                             {/* Manus-style Document Preview Button */}
                                                             {msg.chatDocument && (

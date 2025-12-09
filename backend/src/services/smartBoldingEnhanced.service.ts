@@ -468,6 +468,18 @@ function boldQuotedText(text: string): string {
 function cleanupBolding(text: string): string {
   let formatted = text;
 
+  // ✅ FIX 1: Fix malformed bold with colon (word**: → **word:**)
+  // Example: "terreno**: R$ 500" → "**terreno:** R$ 500"
+  formatted = formatted.replace(/(\w+)\*\*:/g, '**$1:**');
+
+  // ✅ FIX 2: Fix malformed bold at end of word (word** → **word**)
+  // Example: "investimento total estimado**" → "**investimento** total estimado"
+  formatted = formatted.replace(/(\w+)\*\*(\s|$)/g, '**$1**$2');
+
+  // ✅ FIX 3: Fix malformed bold at start of word (**word → **word**)
+  // Example: "**investimento para" → "**investimento** para"
+  formatted = formatted.replace(/\*\*(\w+)(\s)/g, '**$1**$2');
+
   // Remove quadruple or more asterisks
   // Example: "****text****" → "**text**"
   formatted = formatted.replace(/\*{4,}/g, '**');

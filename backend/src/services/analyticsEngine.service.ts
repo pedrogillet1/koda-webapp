@@ -1016,6 +1016,117 @@ export async function getQuickStats(): Promise<QuickStats> {
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ANALYTICS CACHE SERVICE (STUBS for backward compatibility)
+// These were from analyticsCache.service.ts which was consolidated
+// ═══════════════════════════════════════════════════════════════════════════
+
+const cacheStore = new Map<string, { value: any; expiry: number }>();
+
+export const analyticsCache = {
+  get: (key: string): any => {
+    const item = cacheStore.get(key);
+    if (!item) return null;
+    if (Date.now() > item.expiry) {
+      cacheStore.delete(key);
+      return null;
+    }
+    return item.value;
+  },
+  set: (key: string, value: any, ttlMs: number = 60000): void => {
+    cacheStore.set(key, { value, expiry: Date.now() + ttlMs });
+  },
+  del: (key: string): void => {
+    cacheStore.delete(key);
+  },
+  clear: (): void => {
+    cacheStore.clear();
+  },
+  getTTLRemaining: (key: string): number => {
+    const item = cacheStore.get(key);
+    if (!item) return 0;
+    return Math.max(0, item.expiry - Date.now());
+  },
+  invalidate: (pattern: string): void => {
+    for (const key of cacheStore.keys()) {
+      if (key.includes(pattern)) cacheStore.delete(key);
+    }
+  },
+  invalidateAll: (): void => {
+    cacheStore.clear();
+  },
+  getStats: (): { size: number; keys: string[] } => ({
+    size: cacheStore.size,
+    keys: Array.from(cacheStore.keys())
+  }),
+  getKeys: (): string[] => Array.from(cacheStore.keys())
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ANALYTICS AGGREGATION SERVICE (STUBS for backward compatibility)
+// These were from analyticsAggregation.service.ts which was consolidated
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const aggregationService = {
+  aggregateDaily: async () => ({ success: true }),
+  aggregateWeekly: async () => ({ success: true }),
+  aggregateMonthly: async () => ({ success: true }),
+  getAggregatedData: async (_period: string) => ({
+    data: [],
+    period: _period
+  }),
+  aggregateDailyStatsRange: async (_startDate: Date, _endDate: Date) => [] as any[],
+  getPeriodComparison: async (_currentStart: Date, _currentEnd: Date, _previousStart?: Date, _previousEnd?: Date) => ({
+    current: {},
+    previous: {},
+    change: {}
+  }),
+  runDailyAggregationJob: async () => ({ success: true }),
+  runWeeklyAggregationJob: async () => ({ success: true }),
+  runMonthlyAggregationJob: async () => ({ success: true })
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ANALYTICS TRACKING SERVICE (STUBS for backward compatibility)
+// These were from analytics-tracking.service.ts which was consolidated
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const analyticsTrackingService = {
+  recordFeedback: async (_params: any) => ({ success: true, id: 'stub-feedback-id' }),
+  getRAGPerformanceStats: async (_startDate?: any, _endDate?: any) => ({
+    avgResponseTime: 0,
+    totalQueries: 0,
+    successRate: 100
+  }),
+  getAPIPerformanceStats: async (_startDate?: any, _endDate?: any) => ({
+    avgLatency: 0,
+    totalRequests: 0,
+    errorRate: 0
+  }),
+  getConversationFeedbackStats: async (_conversationId: string) => ({
+    totalFeedback: 0,
+    avgRating: 0
+  }),
+  getFeatureUsageStats: async (_startDate?: any, _endDate?: any) => ({
+    features: [] as any[]
+  }),
+  trackEvent: async (_params: any) => ({ success: true, id: 'stub-event-id' }),
+  getTokenUsageStats: async (_params: any) => ({
+    totalTokens: 0,
+    inputTokens: 0,
+    outputTokens: 0
+  }),
+  getDailyTokenUsage: async (_startDate?: any, _endDate?: any) => [] as any[],
+  getErrorStats: async (_startDate?: any, _endDate?: any) => ({
+    totalErrors: 0,
+    errorsByType: [] as any[]
+  }),
+  getDailyAnalytics: async (_startDate?: any, _endDate?: any) => [] as any[],
+  aggregateDailyAnalytics: async (_date: Date) => ({ success: true }),
+  incrementConversationMessages: (_conversationId: string, _role: string): Promise<void> => Promise.resolve(),
+  recordRAGQuery: (_params: any): Promise<void> => Promise.resolve()
+};
+
 export default {
   getUserAnalytics,
   getConversationAnalytics,
@@ -1024,5 +1135,6 @@ export default {
   getCostAnalytics,
   getFeatureUsageAnalytics,
   getAnalyticsOverview,
-  getQuickStats
+  getQuickStats,
+  analyticsTrackingService
 };

@@ -256,7 +256,9 @@ CURRENT_DOCUMENT: [Name of document currently being discussed, or "None"]
 CURRENT_TOPIC: [Current topic/subject in 3-5 words]
 KNOWN_SECTIONS: [Comma-separated list of sections discussed]
 KNOWN_DOCUMENTS: [Comma-separated list of documents mentioned]
-SUMMARY: [1-2 sentence summary of the conversation so far]
+SUMMARY: [1-3 sentences MAX - brief summary of conversation progress and key findings]
+
+IMPORTANT: Keep SUMMARY concise (1-3 sentences). This is for context, not a full recap.
 
 Example:
 USER_GOAL: Understanding lease agreement terms and obligations

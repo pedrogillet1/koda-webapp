@@ -4740,7 +4740,7 @@ const QUERY_CACHE_TTL = 30 * 1000; // 30 seconds
 // PERFORMANCE FIX #2: File Listing Cache
 // ============================================================================
 interface FileListingCacheEntry {
-  documents: { id: string; filename: string; createdAt: Date }[];
+  documents: { id: string; filename: string; mimeType?: string | null; fileSize?: number | null; createdAt: Date }[];
   timestamp: number;
 }
 const fileListingCache = new Map<string, FileListingCacheEntry>();
@@ -5967,7 +5967,7 @@ async function handleDocumentListing(
   const cached = fileListingCache.get(userId);
   const now = Date.now();
 
-  let documents: { id?: string; filename: string; createdAt: Date }[];
+  let documents: { id?: string; filename: string; mimeType?: string | null; fileSize?: number | null; createdAt: Date }[];
 
   if (cached && (now - cached.timestamp) < FILE_LISTING_CACHE_TTL) {
     console.log(`📋 [DOCUMENT LISTING] ✅ Using cached data (age: ${Math.round((now - cached.timestamp) / 1000)}s)`);
@@ -5981,7 +5981,7 @@ async function handleDocumentListing(
         userId,
         status: { not: 'deleted' },
       },
-      select: { id: true, filename: true, createdAt: true },
+      select: { id: true, filename: true, mimeType: true, fileSize: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -5990,7 +5990,7 @@ async function handleDocumentListing(
 
     // Cache the results
     fileListingCache.set(userId, {
-      documents: documents as { id: string; filename: string; createdAt: Date }[],
+      documents: documents as { id: string; filename: string; mimeType?: string | null; fileSize?: number | null; createdAt: Date }[],
       timestamp: now
     });
   }

@@ -10,7 +10,7 @@ import {
   chatDocumentGenerationService
 } from '../services/deletedServiceStubs';
 import fileActionsService from '../services/fileActions.service';
-import { generateConversationTitle } from '../services/gemini.service';
+import { generateConversationTitle } from '../services/openai.service';
 import cacheService from '../services/cache.service';
 import * as languageDetectionService from '../services/languageDetection.service';
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';

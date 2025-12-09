@@ -39,29 +39,66 @@
 }
 
 /* ============================================
-   3. CONSISTENT 12px GAP BETWEEN ELEMENTS
+   3. SPACING - BALANCED FOR READABILITY
    ============================================ */
 
+/* Headings followed by content */
 .markdown-preview-container h1 + *,
 .markdown-preview-container h2 + *,
 .markdown-preview-container h3 + *,
 .markdown-preview-container h4 + *,
 .markdown-preview-container h5 + *,
 .markdown-preview-container h6 + * {
-  margin-top: 12px !important;
+  margin-top: 8px !important;
 }
 
+/* Paragraph followed by other content */
 .markdown-preview-container p + * {
-  margin-top: 12px !important;
+  margin-top: 8px !important;
 }
 
+/* Paragraph followed by list - MORE SPACING */
+.markdown-preview-container p + ol,
+.markdown-preview-container p + ul {
+  margin-top: 16px !important;
+}
+
+/* After lists */
 .markdown-preview-container ul + *,
 .markdown-preview-container ol + * {
-  margin-top: 12px !important;
+  margin-top: 8px !important;
 }
 
-.markdown-preview-container li + li {
-  margin-top: 2px !important; /* Tight lists per Koda Markdown Contract: was 8px */
+/* Top-level numbered list items - SECTION SPACING */
+.markdown-preview-container > ol > li + li {
+  margin-top: 24px !important; /* Space between sections */
+}
+
+/* Bullet points inside sections - NORMAL SPACING */
+.markdown-preview-container li > ul > li + li,
+.markdown-preview-container li > ol > li + li {
+  margin-top: 6px !important; /* Normal bullet spacing */
+}
+
+/* Nested lists - normal spacing */
+.markdown-preview-container li > ul,
+.markdown-preview-container li > ol {
+  margin-top: 6px !important;
+  margin-bottom: 4px !important;
+}
+
+/* All ul/ol base styling */
+.markdown-preview-container ul,
+.markdown-preview-container ol {
+  margin-top: 6px !important;
+  margin-bottom: 6px !important;
+  padding-left: 1.25rem !important;
+}
+
+/* Paragraphs */
+.markdown-preview-container p {
+  margin-top: 0 !important;
+  margin-bottom: 6px !important;
 }
 
 /* ============================================
@@ -206,16 +243,16 @@
    ============================================ */
 
 .markdown-link {
-  color: #3b82f6 !important;
+  color: #1a1a1a !important; /* ✅ BLACK - no blue */
   text-decoration: none !important;
-  border-bottom: 1px solid #93c5fd !important;
+  border-bottom: none !important;
   transition: all 0.2s ease !important;
-  font-weight: 500 !important;
+  font-weight: 600 !important;
 }
 
 .markdown-link:hover {
-  color: #2563eb !important;
-  border-bottom-color: #3b82f6 !important;
+  color: #000000 !important; /* ✅ BLACK on hover */
+  text-decoration: none !important; /* ✅ NO underline */
 }
 
 /* ============================================
@@ -365,9 +402,9 @@
    ============================================ */
 
 .document-sources-container {
-  margin-top: 12px !important;
+  margin-top: 8px !important; /* ✅ REDUCED FROM 12px */
   border-top: 1px solid #E5E7EB !important;
-  padding-top: 12px !important;
+  padding-top: 8px !important; /* ✅ REDUCED FROM 12px */
 }
 
 .document-sources-button {
@@ -460,15 +497,15 @@
 
 .clickable-document-name {
   font-weight: 600 !important;
-  color: #1a1a1a !important;
+  color: #1a1a1a !important; /* ✅ BLACK */
   cursor: pointer !important;
   transition: all 0.2s ease !important;
   text-decoration: none !important;
 }
 
 .clickable-document-name:hover {
-  color: #000000 !important;
-  text-decoration: underline !important;
+  color: #000000 !important; /* ✅ BLACK on hover */
+  text-decoration: none !important; /* ✅ NO underline */
 }
 
 /* Document name in chat messages */
@@ -486,7 +523,7 @@
 }
 
 .markdown-preview-container .clickable-document-name:hover {
-  text-decoration: underline !important;
+  text-decoration: none !important; /* ✅ NO underline */
   color: #000000 !important;
 }
 

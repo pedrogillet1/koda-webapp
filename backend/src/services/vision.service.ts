@@ -10,10 +10,14 @@
  * - Text extraction from images (OCR)
  * - Text extraction from scanned PDFs
  *
- * Uses: mistral-ocr.service.ts (primary) with fallbacks
+ * Uses: ocr.service.ts (primary) with fallbacks
  */
 
-import mistralOCRService from './mistral-ocr.service';
+import ocrService from './ocr.service';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import crypto from 'crypto';
 
 // Types
 export interface OCRResult {
@@ -30,21 +34,53 @@ export interface ImageAnalysisResult {
 }
 
 /**
+ * Helper to save buffer to temp file and return path
+ */
+async function saveBufferToTempFile(buffer: Buffer, extension: string = '.png'): Promise<string> {
+  const tempDir = os.tmpdir();
+  const tempPath = path.join(tempDir, `ocr-${crypto.randomUUID()}${extension}`);
+  fs.writeFileSync(tempPath, buffer);
+  return tempPath;
+}
+
+/**
+ * Helper to clean up temp file
+ */
+async function cleanupTempFile(filePath: string): Promise<void> {
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  } catch (error) {
+    console.warn(`[VISION] Failed to clean up temp file: ${filePath}`);
+  }
+}
+
+/**
  * Analyze an image and get description, labels, and text
  */
 export const analyzeImage = async (input: Buffer | string): Promise<ImageAnalysisResult> => {
   console.log('[VISION] Analyzing image...');
   try {
-    if (!mistralOCRService.isAvailable()) {
+    if (!ocrService.isAvailable()) {
       console.warn('[VISION] OCR service not available');
       return { description: '', labels: [], text: '' };
     }
 
     let text = '';
-    if (Buffer.isBuffer(input)) {
-      text = await mistralOCRService.extractTextFromImageBuffer(input, 'image/png');
-    } else {
-      text = await mistralOCRService.extractTextFromImage(input);
+    let tempPath = '';
+
+    try {
+      if (Buffer.isBuffer(input)) {
+        tempPath = await saveBufferToTempFile(input, '.png');
+        const result = await ocrService.extractTextFromImage(tempPath);
+        text = result.text;
+      } else {
+        const result = await ocrService.extractTextFromImage(input);
+        text = result.text;
+      }
+    } finally {
+      if (tempPath) await cleanupTempFile(tempPath);
     }
 
     console.log(`[VISION] Analysis complete. Text found: ${text.length > 0}`);
@@ -69,23 +105,33 @@ export const analyzeImage = async (input: Buffer | string): Promise<ImageAnalysi
 export const extractTextFromImage = async (input: Buffer | string): Promise<OCRResult> => {
   console.log('[VISION] Extracting text from image...');
   try {
-    if (!mistralOCRService.isAvailable()) {
+    if (!ocrService.isAvailable()) {
       console.warn('[VISION] OCR service not available');
       return { text: '', confidence: 0 };
     }
 
-    let text = '';
-    if (Buffer.isBuffer(input)) {
-      text = await mistralOCRService.extractTextFromImageBuffer(input, 'image/png');
-    } else {
-      text = await mistralOCRService.extractTextFromImage(input);
-    }
+    let tempPath = '';
 
-    console.log(`[VISION] OCR complete. Extracted ${text.length} characters`);
-    return {
-      text,
-      confidence: text.length > 0 ? 0.95 : 0,
-    };
+    try {
+      if (Buffer.isBuffer(input)) {
+        tempPath = await saveBufferToTempFile(input, '.png');
+        const result = await ocrService.extractTextFromImage(tempPath);
+        console.log(`[VISION] OCR complete. Extracted ${result.text.length} characters`);
+        return {
+          text: result.text,
+          confidence: result.confidence / 100, // Convert from percentage to 0-1
+        };
+      } else {
+        const result = await ocrService.extractTextFromImage(input);
+        console.log(`[VISION] OCR complete. Extracted ${result.text.length} characters`);
+        return {
+          text: result.text,
+          confidence: result.confidence / 100,
+        };
+      }
+    } finally {
+      if (tempPath) await cleanupTempFile(tempPath);
+    }
   } catch (error: any) {
     console.error('[VISION] Error extracting text:', error.message);
     return {
@@ -101,22 +147,34 @@ export const extractTextFromImage = async (input: Buffer | string): Promise<OCRR
 export const extractTextFromScannedPDF = async (input: Buffer | string): Promise<OCRResult> => {
   console.log('[VISION] Extracting text from scanned PDF...');
   try {
-    if (!mistralOCRService.isAvailable()) {
+    if (!ocrService.isAvailable()) {
       console.warn('[VISION] OCR service not available');
       return { text: '', confidence: 0 };
     }
 
-    if (!Buffer.isBuffer(input)) {
-      console.warn('[VISION] PDF path not supported, need buffer');
-      return { text: '', confidence: 0 };
-    }
+    let tempPath = '';
 
-    const text = await mistralOCRService.processScannedPDF(input);
-    console.log(`[VISION] PDF OCR complete. Extracted ${text.length} characters`);
-    return {
-      text,
-      confidence: text.length > 0 ? 0.95 : 0,
-    };
+    try {
+      if (Buffer.isBuffer(input)) {
+        tempPath = await saveBufferToTempFile(input, '.pdf');
+        // processScannedPDF returns a string directly
+        const text = await ocrService.processScannedPDF(tempPath);
+        console.log(`[VISION] PDF OCR complete. Extracted ${text.length} characters`);
+        return {
+          text,
+          confidence: text.length > 0 ? 0.85 : 0,
+        };
+      } else {
+        const text = await ocrService.processScannedPDF(input);
+        console.log(`[VISION] PDF OCR complete. Extracted ${text.length} characters`);
+        return {
+          text,
+          confidence: text.length > 0 ? 0.85 : 0,
+        };
+      }
+    } finally {
+      if (tempPath) await cleanupTempFile(tempPath);
+    }
   } catch (error: any) {
     console.error('[VISION] Error extracting PDF text:', error.message);
     return {
@@ -132,14 +190,22 @@ export const extractTextFromScannedPDF = async (input: Buffer | string): Promise
 export const isScannedPDF = async (input: Buffer | string): Promise<boolean> => {
   console.log('[VISION] Checking if PDF is scanned...');
   try {
-    if (!Buffer.isBuffer(input)) {
-      console.warn('[VISION] PDF path not supported, need buffer');
-      return false;
-    }
+    let tempPath = '';
 
-    const result = await mistralOCRService.isScannedPDF(input);
-    console.log(`[VISION] PDF scan check: ${result ? 'SCANNED' : 'NATIVE'}`);
-    return result;
+    try {
+      if (Buffer.isBuffer(input)) {
+        tempPath = await saveBufferToTempFile(input, '.pdf');
+        const result = await ocrService.isScannedPDF(tempPath);
+        console.log(`[VISION] PDF scan check: ${result ? 'SCANNED' : 'NATIVE'}`);
+        return result;
+      } else {
+        const result = await ocrService.isScannedPDF(input);
+        console.log(`[VISION] PDF scan check: ${result ? 'SCANNED' : 'NATIVE'}`);
+        return result;
+      }
+    } finally {
+      if (tempPath) await cleanupTempFile(tempPath);
+    }
   } catch (error: any) {
     console.error('[VISION] Error checking PDF type:', error.message);
     return false;

@@ -2025,6 +2025,31 @@ export const microSummaryGeneratorService = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Conversation Embedding Service Stub (DEPRECATED - merged into deletedServiceStubs)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface ConversationSearchResult {
+  conversationId: string;
+  title: string;
+  summary: string;
+  score: number;
+  messageCount: number;
+  lastMessageAt: string;
+}
+
+export const conversationEmbeddingService = {
+  embedConversation: async () => {},
+  searchConversations: async (
+    _query: string,
+    _userId: string,
+    _options?: any
+  ): Promise<ConversationSearchResult[]> => [],
+  searchConversationChunks: async (_query: string, _options?: any): Promise<any[]> => [],
+  embedChunksBatch: async (_chunks: any[]): Promise<any[]> => [],
+  embedConversationIndex: async (_conversationId: string, _userId: string) => {},
+  deleteConversationEmbeddings: async (_conversationId: string) => {}
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Default export for services that use default import
 // ═══════════════════════════════════════════════════════════════════════════
 export default {
@@ -2048,5 +2073,6 @@ export default {
   metadataEnrichmentService,
   domainKnowledgeService,
   answerPostProcessor,
-  microSummaryGeneratorService
+  microSummaryGeneratorService,
+  conversationEmbeddingService
 };
