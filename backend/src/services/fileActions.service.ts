@@ -20,6 +20,7 @@ import semanticFileMatcher from './semanticFileMatcher.service'; // ✅ FIX #7: 
 import clarificationService from './clarification.service'; // ✅ P0 Feature: Smart clarification with grouping
 import { generateDynamicResponse } from './dynamicResponseGenerator.service'; // ✅ Dynamic LLM-based responses
 import { createLoadMoreMarker } from '../utils/inlineDocumentInjector'; // ✅ UI: Load more button instead of text
+import { detectLanguage as detectLanguageFromService } from './languageDetection.service'; // ✅ FIX: Use centralized language detection
 
 /**
  * Enhanced fuzzy matching using our dedicated service
@@ -42,29 +43,22 @@ function fuzzyMatchName(searchName: string, actualName: string): boolean {
 
 /**
  * Language Detection Function
- * Detects user's language from query to provide localized responses
+ * ✅ FIX: Now uses centralized languageDetection.service for comprehensive detection
  * Supports: English (EN), Portuguese (PT), Spanish (ES), French (FR)
  */
 function detectLanguage(query: string): 'pt' | 'es' | 'fr' | 'en' {
-  const lowerQuery = query.toLowerCase();
+  // Use the centralized language detection service which has:
+  // - Greeting detection (olá, hola, bonjour, etc.)
+  // - Question word patterns (quantos, cuántos, etc.)
+  // - Common verbs and phrases
+  // - Character-based detection (ã, ñ, ç, etc.)
+  const detectedLang = detectLanguageFromService(query);
 
-  // Portuguese indicators
-  const ptWords = ['me mostra', 'mostra', 'arquivo', 'pasta', 'mover', 'renomear', 'deletar', 'criar', 'excluir', 'abrir', 'mostre', 'aqui está', 'preciso', 'quero', 'onde está', 'cadê', 'abre', 'deixa eu ver'];
-  const ptCount = ptWords.filter(word => lowerQuery.includes(word)).length;
-
-  // Spanish indicators
-  const esWords = ['muéstrame', 'muestra', 'archivo', 'carpeta', 'mover', 'renombrar', 'eliminar', 'crear', 'abrir', 'aquí está', 'necesito', 'quiero', 'dónde está', 'enseña', 'déjame ver'];
-  const esCount = esWords.filter(word => lowerQuery.includes(word)).length;
-
-  // French indicators
-  const frWords = ['montre', 'montrer', 'fichier', 'dossier', 'déplacer', 'renommer', 'supprimer', 'créer', 'ouvrir', 'voici', 'besoin', 'veux', 'où est', 'afficher', 'laisse-moi voir'];
-  const frCount = frWords.filter(word => lowerQuery.includes(word)).length;
-
-  // Return language with highest match count
-  if (ptCount > esCount && ptCount > frCount && ptCount > 0) return 'pt';
-  if (esCount > ptCount && esCount > frCount && esCount > 0) return 'es';
-  if (frCount > ptCount && frCount > esCount && frCount > 0) return 'fr';
-  return 'en'; // Default to English
+  // Map to our supported languages (fr is detected by service, ensure type compatibility)
+  if (detectedLang === 'pt' || detectedLang === 'es' || detectedLang === 'fr') {
+    return detectedLang;
+  }
+  return 'en';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

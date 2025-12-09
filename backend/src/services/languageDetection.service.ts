@@ -62,26 +62,36 @@ export function detectLanguage(text: string): string {
     return words.filter(word => text.includes(word)).length;
   };
 
-  // Portuguese patterns (comprehensive list)
+  // Portuguese patterns (comprehensive list - EXPANDED)
   const portuguesePatterns = [
     // Greetings
     'olá', 'ola', 'oi', 'bom dia', 'boa tarde', 'boa noite',
-    'como está', 'como esta', 'tudo bem', 'como vai',
+    'como está', 'como esta', 'tudo bem', 'como vai', 'e aí', 'eai',
     'obrigado', 'obrigada', 'por favor',
     // Question words
-    'quantos', 'quantas', 'quais', 'qual', 'onde', 'quando', 'como', 'porque', 'por que', 'quem',
-    // Common verbs
+    'quantos', 'quantas', 'quais', 'qual é', 'qual', 'onde', 'quando', 'como', 'porque', 'por que', 'quem',
+    'o que', 'que é', 'que e', 'como é', 'como e', 'onde está', 'onde esta',
+    // Common verbs (including conjugations)
     'tenho', 'posso', 'pode', 'preciso', 'quero', 'gostaria',
-    'ajudar', 'mostrar', 'explicar', 'encontrar', 'buscar', 'procurar',
+    'ajudar', 'mostrar', 'mostra', 'mostre', 'me mostra', 'explicar', 'encontrar', 'buscar', 'procurar',
+    'abre', 'abra', 'abrir', 'exibe', 'exiba', 'exibir',
+    'são', 'sao', 'foi', 'fazer', 'ver', 'ler',
     // File/document terms
     'arquivo', 'arquivos', 'documento', 'documentos', 'pasta', 'pastas',
+    'contrato', 'contratos', 'análise', 'analise', 'relatório', 'relatorio',
+    'projeto', 'projetos', 'planilha', 'planilhas',
     // Actions
-    'criar', 'deletar', 'apagar', 'mover', 'renomear',
+    'criar', 'deletar', 'apagar', 'mover', 'renomear', 'excluir',
     // Common words
     'sobre', 'para', 'isso', 'este', 'esta', 'esse', 'essa',
     'meu', 'minha', 'meus', 'minhas', 'seu', 'sua',
     'não', 'nao', 'sim', 'muito', 'mais', 'menos', 'também', 'tambem',
-    // Portuguese-specific characters
+    // Financial/business terms
+    'total', 'valor', 'preço', 'preco', 'custo', 'data', 'nome',
+    'lucro', 'receita', 'despesa', 'investimento', 'roi', 'cálculo', 'calculo',
+    // Adjectives
+    'principal', 'principais', 'melhor', 'pior', 'maior', 'menor',
+    // Portuguese-specific characters/suffixes
     'ção', 'ões', 'ã', 'õ'
   ];
 
@@ -93,9 +103,10 @@ export function detectLanguage(text: string): string {
     // Question words
     'cuántos', 'cuantos', 'cuántas', 'cuantas', 'cuáles', 'cuales', 'cuál', 'cual',
     'dónde', 'donde', 'cuándo', 'cuando', 'cómo', 'por qué', 'quién', 'quien',
-    // Common verbs
+    // Common verbs (including conjugations)
     'tengo', 'puedo', 'necesito', 'quiero', 'quisiera',
-    'ayudar', 'mostrar', 'explicar', 'buscar', 'encontrar',
+    'ayudar', 'mostrar', 'muestra', 'muéstrame', 'muestrame', 'explicar', 'buscar', 'encontrar',
+    'abre', 'abra', 'abrir', 'enseña', 'enseñar', 'déjame', 'dejame',
     // File/document terms
     'archivo', 'archivos', 'documento', 'documentos', 'carpeta', 'carpetas',
     // Actions
@@ -106,22 +117,52 @@ export function detectLanguage(text: string): string {
     'ñ', '¿', '¡'
   ];
 
+  // French patterns
+  const frenchPatterns = [
+    // Greetings (already handled above but add more)
+    'bonjour', 'bonsoir', 'salut', 'coucou', 'ça va', 'merci', 's\'il vous plaît', 'svp',
+    // Question words
+    'combien', 'quels', 'quelle', 'quel', 'où', 'quand', 'comment', 'pourquoi', 'qui',
+    // Common verbs (including conjugations)
+    'j\'ai', 'je peux', 'je veux', 'j\'aimerais', 'je voudrais',
+    'montrer', 'montre', 'montrez', 'montre-moi', 'afficher', 'affiche', 'ouvrir', 'ouvre',
+    'voir', 'regarder', 'chercher', 'trouver',
+    // File/document terms
+    'fichier', 'fichiers', 'document', 'documents', 'dossier', 'dossiers',
+    // Actions
+    'créer', 'supprimer', 'déplacer', 'renommer', 'effacer',
+    // Common words
+    'le', 'la', 'les', 'mon', 'ma', 'mes', 'ce', 'cette', 'oui', 'non',
+    // French-specific
+    'é', 'è', 'ê', 'ç', 'à', 'ù', 'û', 'î', 'ô'
+  ];
+
   // Count matches for each language
   const ptCount = countMatches(lowerText, portuguesePatterns);
   const esCount = countMatches(lowerText, spanishPatterns);
+  const frCount = countMatches(lowerText, frenchPatterns);
 
-  // ✅ FIX: Require MINIMUM of 2 strong matches to switch from English
-  // This prevents false positives from partial word matches
-  const MIN_MATCHES_FOR_LANGUAGE_SWITCH = 2;
+  // ✅ FIX: Lowered from 2 to 1 to handle short queries like "Qual é o total?"
+  // Single matches for language-specific words are now sufficient
+  const MIN_MATCHES_FOR_LANGUAGE_SWITCH = 1;
 
   // Return language with most matches, only if above threshold
-  if (ptCount > esCount && ptCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
-    console.log(`🌐 [LANG] Detected Portuguese (${ptCount} matches)`);
-    return 'pt';
-  }
-  if (esCount > ptCount && esCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
-    console.log(`🌐 [LANG] Detected Spanish (${esCount} matches)`);
-    return 'es';
+  // Priority: pt > es > fr (in case of ties, prefer in this order)
+  const maxCount = Math.max(ptCount, esCount, frCount);
+
+  if (maxCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
+    if (ptCount === maxCount) {
+      console.log(`🌐 [LANG] Detected Portuguese (${ptCount} matches)`);
+      return 'pt';
+    }
+    if (esCount === maxCount) {
+      console.log(`🌐 [LANG] Detected Spanish (${esCount} matches)`);
+      return 'es';
+    }
+    if (frCount === maxCount) {
+      console.log(`🌐 [LANG] Detected French (${frCount} matches)`);
+      return 'fr';
+    }
   }
 
   // Default to English
