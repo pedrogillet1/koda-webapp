@@ -29,6 +29,7 @@ async function recoverStuckDocuments() {
       mimeType: true,
       filename: true,
       updatedAt: true,
+      fileSize: true,
     },
   });
 
@@ -76,6 +77,7 @@ async function recoverStuckDocuments() {
         userId: doc.userId,
         encryptedFilename: doc.encryptedFilename,
         mimeType: doc.mimeType,
+        fileSize: doc.fileSize || 0,
       });
 
       if (job) {
@@ -122,6 +124,7 @@ async function resetFailedDocuments() {
       encryptedFilename: true,
       mimeType: true,
       filename: true,
+      fileSize: true,
     },
   });
 
@@ -150,6 +153,7 @@ async function resetFailedDocuments() {
         userId: doc.userId,
         encryptedFilename: doc.encryptedFilename,
         mimeType: doc.mimeType,
+        fileSize: doc.fileSize || 0,
       });
 
       if (job) {

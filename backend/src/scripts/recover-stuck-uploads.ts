@@ -32,7 +32,8 @@ async function recoverStuckUploads() {
         mimeType: true,
         status: true,
         fileHash: true,
-        createdAt: true
+        createdAt: true,
+        fileSize: true
       },
       orderBy: { createdAt: 'asc' }
     });
@@ -82,7 +83,8 @@ async function recoverStuckUploads() {
             documentId: doc.id,
             userId: doc.userId,
             encryptedFilename: doc.encryptedFilename,
-            mimeType: doc.mimeType
+            mimeType: doc.mimeType,
+            fileSize: doc.fileSize || 0
           });
           queuedCount++;
           processedCount++;

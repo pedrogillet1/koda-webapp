@@ -147,6 +147,7 @@ export const completeMultipartUploadHandler = async (req: Request, res: Response
       userId,
       encryptedFilename: storageKey,
       mimeType: document.mimeType,
+      fileSize: document.fileSize || 0,
     });
 
     console.log(`✅ [Multipart] Upload completed and queued: ${documentId}`);

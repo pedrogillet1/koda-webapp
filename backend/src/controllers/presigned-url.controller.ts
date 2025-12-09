@@ -355,7 +355,8 @@ export const completeBatchUpload = async (
       select: {
         id: true,
         encryptedFilename: true,
-        mimeType: true
+        mimeType: true,
+        fileSize: true
       }
     });
 
@@ -370,7 +371,8 @@ export const completeBatchUpload = async (
           documentId: doc.id,
           userId,
           encryptedFilename: doc.encryptedFilename,
-          mimeType: doc.mimeType
+          mimeType: doc.mimeType,
+          fileSize: doc.fileSize || 0
         });
         queuedCount++;
       } catch (error) {
@@ -437,7 +439,8 @@ export const retriggerStuckDocuments = async (
         encryptedFilename: true,
         mimeType: true,
         filename: true,
-        createdAt: true
+        createdAt: true,
+        fileSize: true
       }
     });
 
@@ -475,7 +478,8 @@ export const retriggerStuckDocuments = async (
           documentId: doc.id,
           userId,
           encryptedFilename: doc.encryptedFilename,
-          mimeType: doc.mimeType
+          mimeType: doc.mimeType,
+          fileSize: doc.fileSize || 0
         });
         queuedCount++;
         console.log(`✅ [retriggerStuckDocuments] Queued: ${doc.filename}`);

@@ -15,7 +15,8 @@ async function forceProcessDocuments() {
       filename: true,
       encryptedFilename: true,
       mimeType: true,
-      createdAt: true
+      createdAt: true,
+      fileSize: true
     }
   });
 
@@ -34,7 +35,8 @@ async function forceProcessDocuments() {
         documentId: doc.id,
         userId: doc.userId,
         encryptedFilename: doc.encryptedFilename,
-        mimeType: doc.mimeType
+        mimeType: doc.mimeType,
+        fileSize: doc.fileSize || 0
       });
 
       console.log(`   ✅ Job queued successfully\n`);

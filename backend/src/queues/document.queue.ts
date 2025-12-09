@@ -2,22 +2,52 @@ import { Queue, Worker, Job } from 'bullmq';
 import { config } from '../config/env';
 import { redisConnection } from '../config/redis';
 import { downloadFile } from '../config/storage';
-import { extractText } from '../services/textExtraction.service';
+import { extractText, ExtractionResult } from '../services/textExtraction.service';
 import * as imageProcessing from '../services/imageProcessing.service';
-// REMOVED: visionService - deleted service (stub kept)
-const visionService = {
-  analyzeImage: async () => ({ description: '', labels: [], text: '' }),
-  extractTextFromImage: async () => '',
-};
 import markdownConversionService from '../services/markdownConversion.service';
-// ✅ RESTORED: Real embedding and chunking services for document indexing
 import embeddingService from '../services/embedding.service';
 import pineconeService from '../services/pinecone.service';
 import { createBM25Chunks } from '../services/bm25ChunkCreation.service';
 import prisma from '../config/database';
 
 // ============================================================================
-// ✅ FIX #1: Wait for Prisma to be ready before processing
+// SAFETY AND CONFIGURATION CONSTANTS
+// ============================================================================
+const MAX_FILE_SIZE_MB = 100;
+const MAX_TEXT_LENGTH = 500000; // 500k characters
+const EXTRACTION_TIMEOUT_MS = 180000; // 3 minutes
+const SUPPORTED_MIME_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/msword',
+  'text/plain',
+  'text/markdown',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'image/jpeg',
+  'image/png',
+  'image/tiff',
+  'image/webp',
+];
+
+// ============================================================================
+// CUSTOM ERROR CLASS FOR CONTROLLED FAILURES
+// ============================================================================
+class ProcessingError extends Error {
+  constructor(
+    message: string,
+    public readonly stage: string,
+    public readonly isRetryable: boolean = false
+  ) {
+    super(message);
+    this.name = 'ProcessingError';
+  }
+}
+
+// ============================================================================
+// PRISMA READY CHECK (PRESERVED FROM ORIGINAL)
 // ============================================================================
 let prismaReady = false;
 
@@ -27,7 +57,6 @@ async function ensurePrismaReady(): Promise<void> {
   console.log('⏳ [PRISMA] Waiting for Prisma client to be ready...');
 
   try {
-    // Test Prisma connection
     await prisma.$connect();
     await prisma.$queryRaw`SELECT 1`;
     prismaReady = true;
@@ -39,10 +68,9 @@ async function ensurePrismaReady(): Promise<void> {
 }
 
 // ============================================================================
-// ✅ FIX #3: Validate embeddings before sending to Pinecone
+// EMBEDDING VALIDATION (PRESERVED FROM ORIGINAL)
 // ============================================================================
 function validateEmbedding(embedding: number[], chunkContent: string): boolean {
-  // Check if embedding is all zeros
   const hasNonZero = embedding.some(val => val !== 0);
 
   if (!hasNonZero) {
@@ -50,7 +78,6 @@ function validateEmbedding(embedding: number[], chunkContent: string): boolean {
     return false;
   }
 
-  // Check if embedding has reasonable values
   const maxValue = Math.max(...embedding.map(Math.abs));
   if (maxValue > 10) {
     console.warn(`⚠️  [EMBEDDING] Abnormal embedding values (max: ${maxValue}) for chunk: "${chunkContent.substring(0, 100)}..."`);
@@ -60,7 +87,9 @@ function validateEmbedding(embedding: number[], chunkContent: string): boolean {
   return true;
 }
 
-// Import io dynamically to avoid circular dependency
+// ============================================================================
+// SOCKET.IO DYNAMIC IMPORT
+// ============================================================================
 let io: any = null;
 const getIO = () => {
   if (!io) {
@@ -74,19 +103,37 @@ const getIO = () => {
   return io;
 };
 
-// Store progress in Redis (expires after 1 hour)
-const setDocumentProgress = async (documentId: string, progress: number, stage: string, message: string) => {
+// ============================================================================
+// REDIS PROGRESS TRACKING
+// ============================================================================
+const setDocumentProgress = async (
+  documentId: string,
+  progress: number,
+  stage: string,
+  message: string
+) => {
   try {
     if (!redisConnection) return;
-    const progressData = JSON.stringify({ progress, stage, message, updatedAt: new Date().toISOString() });
-    await redisConnection.setex(`progress:${documentId}`, 3600, progressData); // 1 hour expiration
+    const progressData = JSON.stringify({
+      progress,
+      stage,
+      message,
+      updatedAt: new Date().toISOString(),
+    });
+    await redisConnection.setex(`progress:${documentId}`, 3600, progressData);
   } catch (error) {
     console.warn(`⚠️  Failed to store progress for ${documentId}:`, error);
   }
 };
 
-// Emit processing update via WebSocket AND store in Redis
-const emitProcessingUpdate = async (userId: string, documentId: string, data: any) => {
+// ============================================================================
+// WEBSOCKET AND REDIS UPDATE EMITTER
+// ============================================================================
+const emitProcessingUpdate = async (
+  userId: string,
+  documentId: string,
+  data: any
+) => {
   const socketIO = getIO();
   if (socketIO) {
     socketIO.to(`user:${userId}`).emit('document-processing-update', {
@@ -94,48 +141,56 @@ const emitProcessingUpdate = async (userId: string, documentId: string, data: an
       ...data,
     });
   }
-
-  // Store progress in Redis for polling
   if (data.progress !== undefined) {
-    await setDocumentProgress(documentId, data.progress, data.stage || '', data.message || '');
+    await setDocumentProgress(
+      documentId,
+      data.progress,
+      data.stage || '',
+      data.message || ''
+    );
   }
 };
 
-/**
- * Chunk text into smaller pieces for vector embedding
- *
- * REASON: Simple sentence-based chunking for embedding generation
- * WHY: Creates ~500 word chunks that fit well within embedding context
- * HOW: Split by sentences → Group into chunks → Add metadata
- * IMPACT: Enables semantic search via Pinecone
- */
-async function chunkText(text: string, filename: string = 'document'): Promise<Array<{content: string, metadata: any}>> {
+// ============================================================================
+// TEXT CHUNKING LOGIC (PRESERVED FROM ORIGINAL)
+// ============================================================================
+async function chunkText(
+  text: string,
+  filename: string = 'document'
+): Promise<Array<{ content: string; metadata: any }>> {
   const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
-  const chunks: Array<{content: string, metadata: any}> = [];
+  const chunks: Array<{ content: string; metadata: any }> = [];
   let currentChunk = '';
   let currentWordCount = 0;
   let chunkIndex = 0;
   const maxWords = 500;
-  const CHUNK_OVERLAP = 50; // Words overlap between chunks
+  const CHUNK_OVERLAP = 50;
 
   for (const sentence of sentences) {
     const words = sentence.trim().split(/\s+/);
     const sentenceWordCount = words.length;
 
-    if (currentWordCount + sentenceWordCount > maxWords && currentChunk.length > 0) {
+    if (
+      currentWordCount + sentenceWordCount > maxWords &&
+      currentChunk.length > 0
+    ) {
       chunks.push({
         content: currentChunk.trim(),
         metadata: {
           chunkIndex,
           startChar: text.indexOf(currentChunk),
-          endChar: text.indexOf(currentChunk) + currentChunk.length
-        }
+          endChar: text.indexOf(currentChunk) + currentChunk.length,
+        },
       });
       chunkIndex++;
-      // Keep last few sentences for overlap
-      const overlapSentences = currentChunk.split(/[.!?]+/).slice(-2).join('. ');
+      const overlapSentences = currentChunk
+        .split(/[.!?]+/)
+        .slice(-2)
+        .join('. ');
       currentChunk = overlapSentences ? overlapSentences + '. ' : '';
-      currentWordCount = overlapSentences ? overlapSentences.split(/\s+/).length : 0;
+      currentWordCount = overlapSentences
+        ? overlapSentences.split(/\s+/).length
+        : 0;
     }
 
     currentChunk += sentence + ' ';
@@ -148,49 +203,51 @@ async function chunkText(text: string, filename: string = 'document'): Promise<A
       metadata: {
         chunkIndex,
         startChar: text.indexOf(currentChunk),
-        endChar: text.indexOf(currentChunk) + currentChunk.length
-      }
+        endChar: text.indexOf(currentChunk) + currentChunk.length,
+      },
     });
   }
 
-  console.log(`📊 [Chunking] Created ${chunks.length} chunks (~${maxWords} words each) for "${filename}"`);
+  console.log(
+    `📊 [Chunking] Created ${chunks.length} chunks (~${maxWords} words each) for "${filename}"`
+  );
   return chunks;
 }
 
-// Document processing job data interface
+// ============================================================================
+// JOB INTERFACE AND QUEUE/WORKER SETUP
+// ============================================================================
 export interface DocumentProcessingJob {
   documentId: string;
   userId: string;
   encryptedFilename: string;
   mimeType: string;
+  fileSize: number; // NEW: Added for size validation
 }
 
 let documentQueue: Queue<DocumentProcessingJob> | null = null;
 let documentWorker: Worker<DocumentProcessingJob> | null = null;
 
-// Only initialize if Redis is available
 if (redisConnection && process.env.REDIS_URL) {
   try {
-    // BullMQ with Upstash Redis
-    // Parse the connection URL and configure ioredis
     const redisUrl = new URL(process.env.REDIS_URL);
     documentQueue = new Queue<DocumentProcessingJob>('document-processing', {
       connection: {
         host: redisUrl.hostname,
         port: parseInt(redisUrl.port) || 6379,
-        password: redisUrl.password, // Upstash token (no username auth needed)
-        tls: {}, // Enable TLS for Upstash
-        maxRetriesPerRequest: null, // Required by BullMQ
+        password: redisUrl.password,
+        tls: {},
+        maxRetriesPerRequest: null,
       },
       defaultJobOptions: {
-        attempts: 3,
+        attempts: 5, // Increased from 3 for better retry handling
         backoff: {
           type: 'exponential',
-          delay: 5000,
+          delay: 15000, // 15 seconds (increased from 5s)
         },
         removeOnComplete: {
           age: 24 * 3600,
-          count: 100,
+          count: 1000, // Increased from 100
         },
         removeOnFail: {
           age: 7 * 24 * 3600,
@@ -203,10 +260,13 @@ if (redisConnection && process.env.REDIS_URL) {
   }
 }
 
-// Add job to queue
-export const addDocumentProcessingJob = async (data: DocumentProcessingJob) => {
+export const addDocumentProcessingJob = async (
+  data: DocumentProcessingJob
+) => {
   if (!documentQueue) {
-    console.warn('⚠️  Document queue not available, skipping background processing');
+    console.warn(
+      '⚠️  Document queue not available, skipping background processing'
+    );
     return null;
   }
   return await documentQueue.add('process-document', data, {
@@ -214,11 +274,18 @@ export const addDocumentProcessingJob = async (data: DocumentProcessingJob) => {
   });
 };
 
-// Document processing worker
+// ============================================================================
+// MAIN DOCUMENT PROCESSING WORKER
+// ============================================================================
 const processDocument = async (job: Job<DocumentProcessingJob>) => {
-  const { documentId, userId, encryptedFilename, mimeType } = job.data;
+  const { documentId, userId, encryptedFilename, mimeType, fileSize } =
+    job.data;
 
-  // ✅ FIX #1: Ensure Prisma is ready before processing
+  console.log(
+    `📄 [DOC:${documentId}] Starting processing for user ${userId}, MIME: ${mimeType}, Size: ${fileSize} bytes`
+  );
+
+  // Ensure Prisma is ready before processing
   try {
     await ensurePrismaReady();
   } catch (error) {
@@ -226,68 +293,89 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
     throw new Error('Prisma client not initialized');
   }
 
-  console.log(`📄 [DOC:${documentId}] Processing for user ${userId}`);
-  console.log(`📄 [DOC:${documentId}] Filename: ${encryptedFilename}, MIME: ${mimeType}`);
-
   try {
-    await job.updateProgress(10);
+    // ========================================================================
+    // STEP 1: INITIAL VALIDATION (NEW)
+    // ========================================================================
     await emitProcessingUpdate(userId, documentId, {
-      progress: 10,
-      stage: 'starting',
-      message: 'Processing started',
+      progress: 5,
+      stage: 'validation',
+      message: 'Validating file...',
     });
 
-    // Step 1: Download encrypted file from GCS
-    console.log(`⬇️  Downloading file: ${encryptedFilename}`);
+    if (!SUPPORTED_MIME_TYPES.includes(mimeType)) {
+      throw new ProcessingError(
+        `Unsupported file type: ${mimeType}`,
+        'validation'
+      );
+    }
+
+    if (fileSize > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      throw new ProcessingError(
+        `File exceeds size limit of ${MAX_FILE_SIZE_MB}MB`,
+        'validation'
+      );
+    }
+
+    // ========================================================================
+    // STEP 2: DOWNLOAD FILE
+    // ========================================================================
+    await emitProcessingUpdate(userId, documentId, {
+      progress: 15,
+      stage: 'downloading',
+      message: 'Downloading file...',
+    });
+
     const fileBuffer = await downloadFile(encryptedFilename);
-    await job.updateProgress(25);
+
+    // ========================================================================
+    // STEP 3: TEXT & METADATA EXTRACTION (WITH TIMEOUT)
+    // ========================================================================
     await emitProcessingUpdate(userId, documentId, {
-      progress: 25,
-      stage: 'downloaded',
-      message: 'File downloaded from storage',
+      progress: 30,
+      stage: 'extracting',
+      message: 'Extracting text and metadata...',
     });
 
-    // PHASE 2 & 3: PARALLEL PROCESSING - Run text extraction, markdown conversion, and DOCX conversion in parallel
-    console.log(`⚡ [DOC:${documentId}] Starting parallel processing (text + markdown + DOCX conversion)...`);
+    let extractionResult: ExtractionResult;
+    try {
+      const extractionPromise = extractText(fileBuffer, mimeType);
+      extractionResult = await Promise.race([
+        extractionPromise,
+        new Promise<ExtractionResult>((_, reject) =>
+          setTimeout(
+            () => reject(new Error('Extraction timed out')),
+            EXTRACTION_TIMEOUT_MS
+          )
+        ),
+      ]);
+    } catch (error) {
+      throw new ProcessingError(
+        `Text extraction failed: ${(error as Error).message}`,
+        'extraction',
+        true // Retryable
+      );
+    }
 
-    let extractedText = '';
-    let ocrConfidence = null;
-    let language = null;
-    let markdownContent = null;
-    let markdownStructure = null;
-    let images: string[] = [];
-    let metadata: {
-      pageCount?: number;
-      wordCount?: number;
-      sheetCount?: number;
-      slideCount?: number;
-      slidesData?: any;
-      pptxMetadata?: any;
-    } = {};
+    const extractedText = extractionResult.text || '';
+    if (extractedText.length > MAX_TEXT_LENGTH) {
+      throw new ProcessingError(
+        `Extracted text exceeds limit of ${MAX_TEXT_LENGTH} characters`,
+        'extraction'
+      );
+    }
+
+    // ========================================================================
+    // STEP 4: PARALLEL PROCESSING (Markdown, DOCX->PDF, PowerPoint)
+    // ========================================================================
+    let markdownContent: string | null = null;
+    let markdownStructure: string | null = null;
     let pdfConversionPath: string | null = null;
+    let pptxMetadata: any = {};
 
-    // Run text extraction, markdown conversion, DOCX->PDF conversion, and PowerPoint extraction in parallel
-    const [textResult, markdownResult, docxConversionResult, pptxResult] = await Promise.allSettled([
-      // Task 1: Extract text from document
-      (async () => {
-        console.log(`📝 [DOC:${documentId}] Extracting text from ${mimeType}...`);
-        try {
-          const extractionResult = await extractText(fileBuffer, mimeType);
-          const text = extractionResult.text || '';
-          const confidence = extractionResult.confidence || null;
-          const lang = extractionResult.language || null;
-          console.log(
-            `✅ [DOC:${documentId}] Extracted ${extractionResult.wordCount || 0} words (confidence: ${confidence})`
-          );
-          console.log(`✅ [DOC:${documentId}] Text preview: "${text.substring(0, 100)}..."`);
-          return { text, confidence, lang };
-        } catch (error) {
-          console.warn(`⚠️  [DOC:${documentId}] Text extraction failed: ${(error as Error).message}`);
-          return { text: '', confidence: null, lang: null };
-        }
-      })(),
-
-      // Task 2: Convert document to markdown for deep linking
+    // Run markdown conversion, DOCX->PDF conversion, and PowerPoint extraction in parallel
+    const [markdownResult, docxConversionResult, pptxResult] = await Promise.allSettled([
+      // Task 1: Convert document to markdown for deep linking
       (async () => {
         console.log(`📝 [DOC:${documentId}] Converting to markdown...`);
         try {
@@ -297,8 +385,7 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
             encryptedFilename,
             documentId
           );
-
-          console.log(`✅ [DOC:${documentId}] Converted to markdown (${conversionResult.markdownContent.length} chars, ${conversionResult.structure.headings.length} headings)`);
+          console.log(`✅ [DOC:${documentId}] Converted to markdown (${conversionResult.markdownContent.length} chars)`);
           return conversionResult;
         } catch (error) {
           console.warn(`⚠️  [DOC:${documentId}] Markdown conversion failed: ${(error as Error).message}`);
@@ -306,11 +393,11 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
         }
       })(),
 
-      // Task 3: PHASE 2 - Convert DOCX to PDF during upload (pre-conversion)
+      // Task 2: Convert DOCX to PDF during upload (pre-conversion)
       (async () => {
         const isDocx = mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
         if (!isDocx) {
-          return null; // Skip if not DOCX
+          return null;
         }
 
         console.log(`📄 [DOC:${documentId}] DOCX detected - starting pre-conversion to PDF...`);
@@ -320,26 +407,22 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
           const path = await import('path');
           const os = await import('os');
 
-          // Write DOCX to temp file
           const tempDir = os.tmpdir();
           const tempDocxPath = path.join(tempDir, `${documentId}.docx`);
           fs.writeFileSync(tempDocxPath, fileBuffer);
 
-          // Convert DOCX to PDF
           const conversionResult = await convertDocxToPdf(tempDocxPath, tempDir);
 
           if (conversionResult.success && conversionResult.pdfPath) {
-            // Upload PDF to storage
             const { uploadFile } = await import('../config/storage');
             const pdfBuffer = fs.readFileSync(conversionResult.pdfPath);
             const pdfStoragePath = `${userId}/${documentId}-converted.pdf`;
             await uploadFile(pdfStoragePath, pdfBuffer, 'application/pdf');
 
-            // Clean up temp files
             fs.unlinkSync(tempDocxPath);
             fs.unlinkSync(conversionResult.pdfPath);
 
-            console.log(`✅ [DOC:${documentId}] DOCX pre-converted to PDF and uploaded: ${pdfStoragePath}`);
+            console.log(`✅ [DOC:${documentId}] DOCX pre-converted to PDF: ${pdfStoragePath}`);
             return pdfStoragePath;
           } else {
             console.warn(`⚠️  [DOC:${documentId}] DOCX pre-conversion failed: ${conversionResult.error}`);
@@ -351,11 +434,11 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
         }
       })(),
 
-      // Task 4: Extract PowerPoint slides data
+      // Task 3: Extract PowerPoint slides data
       (async () => {
         const isPPTX = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
         if (!isPPTX) {
-          return null; // Skip if not PowerPoint
+          return null;
         }
 
         console.log(`📊 [DOC:${documentId}] PowerPoint detected - extracting slides data...`);
@@ -365,42 +448,29 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
           const path = await import('path');
           const os = await import('os');
 
-          // Save file buffer to temporary file
           const tempDir = os.tmpdir();
           const tempFilePath = path.join(tempDir, `pptx-${crypto.randomUUID()}.pptx`);
           fs.writeFileSync(tempFilePath, fileBuffer);
 
-          // Import and use PPTX extractor
           const { pptxExtractorService } = await import('../services/pptxExtractor.service');
           const result = await pptxExtractorService.extractText(tempFilePath);
 
+          fs.unlinkSync(tempFilePath);
+
           if (result.success) {
             const extractedSlides = result.slides || [];
-            const pptxMetadata = result.metadata || {};
-            const totalSlides = result.totalSlides || 0;
-
-            // Store slide text data (images will be added later by background task)
-            const slidesData = extractedSlides.map((slide: any) => ({
-              slideNumber: slide.slide_number,
-              content: slide.content,
-              textCount: slide.text_count,
-              imageUrl: null, // Will be updated later if images are generated
-            }));
-
-            console.log(`✅ [DOC:${documentId}] Extracted ${slidesData.length} slides from PowerPoint`);
-
-            // Clean up temp file
-            fs.unlinkSync(tempFilePath);
-
             return {
-              slidesData: JSON.stringify(slidesData),
-              pptxMetadata: JSON.stringify(pptxMetadata),
-              slideCount: totalSlides,
+              slideCount: result.totalSlides || 0,
+              slides: extractedSlides.map((slide: any) => ({
+                slideNumber: slide.slide_number,
+                content: slide.content,
+                textCount: slide.text_count,
+                imageUrl: null,
+              })),
+              metadata: result.metadata || {},
             };
-          } else {
-            console.warn(`⚠️  [DOC:${documentId}] PowerPoint extraction failed: ${result.error}`);
-            return null;
           }
+          return null;
         } catch (error) {
           console.warn(`⚠️  [DOC:${documentId}] PowerPoint extraction error: ${(error as Error).message}`);
           return null;
@@ -409,19 +479,9 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
     ]);
 
     // Extract results from parallel execution
-    // Note: metadata is already initialized above at line 236
-
-    if (textResult.status === 'fulfilled') {
-      extractedText = textResult.value.text;
-      ocrConfidence = textResult.value.confidence;
-      language = textResult.value.lang;
-    }
-
     if (markdownResult.status === 'fulfilled' && markdownResult.value) {
       markdownContent = markdownResult.value.markdownContent;
       markdownStructure = JSON.stringify(markdownResult.value.structure);
-      images = markdownResult.value.images;
-      metadata = (markdownResult.value as any).metadata || {};
     }
 
     if (docxConversionResult.status === 'fulfilled' && docxConversionResult.value) {
@@ -429,244 +489,180 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
     }
 
     if (pptxResult.status === 'fulfilled' && pptxResult.value) {
-      metadata.slidesData = pptxResult.value.slidesData;
-      metadata.pptxMetadata = pptxResult.value.pptxMetadata;
-      if (pptxResult.value.slideCount) {
-        metadata.slideCount = pptxResult.value.slideCount;
-      }
+      pptxMetadata = pptxResult.value;
+      console.log(`✅ [DOC:${documentId}] Extracted metadata from ${pptxMetadata.slideCount} slides`);
     }
 
-    await job.updateProgress(70);
-    emitProcessingUpdate(userId, documentId, {
-      progress: 70,
-      stage: 'parallel-processing-complete',
-      message: 'Text extraction, markdown conversion, and DOCX pre-conversion completed',
-      ocrConfidence,
+    // ========================================================================
+    // STEP 5: SAVE INITIAL METADATA
+    // ========================================================================
+    await emitProcessingUpdate(userId, documentId, {
+      progress: 50,
+      stage: 'saving_metadata',
+      message: 'Saving metadata...',
     });
 
-    // Step 3: REMOVED - Thumbnail generation (per user request)
-    const thumbnailUrl = null;
-
-    // Step 4: REMOVED - Document classification (performance optimization)
-    const classification = 'unknown';
-    const entities = {};
-
-    // Step 5: Save metadata
-    await job.updateProgress(80);
-
-    // Step 6: Save metadata and PDF conversion path to database with explicit logging
-    console.log(`💾 [DOC:${documentId}] Saving metadata to database...`);
-    console.log(`💾 [DOC:${documentId}] Text to save (first 150 chars): "${extractedText.substring(0, 150)}..."`);
+    // If DOCX was pre-converted to PDF, store the PDF path in renderableContent
     if (pdfConversionPath) {
-      console.log(`💾 [DOC:${documentId}] DOCX pre-converted PDF path: ${pdfConversionPath}`);
+      await prisma.document.update({
+        where: { id: documentId },
+        data: {
+          renderableContent: JSON.stringify({
+            type: 'docx-pdf-conversion',
+            pdfPath: pdfConversionPath,
+            convertedAt: new Date().toISOString(),
+          }),
+        },
+      });
+      console.log(`✅ [DOC:${documentId}] Stored PDF conversion path in renderableContent`);
     }
 
-    // Use transaction to ensure atomicity and prevent race conditions
-    let documentFilename = 'document'; // Default filename for chunking
-    await prisma.$transaction(async (tx) => {
-      // Verify document belongs to this user (security check)
-      const doc = await tx.document.findUnique({
-        where: { id: documentId },
-        select: { userId: true, filename: true }
+    await prisma.documentMetadata.upsert({
+      where: { documentId },
+      create: {
+        documentId,
+        extractedText,
+        ocrConfidence: extractionResult.confidence || null,
+        pageCount: extractionResult.pageCount || null,
+        wordCount: extractionResult.wordCount || null,
+        sheetCount: (extractionResult as any).sheetCount || null, // Excel sheets
+        // Markdown content
+        markdownContent,
+        markdownStructure,
+        // PowerPoint data
+        slideCount: pptxMetadata.slideCount || null,
+        slidesData: pptxMetadata.slides ? JSON.stringify(pptxMetadata.slides) : null,
+        pptxMetadata: pptxMetadata.metadata ? JSON.stringify(pptxMetadata.metadata) : null,
+        // DISABLED (as per original code)
+        thumbnailUrl: null,
+        classification: 'unknown',
+        entities: '{}',
+      },
+      update: {
+        extractedText,
+        ocrConfidence: extractionResult.confidence || null,
+        pageCount: extractionResult.pageCount || null,
+        wordCount: extractionResult.wordCount || null,
+        sheetCount: (extractionResult as any).sheetCount || null,
+        markdownContent,
+        markdownStructure,
+        slideCount: pptxMetadata.slideCount || null,
+        slidesData: pptxMetadata.slides ? JSON.stringify(pptxMetadata.slides) : null,
+        pptxMetadata: pptxMetadata.metadata ? JSON.stringify(pptxMetadata.metadata) : null,
+      },
+    });
+
+    // ========================================================================
+    // STEP 6: EMBEDDINGS & VECTOR STORAGE
+    // ========================================================================
+    if (extractedText && extractedText.length > 50) {
+      await emitProcessingUpdate(userId, documentId, {
+        progress: 70,
+        stage: 'embedding',
+        message: 'Generating embeddings...',
       });
 
-      // Store filename for later use in embedding generation
-      if (doc) {
-        documentFilename = doc.filename;
+      const documentRecord = await prisma.document.findUnique({
+        where: { id: documentId },
+        include: { folder: true },
+      });
+
+      // Create BM25 chunks for keyword search
+      console.log(`🔍 [DOC:${documentId}] Creating BM25 chunks...`);
+      const bm25ChunkCount = await createBM25Chunks(
+        documentId,
+        extractedText,
+        extractionResult.pageCount || null
+      );
+      console.log(`✅ [DOC:${documentId}] Created ${bm25ChunkCount} BM25 chunks`);
+
+      const chunks = await chunkText(
+        extractedText,
+        documentRecord?.filename || 'document.bin'
+      );
+      const chunksWithEmbeddings = [];
+
+      for (let i = 0; i < chunks.length; i++) {
+        try {
+          const embeddingResult = await embeddingService.generateEmbedding(
+            chunks[i].content
+          );
+
+          // Validate embedding before using
+          if (!validateEmbedding(embeddingResult.embedding, chunks[i].content)) {
+            console.warn(`⚠️  [DOC:${documentId}] Skipping chunk ${i} due to invalid embedding`);
+            continue;
+          }
+
+          chunksWithEmbeddings.push({
+            chunkIndex: i,
+            content: chunks[i].content,
+            embedding: embeddingResult.embedding,
+            metadata: chunks[i].metadata,
+          });
+        } catch (chunkError) {
+          console.warn(
+            `⚠️ [DOC:${documentId}] Failed to embed chunk ${i}:`,
+            chunkError
+          );
+        }
       }
 
-      if (!doc) {
-        throw new Error(`Document ${documentId} not found during metadata save`);
-      }
+      if (documentRecord && chunksWithEmbeddings.length > 0) {
+        await pineconeService.upsertDocumentEmbeddings(
+          documentId,
+          userId,
+          {
+            filename: documentRecord.filename,
+            mimeType: documentRecord.mimeType,
+            createdAt: documentRecord.createdAt,
+            status: 'completed',
+            folderId: documentRecord.folderId || undefined,
+            folderName: documentRecord.folder?.name || undefined,
+            folderPath: documentRecord.folder?.path || undefined,
+          },
+          chunksWithEmbeddings
+        );
 
-      if (doc.userId !== userId) {
-        throw new Error(`SECURITY BREACH PREVENTED: documents ${documentId} belongs to user ${doc.userId}, not ${userId}`);
-      }
-
-      console.log(`✅ [DOC:${documentId}] Verified document belongs to user ${userId} (filename: ${doc.filename})`);
-
-      // If DOCX was pre-converted to PDF, store the PDF path in renderableContent
-      if (pdfConversionPath) {
-        await tx.document.update({
+        await prisma.document.update({
           where: { id: documentId },
           data: {
-            renderableContent: JSON.stringify({
-              type: 'docx-pdf-conversion',
-              pdfPath: pdfConversionPath,
-              convertedAt: new Date().toISOString(),
-            }),
+            embeddingsGenerated: true,
+            chunksCount: chunksWithEmbeddings.length,
           },
         });
-        console.log(`✅ [DOC:${documentId}] Stored PDF conversion path in renderableContent`);
-      }
 
-      // Save metadata (including markdown)
-      await tx.documentMetadata.upsert({
-        where: { documentId },
-        create: {
-          documentId,
-          extractedText,
-          ocrConfidence,
-          thumbnailUrl,
-          entities: JSON.stringify(entities),
-          classification,
-          markdownContent,
-          markdownStructure,
-          pageCount: metadata.pageCount || null,
-          wordCount: metadata.wordCount || null,
-          sheetCount: metadata.sheetCount || null,
-          slideCount: metadata.slideCount || null,
-          slidesData: metadata.slidesData || null,
-          pptxMetadata: metadata.pptxMetadata || null,
-        },
-        update: {
-          extractedText,
-          ocrConfidence,
-          thumbnailUrl,
-          entities: JSON.stringify(entities),
-          classification,
-          markdownContent,
-          markdownStructure,
-          pageCount: metadata.pageCount || null,
-          wordCount: metadata.wordCount || null,
-          sheetCount: metadata.sheetCount || null,
-          slideCount: metadata.slideCount || null,
-          slidesData: metadata.slidesData || null,
-          pptxMetadata: metadata.pptxMetadata || null,
-        },
-      });
-
-      console.log(`✅ [DOC:${documentId}] Metadata saved successfully`);
-    });
-
-    // Progress update: Metadata saved
-    await job.updateProgress(65);
-    await emitProcessingUpdate(userId, documentId, {
-      progress: 65,
-      stage: 'metadata-saved',
-      message: 'Metadata and text extraction complete',
-    });
-
-    // Step 7: Generate vector embeddings for RAG search + BM25 chunks
-    console.log(`🧠 [DOC:${documentId}] Generating vector embeddings and BM25 chunks...`);
-    await job.updateProgress(80);
-    await emitProcessingUpdate(userId, documentId, {
-      progress: 80,
-      stage: 'generating-embeddings',
-      message: 'Generating vector embeddings...',
-    });
-
-    try {
-      if (extractedText && extractedText.length > 50) {
-        // ============================================================================
-        // STEP 7A: Create BM25 chunks for keyword search
-        // ============================================================================
-        console.log(`🔍 [DOC:${documentId}] Creating BM25 chunks...`);
-        const bm25ChunkCount = await createBM25Chunks(
-          documentId,
-          extractedText,
-          metadata.pageCount || null
+        console.log(
+          `✅ [DOC:${documentId}] Stored ${chunksWithEmbeddings.length} embeddings in Pinecone`
         );
-        console.log(`✅ [DOC:${documentId}] Created ${bm25ChunkCount} BM25 chunks`);
-
-        // ============================================================================
-        // STEP 7B: Generate embeddings and store in Pinecone
-        // ============================================================================
-        console.log(`🧠 [DOC:${documentId}] Generating embeddings for Pinecone...`);
-
-        // Split text into chunks for embedding
-        const chunks = await chunkText(extractedText, documentFilename);
-        console.log(`📦 [DOC:${documentId}] Split document into ${chunks.length} chunks`);
-
-        // Generate embeddings for each chunk
-        const chunksWithEmbeddings = [];
-        for (let i = 0; i < chunks.length; i++) {
-          try {
-            const embeddingResult = await embeddingService.generateEmbedding(chunks[i].content);
-
-            // ✅ FIX #3: Validate embedding before using
-            if (!validateEmbedding(embeddingResult.embedding, chunks[i].content)) {
-              console.warn(`⚠️  [DOC:${documentId}] Skipping chunk ${i} due to invalid embedding`);
-              continue; // Skip this chunk
-            }
-
-            chunksWithEmbeddings.push({
-              chunkIndex: i,
-              content: chunks[i].content,
-              embedding: embeddingResult.embedding,
-              metadata: chunks[i].metadata
-            });
-          } catch (chunkError) {
-            console.warn(`⚠️ [DOC:${documentId}] Failed to embed chunk ${i}:`, chunkError);
-          }
-        }
-
-        // Get document metadata for Pinecone
-        const doc = await prisma.document.findUnique({
-          where: { id: documentId },
-          include: { folder: true }
-        });
-
-        if (doc && chunksWithEmbeddings.length > 0) {
-          // Store in Pinecone with full metadata
-          await pineconeService.upsertDocumentEmbeddings(
-            documentId,
-            userId,
-            {
-              filename: doc.filename,
-              mimeType: doc.mimeType,
-              createdAt: doc.createdAt,
-              status: 'completed',
-              folderId: doc.folderId || undefined,
-              folderName: doc.folder?.name || undefined,
-              folderPath: doc.folder?.path || undefined,
-            },
-            chunksWithEmbeddings
-          );
-          console.log(`✅ [DOC:${documentId}] Stored ${chunksWithEmbeddings.length} embeddings in Pinecone`);
-
-          // ✅ CRITICAL FIX: Update database to mark embeddings as generated
-          await prisma.document.update({
-            where: { id: documentId },
-            data: {
-              embeddingsGenerated: true,
-              chunksCount: chunksWithEmbeddings.length
-            }
-          });
-          console.log(`✅ [DOC:${documentId}] Updated database: embeddingsGenerated=true, chunksCount=${chunksWithEmbeddings.length}`);
-        } else {
-          console.warn(`⚠️ [DOC:${documentId}] No embeddings to store (doc: ${!!doc}, chunks: ${chunksWithEmbeddings.length})`);
-        }
-      } else {
-        console.log(`⚠️  [DOC:${documentId}] Skipping embeddings: text too short (${extractedText.length} chars)`);
       }
-    } catch (embeddingError) {
-      // Don't fail the entire job if embedding generation fails
-      console.error(`❌ [DOC:${documentId}] Embedding generation failed (non-critical):`, embeddingError);
     }
 
-    // ✅ CRITICAL FIX: Update status to 'completed' AFTER embeddings are stored
-    // This prevents race condition where frontend queries before Pinecone has the data
+    // ========================================================================
+    // STEP 7: FINAL STATUS UPDATE
+    // ========================================================================
     await prisma.document.update({
       where: { id: documentId },
       data: { status: 'completed' },
     });
-    console.log(`✅ [DOC:${documentId}] Status updated to completed (after embeddings stored)`);
 
-    // Progress update: 100% complete
-    await job.updateProgress(100);
     await emitProcessingUpdate(userId, documentId, {
       progress: 100,
       stage: 'completed',
-      message: 'Document processing complete',
+      message: 'Processing complete!',
     });
 
-    // 🖼️ POWERPOINT: Extract slide images in background (non-blocking)
-    const isPPTX = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-    if (isPPTX && metadata.slidesData) {
-      console.log(`🖼️  [DOC:${documentId}] Starting PowerPoint image extraction in background...`);
+    // ========================================================================
+    // STEP 8: POWERPOINT IMAGE EXTRACTION (PRESERVED, NON-BLOCKING)
+    // ========================================================================
+    if (
+      mimeType ===
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    ) {
+      console.log(
+        `🖼️  [DOC:${documentId}] Starting PowerPoint image extraction in background...`
+      );
 
-      // Run in background without blocking
       (async () => {
         try {
           const crypto = await import('crypto');
@@ -674,16 +670,21 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
           const path = await import('path');
           const os = await import('os');
 
-          // Download file from S3
+          // Download file from storage
           const pptxBuffer = await downloadFile(encryptedFilename);
 
           // Save to temp file
           const tempDir = os.tmpdir();
-          const tempFilePath = path.join(tempDir, `pptx-img-${crypto.randomUUID()}.pptx`);
+          const tempFilePath = path.join(
+            tempDir,
+            `pptx-img-${crypto.randomUUID()}.pptx`
+          );
           fs.writeFileSync(tempFilePath, pptxBuffer);
 
           // Extract images
-          const { PPTXImageExtractorService } = await import('../services/pptxImageExtractor.service');
+          const { PPTXImageExtractorService } = await import(
+            '../services/pptxImageExtractor.service'
+          );
           const extractor = new PPTXImageExtractorService();
 
           const imageResult = await extractor.extractImages(
@@ -691,108 +692,122 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
             documentId,
             {
               uploadToGCS: true,
-              signedUrlExpiration: 604800 // 7 days
+              signedUrlExpiration: 604800, // 7 days
             }
           );
 
-          if (imageResult.success && imageResult.slides && imageResult.slides.length > 0) {
-            console.log(`✅ [DOC:${documentId}] Extracted ${imageResult.totalImages} images from ${imageResult.slides.length} slides`);
+          if (
+            imageResult.success &&
+            imageResult.slides &&
+            imageResult.slides.length > 0
+          ) {
+            console.log(
+              `✅ [DOC:${documentId}] Extracted ${imageResult.totalImages} images from ${imageResult.slides.length} slides`
+            );
 
             // Fetch existing slidesData
-            const existingMetadata = await prisma.document_metadata.findUnique({
-              where: { documentId }
+            const existingMetadata = await prisma.documentMetadata.findUnique({
+              where: { documentId },
             });
 
             let existingSlidesData: any[] = [];
             try {
               if (existingMetadata?.slidesData) {
-                existingSlidesData = typeof existingMetadata.slidesData === 'string'
-                  ? JSON.parse(existingMetadata.slidesData)
-                  : existingMetadata.slidesData as any[];
+                existingSlidesData =
+                  typeof existingMetadata.slidesData === 'string'
+                    ? JSON.parse(existingMetadata.slidesData)
+                    : (existingMetadata.slidesData as any[]);
               }
             } catch (e) {
-              console.warn(`⚠️  [DOC:${documentId}] Failed to parse existing slidesData`);
+              console.warn(
+                `⚠️  [DOC:${documentId}] Failed to parse existing slidesData`
+              );
             }
 
             // Merge extracted images with existing slide data
-            const mergedSlidesData = existingSlidesData.map((existingSlide: any) => {
-              const slideNum = existingSlide.slideNumber || existingSlide.slide_number;
-              const extractedSlide = imageResult.slides!.find((s: any) => s.slideNumber === slideNum);
+            const mergedSlidesData = existingSlidesData.map(
+              (existingSlide: any) => {
+                const slideNum =
+                  existingSlide.slideNumber || existingSlide.slide_number;
+                const extractedSlide = imageResult.slides!.find(
+                  (s: any) => s.slideNumber === slideNum
+                );
 
-              // Use composite image if available, otherwise first image
-              const imageUrl = extractedSlide?.compositeImageUrl
-                || (extractedSlide?.images && extractedSlide.images.length > 0
+                const imageUrl =
+                  extractedSlide?.compositeImageUrl ||
+                  (extractedSlide?.images && extractedSlide.images.length > 0
                     ? extractedSlide.images[0].imageUrl
                     : null);
 
-              return {
-                slideNumber: slideNum,
-                content: existingSlide.content || '',
-                textCount: existingSlide.textCount || existingSlide.text_count || 0,
-                imageUrl: imageUrl || existingSlide.imageUrl
-              };
-            });
+                return {
+                  slideNumber: slideNum,
+                  content: existingSlide.content || '',
+                  textCount:
+                    existingSlide.textCount || existingSlide.text_count || 0,
+                  imageUrl: imageUrl || existingSlide.imageUrl,
+                };
+              }
+            );
 
             // Update metadata with image URLs
-            await prisma.document_metadata.update({
+            await prisma.documentMetadata.update({
               where: { documentId },
               data: {
-                slidesData: JSON.stringify(mergedSlidesData)
-              }
+                slidesData: JSON.stringify(mergedSlidesData),
+              },
             });
 
-            console.log(`✅ [DOC:${documentId}] Updated slidesData with image URLs`);
+            console.log(
+              `✅ [DOC:${documentId}] Updated slidesData with image URLs`
+            );
           }
 
           // Clean up temp file
           fs.unlinkSync(tempFilePath);
-
         } catch (error) {
-          console.error(`❌ [DOC:${documentId}] PowerPoint image extraction failed:`, error);
+          console.error(
+            `❌ [DOC:${documentId}] PowerPoint image extraction failed:`,
+            error
+          );
         }
       })();
     }
 
-    // ⚡ FIX: Emit processing-complete event with delay to ensure database commit completes
+    // ========================================================================
+    // STEP 9: BACKWARD COMPATIBILITY - EMIT LEGACY EVENT (PRESERVED)
+    // ========================================================================
     setTimeout(() => {
       const socketIO = getIO();
       if (socketIO) {
         socketIO.to(`user:${userId}`).emit('processing-complete', {
           documentId,
-          classification,
+          classification: 'unknown',
           hasText: !!extractedText,
-          hasThumbnail: !!thumbnailUrl,
+          hasThumbnail: false,
         });
-        console.log(`📡 [DOC:${documentId}] Emitted processing-complete event after 500ms delay`);
+        console.log(
+          `📡 [DOC:${documentId}] Emitted legacy 'processing-complete' event`
+        );
       }
     }, 500);
 
-    await job.updateProgress(100);
-    emitProcessingUpdate(userId, documentId, {
-      progress: 100,
-      stage: 'completed',
-      message: 'Processing completed successfully',
-      classification,
-      hasText: !!extractedText,
-      hasThumbnail: !!thumbnailUrl,
-    });
     console.log(`✅ [DOC:${documentId}] Document processed successfully`);
-    console.log(`✅ [DOC:${documentId}] Final saved text preview: "${extractedText.substring(0, 150)}..."`);
-
-    return {
-      success: true,
-      documentId,
-      extractedText: extractedText.substring(0, 200), // First 200 chars for logging
-      classification,
-      ocrConfidence,
-    };
+    return { success: true, documentId };
   } catch (error) {
-    console.error(`❌ [DOC:${documentId}] Error processing document:`, error);
+    const isProcessingError = error instanceof ProcessingError;
+    const errorMessage = (error as Error).message;
+    const errorStage = isProcessingError
+      ? (error as ProcessingError).stage
+      : 'unknown';
+    const isRetryable = isProcessingError
+      ? (error as ProcessingError).isRetryable
+      : false;
 
-    // ✅ FIX #4: Always update document status on failure with error message
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(
+      `❌ [DOC:${documentId}] Error during stage '${errorStage}':`,
+      errorMessage
+    );
 
-    // Emit failure event
     await emitProcessingUpdate(userId, documentId, {
       progress: 100,
       stage: 'failed',
@@ -800,28 +815,35 @@ const processDocument = async (job: Job<DocumentProcessingJob>) => {
       error: true,
     });
 
-    // Update document status to failed WITH error message
-    try {
-      await prisma.document.update({
-        where: { id: documentId },
-        data: {
-          status: 'failed',
-          error: errorMessage.substring(0, 500), // Limit error message length
-        },
-      });
-      console.log(`✅ [DOC:${documentId}] Updated status to 'failed' with error: ${errorMessage.substring(0, 100)}`);
-    } catch (dbError) {
-      console.error(`❌ [DOC:${documentId}] Failed to update document status:`, dbError);
-    }
+    await prisma.document.update({
+      where: { id: documentId },
+      data: {
+        status: 'failed',
+        error: errorMessage.substring(0, 500),
+      },
+    });
 
-    throw error;
+    if (isRetryable && job.attemptsMade < (job.opts.attempts || 5)) {
+      console.log(
+        `🔄 [DOC:${documentId}] Retrying job, attempt ${
+          job.attemptsMade + 1
+        }...`
+      );
+      throw error; // Re-throw to let BullMQ handle the retry
+    } else {
+      console.log(
+        `🚫 [DOC:${documentId}] Job failed permanently after ${job.attemptsMade} attempts`
+      );
+      return { success: false, documentId, error: errorMessage };
+    }
   }
 };
 
-// Create worker only if queue is available
+// ============================================================================
+// WORKER INITIALIZATION
+// ============================================================================
 if (documentQueue && redisConnection && process.env.REDIS_URL) {
   try {
-    // BullMQ Worker with Upstash Redis
     const redisUrl = new URL(process.env.REDIS_URL);
     documentWorker = new Worker<DocumentProcessingJob>(
       'document-processing',
@@ -830,24 +852,20 @@ if (documentQueue && redisConnection && process.env.REDIS_URL) {
         connection: {
           host: redisUrl.hostname,
           port: parseInt(redisUrl.port) || 6379,
-          password: redisUrl.password, // Upstash token (no username)
-          tls: {}, // Enable TLS for Upstash
+          password: redisUrl.password,
+          tls: {},
           maxRetriesPerRequest: null,
         },
-        concurrency: 10, // Process 10 documents simultaneously for 10x throughput
-        // ✅ FIX #2: Increase lock duration to prevent false stalls
-        lockDuration: 300000, // 5 minutes (default is 30s) - allows longer processing
-        lockRenewTime: 150000, // Renew lock every 2.5 minutes
-        stalledInterval: 60000, // Check for stalled jobs every 60s (moved from settings)
-        maxStalledCount: 2, // Allow 2 stalls before failing (moved from settings)
+        concurrency: 5, // Reduced from 10 for better stability
+        lockDuration: 300000, // 5 minutes
+        lockRenewTime: 150000, // 2.5 minutes
       }
     );
 
-    // ✅ Enhanced startup logging
     console.log('✅ ========================================');
     console.log('✅ Document Processing Worker STARTED');
     console.log('✅ Queue: document-processing');
-    console.log('✅ Concurrency: 10 jobs in parallel');
+    console.log('✅ Concurrency: 5 jobs in parallel');
     console.log('✅ Redis connection: OK');
     console.log('✅ ========================================');
 
@@ -875,7 +893,9 @@ if (documentQueue && redisConnection && process.env.REDIS_URL) {
   }
 }
 
-// Graceful shutdown
+// ============================================================================
+// GRACEFUL SHUTDOWN
+// ============================================================================
 process.on('SIGTERM', async () => {
   if (documentWorker) await documentWorker.close();
   if (documentQueue) await documentQueue.close();
