@@ -3606,6 +3606,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                     <StreamingMarkdown
                                                         content={stripAllDocumentMarkers(displayedText)}
                                                         isStreaming={isStreaming}
+                                                        documents={attachedDocuments}
+                                                        onOpenPreview={(doc) => setPreviewDocument(doc)}
                                                         customComponents={{
                                                             a: DocumentLink,
                                                         }}

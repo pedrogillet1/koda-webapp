@@ -8,16 +8,21 @@ import './MarkdownStyles.css';
 import { ClickableDocumentName, isDocumentName } from './ClickableDocumentName';
 
 /**
- * ✨ StreamingMarkdown Component
+ * ✨ StreamingMarkdown Component (with Koda Markdown Contract)
  *
  * Renders markdown with ChatGPT-style streaming animation.
- * Handles character-by-character rendering while maintaining proper markdown structure.
+ * Implements the frontend side of the Koda Markdown Contract:
+ * - Chat-sized headings (not huge H1s)
+ * - Tight lists (no gaps between bullets)
+ * - Clickable document names
+ * - UTF-8 encoding fixes
  *
  * Features:
  * - Real-time markdown parsing during streaming
  * - Smooth rendering of incomplete markdown
  * - Blinking cursor at the end of streamed text
  * - Custom component styling
+ * - Uses .koda-markdown CSS class for contract compliance
  *
  * @param {string} content - The markdown content to render (can be incomplete during streaming)
  * @param {boolean} isStreaming - Whether content is currently being streamed
@@ -181,13 +186,36 @@ const StreamingMarkdown = ({
     return { ...defaultComponents, ...customComponents };
   }, [documentMap, onOpenPreview, customComponents]);
 
-  // Normalize content to remove excessive whitespace that causes large gaps
+  // Clean content: normalize whitespace and fix UTF-8 encoding issues
+  // Per Koda Markdown Contract: max 2 newlines, fix Portuguese character encoding
   const normalizedContent = useMemo(() => {
     if (!content) return '';
-    return content
-      .replace(/\n{3,}/g, '\n\n')  // 3+ newlines → 2 (single paragraph break)
+
+    let cleaned = content;
+
+    // Fix UTF-8 encoding issues (VocÃª → Você) - common Portuguese character encoding
+    cleaned = cleaned
+      .replace(/Ã§/g, 'ç')
+      .replace(/Ã£/g, 'ã')
+      .replace(/Ã©/g, 'é')
+      .replace(/Ã¡/g, 'á')
+      .replace(/Ã³/g, 'ó')
+      .replace(/Ãª/g, 'ê')
+      .replace(/Ã­/g, 'í')
+      .replace(/Ãº/g, 'ú')
+      .replace(/Ã /g, 'à')
+      .replace(/Ã´/g, 'ô')
+      .replace(/Ã‚/g, 'Â')
+      .replace(/Ã€/g, 'À')
+      .replace(/Ã‰/g, 'É');
+
+    // Normalize whitespace per Koda Markdown Contract
+    cleaned = cleaned
+      .replace(/\n{3,}/g, '\n\n')  // 3+ newlines → 2 (max 2 per contract)
       .replace(/[ \t]+$/gm, '')    // Remove trailing whitespace
       .replace(/\r\n/g, '\n');     // Consistent line endings
+
+    return cleaned.trim();
   }, [content]);
 
   // Memoize the markdown rendering for performance
@@ -205,13 +233,13 @@ const StreamingMarkdown = ({
 
   return (
     <div
-      className={`markdown-preview-container ${isStreaming ? 'streaming' : ''} ${className}`}
+      className={`koda-markdown markdown-preview-container ${isStreaming ? 'streaming' : ''} ${className}`}
       style={{
         color: '#171717',
         fontSize: '14px',
         fontFamily: 'Plus Jakarta Sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         fontWeight: '400',
-        lineHeight: '1.4',
+        lineHeight: '1.6',
         width: '100%',
         wordWrap: 'break-word',
         overflowWrap: 'break-word'

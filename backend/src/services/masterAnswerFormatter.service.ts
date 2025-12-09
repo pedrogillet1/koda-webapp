@@ -12,15 +12,17 @@
  * 3. UTF-8 encoding fixes (Ã → á, Ã§ → ç, etc.)
  * 4. Citation formatting (inline markers)
  * 5. Answer completion verification
- * 6. Markdown structure enforcement
- * 7. Bold text formatting
- * 8. List formatting
- * 9. Document name formatting (clickable links) - NEW
+ * 6. Markdown structure enforcement (via Koda Markdown Contract)
+ * 7. Bold text formatting (selective, not aggressive)
+ * 8. List formatting (tight, no gaps)
+ * 9. Document name formatting (clickable links)
  *
  * RULES:
  * - NO other service should modify answer format
  * - NO other service should add/remove citations
  * - This is the ONLY formatter in the system
+ *
+ * UPDATED: Now uses Koda Markdown Contract for ChatGPT-like formatting
  *
  * ============================================================================
  */
@@ -35,6 +37,18 @@ import {
 
 import { applySmartBolding } from './smartBoldingEnhanced.service';
 import { documentNameNormalizer } from './documentNameNormalizer.service';
+
+// NEW: Import Koda Markdown Contract
+import {
+  applyMarkdownContract,
+  processAnswerWithContract,
+  validateMarkdownContract,
+  removeAggressiveBold,
+  applySelectiveBold,
+  formatDocumentNamesContract,
+  buildSourcesSection,
+  MarkdownContractOptions
+} from './kodaMarkdownContract.service';
 
 interface Source {
   documentId: string;
@@ -55,7 +69,8 @@ interface FormatOptions {
   fixEncoding?: boolean;
   deduplicateSources?: boolean;
   addInlineCitations?: boolean;
-  formatDocumentNames?: boolean; // NEW: Add clickable document name markers
+  formatDocumentNames?: boolean; // Add clickable document name markers
+  useMarkdownContract?: boolean; // NEW: Use Koda Markdown Contract for ChatGPT-style formatting
 }
 
 interface FormattedResult {
@@ -316,7 +331,8 @@ export function formatAnswer(
     fixEncoding = true,
     deduplicateSources: dedupe = true,
     addInlineCitations: addCitations = false,
-    formatDocumentNames: formatDocs = true // NEW: Default enabled
+    formatDocumentNames: formatDocs = true,
+    useMarkdownContract = true // NEW: Default enabled for ChatGPT-style formatting
   } = options;
 
   console.log('[MasterFormatter] Starting format process...');
@@ -331,53 +347,85 @@ export function formatAnswer(
     console.log('[MasterFormatter] ✓ Enforced language consistency');
   }
 
-  // Step 3: Enforce markdown structure
-  formatted = enforceMarkdownStructure(formatted);
-  console.log('[MasterFormatter] ✓ Enforced markdown structure');
-
-  // Step 4: Apply smart bolding (enhanced - currency, dates, percentages, key terms, etc.)
-  if (addBoldHeadings) {
-    formatted = applySmartBolding(formatted, {
-      boldNumbers: true,
-      boldDates: true,
-      boldCurrency: true,
-      boldPercentages: true,
-      boldDocumentNames: true,
-      boldEntityNames: true,
-      boldKeyTerms: true,
-      boldHeadings: true,
-      boldImportantPhrases: true,
-      boldQuotedText: false,
-    });
-    console.log('[MasterFormatter] ✓ Applied smart bolding');
-  }
-
-  // Step 5: Deduplicate sources
+  // Step 3: Deduplicate sources early
   let finalSources = dedupe ? deduplicateSources(sources) : sources;
   console.log('[MasterFormatter] ✓ Deduplicated sources');
 
-  // Step 6: Add inline citations (optional)
-  if (addCitations) {
-    formatted = addInlineCitations(formatted, finalSources);
-    console.log('[MasterFormatter] ✓ Added inline citations');
-  }
+  // =========================================================================
+  // NEW: Use Koda Markdown Contract for ChatGPT-style formatting
+  // =========================================================================
+  if (useMarkdownContract) {
+    // Extract document names for the contract
+    const documentNames = finalSources.map(s => s.documentName || s.filename || s.title || '').filter(Boolean);
 
-  // Step 7: Format document names for frontend (clickable links) - NEW
-  if (formatDocs && finalSources.length > 0) {
-    // Convert sources to DocSource format for the formatter
-    const docSources: DocSource[] = finalSources.map(s => ({
-      documentId: s.documentId,
-      documentName: s.documentName || s.filename || s.title,
-      filename: s.filename,
-      title: s.title,
-    }));
-    formatted = formatDocumentNamesForFrontend(formatted, docSources);
-    console.log('[MasterFormatter] ✓ Formatted document names for frontend');
-  }
+    // Apply the full markdown contract pipeline
+    formatted = processAnswerWithContract(formatted, documentNames, {
+      maxNewlines: 2,
+      normalizeHeadings: true,
+      normalizeBullets: true,
+      tightLists: true,
+      selectiveBold: true,
+      removeArtifacts: true
+    });
 
-  // Step 8: Normalize document names (italic→bold, underscores→spaces)
-  formatted = documentNameNormalizer.processAnswer(formatted);
-  console.log('[MasterFormatter] ✓ Normalized document names (bold, spaces)');
+    console.log('[MasterFormatter] ✓ Applied Koda Markdown Contract (ChatGPT-style)');
+
+    // Validate contract compliance
+    const violations = validateMarkdownContract(formatted);
+    if (violations.length > 0) {
+      console.warn('[MasterFormatter] ⚠️ Markdown contract violations:', violations);
+    } else {
+      console.log('[MasterFormatter] ✓ Markdown contract validated (0 violations)');
+    }
+  } else {
+    // =========================================================================
+    // LEGACY: Original formatting path (kept for backward compatibility)
+    // =========================================================================
+
+    // Step 3: Enforce markdown structure
+    formatted = enforceMarkdownStructure(formatted);
+    console.log('[MasterFormatter] ✓ Enforced markdown structure');
+
+    // Step 4: Apply smart bolding (enhanced - currency, dates, percentages, key terms, etc.)
+    if (addBoldHeadings) {
+      formatted = applySmartBolding(formatted, {
+        boldNumbers: true,
+        boldDates: true,
+        boldCurrency: true,
+        boldPercentages: true,
+        boldDocumentNames: true,
+        boldEntityNames: true,
+        boldKeyTerms: true,
+        boldHeadings: true,
+        boldImportantPhrases: true,
+        boldQuotedText: false,
+      });
+      console.log('[MasterFormatter] ✓ Applied smart bolding');
+    }
+
+    // Step 6: Add inline citations (optional)
+    if (addCitations) {
+      formatted = addInlineCitations(formatted, finalSources);
+      console.log('[MasterFormatter] ✓ Added inline citations');
+    }
+
+    // Step 7: Format document names for frontend (clickable links)
+    if (formatDocs && finalSources.length > 0) {
+      // Convert sources to DocSource format for the formatter
+      const docSources: DocSource[] = finalSources.map(s => ({
+        documentId: s.documentId,
+        documentName: s.documentName || s.filename || s.title,
+        filename: s.filename,
+        title: s.title,
+      }));
+      formatted = formatDocumentNamesForFrontend(formatted, docSources);
+      console.log('[MasterFormatter] ✓ Formatted document names for frontend');
+    }
+
+    // Step 8: Normalize document names (italic→bold, underscores→spaces)
+    formatted = documentNameNormalizer.processAnswer(formatted);
+    console.log('[MasterFormatter] ✓ Normalized document names (bold, spaces)');
+  }
 
   // Step 9: Verify completion
   const completionCheck = verifyCompletion(formatted);
@@ -390,7 +438,7 @@ export function formatAnswer(
   const hasHeadings = /^#{1,6}\s+/m.test(formatted);
   const hasBoldText = /\*\*[^*]+\*\*/.test(formatted);
   const hasList = /^[\-\*]\s+/m.test(formatted);
-  const hasDocLinks = /\[\[DOC:/.test(formatted); // NEW: Track doc links
+  const hasDocLinks = /\[\[DOC:/.test(formatted); // Track doc links
 
   console.log('[MasterFormatter] ✓ Format complete');
 

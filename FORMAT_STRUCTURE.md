@@ -1,6 +1,7 @@
 # KODA AI - COMPLETE FORMAT STRUCTURE & UNIVERSAL RULES
 
 Generated: 2025-10-29
+Updated: 2025-12-09 (Koda Markdown Contract Integration)
 
 ---
 
@@ -14,6 +15,39 @@ Generated: 2025-10-29
 6. [Source Attribution Rules](#source-attribution-rules)
 7. [Examples by Query Type](#examples-by-query-type)
 8. [Prompt Template Structure](#prompt-template-structure)
+9. [Koda Markdown Contract](#koda-markdown-contract) *(NEW)*
+
+---
+
+## KODA MARKDOWN CONTRACT (NEW - 2025-12-09)
+
+The Koda Markdown Contract is a strict frontend/backend agreement for ChatGPT-like formatting.
+
+### Core Principle
+- **Backend** = semantic markdown only (what it is, not how it looks)
+- **Frontend** = visual spacing only (how it looks, not what it is)
+
+### Contract Rules
+1. **Max 2 newlines** between blocks (never 3+)
+2. **No blank lines** inside lists
+3. Use **## for titles** (not # - avoids huge H1 margins)
+4. Normalize bullets to **-** (not • or *)
+5. **Selective bolding** only (key terms, not all numbers/dates)
+6. No duplicate content
+7. Fix broken markdown (unbalanced `**` and ` ``` `)
+8. Remove artifacts (`[THINKING]`, `[SYSTEM]` tags)
+
+### Files Involved
+- **Backend**: `kodaMarkdownContract.service.ts` - Core contract implementation
+- **Backend**: `masterAnswerFormatter.service.ts` - Uses contract by default
+- **Frontend**: `koda-markdown.css` - Chat-sized CSS styling
+- **Frontend**: `StreamingMarkdown.jsx` - Uses `.koda-markdown` class
+
+### CSS Specifications
+- `h2`: 16px (chat-sized, not huge)
+- `h3`: 15px
+- Lists: 2px spacing between items (tight)
+- Paragraphs: 12px bottom margin
 
 ---
 

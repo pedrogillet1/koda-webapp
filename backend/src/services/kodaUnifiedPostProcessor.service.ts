@@ -26,6 +26,7 @@
  */
 
 import { smartProcessSpacing } from '../utils/markdownSpacing';
+import { fixBrokenMarkdown, applyMarkdownContract } from './kodaMarkdownContract.service';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -662,12 +663,16 @@ export class KodaUnifiedPostProcessor {
     // Step 9: Empty bullet cleanup
     processed = cleanEmptyBullets(processed);
 
-    // Step 10: Spacing normalization
+    // Step 10: Fix broken markdown (unbalanced ** and ```) using contract
+    processed = fixBrokenMarkdown(processed);
+    console.log('[UNIFIED POST-PROCESSOR] Fixed any broken markdown');
+
+    // Step 11: Spacing normalization
     const spacingResult = normalizeSpacing(processed);
     processed = spacingResult.text;
     stats.spacingFixed = spacingResult.fixed;
 
-    // Step 11: Source deduplication
+    // Step 12: Source deduplication
     const dedupedSources = deduplicateSources(sources);
 
     console.log('[UNIFIED POST-PROCESSOR] Post-processing complete');

@@ -150,8 +150,8 @@ class CreativityController {
       // Get the persona system prompt
       const personaPrompt = personaService.getPersonaPrompt(finalPersona);
 
-      // Set response headers for streaming
-      res.setHeader('Content-Type', 'text/event-stream');
+      // Set response headers for streaming (with UTF-8 charset for Portuguese)
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
 

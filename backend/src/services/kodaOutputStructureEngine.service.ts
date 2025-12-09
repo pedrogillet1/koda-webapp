@@ -520,6 +520,8 @@ class KodaOutputStructureEngine {
     const title = this.generateTitle(context.query, context.intent);
 
     if (title) {
+      // Use ## for titles (not #) per Koda Markdown Contract
+      // This ensures chat-sized headings, not huge H1 margins
       return {
         text: `## ${title}\n\n${text}`,
         hasTitle: true,
