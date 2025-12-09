@@ -244,6 +244,78 @@ export const FLASH_OPTIMAL_CONFIG: Record<string, {
 };
 
 // ============================================================================
+// FORMATTING RULES FOR RESPONSE TYPES
+// ============================================================================
+
+/**
+ * Get formatting rules based on response type for warm, ChatGPT-like outputs
+ */
+function getFormattingRulesForResponseType(responseType: ResponseType, language: string): string {
+  const langName = language === 'pt' ? 'Portuguese' : language === 'es' ? 'Spanish' : 'English';
+
+  // For complex queries that need structure
+  if ([ResponseType.COMPLEX, ResponseType.COMPARISON, ResponseType.STEPBYSTEP, ResponseType.GUIDANCE, ResponseType.EXPLANATION].includes(responseType)) {
+    return `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FORMATTING RULES FOR STRUCTURED ANSWERS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Start with an **engaging H1 title** (# Title)
+   - 7-10 words maximum
+   - Question or statement format
+   - Same language as user: ${langName}
+
+2. Use **H2 sections** (## Section) to organize content
+   - 2-5 sections for complex answers
+   - Clear, informative headings
+
+3. **NO meta-text** like:
+   - ❌ "Here is my answer:"
+   - ❌ "Let me explain:"
+   - ✅ Go straight to the H1 title
+
+Example structure:
+
+# Vale a pena o mezanino?
+
+## 1. Cenário atual (sem mezanino)
+[Content here...]
+
+## 2. Cenário com mezanino
+[Content here...]
+
+## 3. ROI e payback
+[Content here...]
+
+## 4. Conclusão
+[Content here...]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
+  }
+
+  // For simple queries - no structure needed
+  if ([ResponseType.SIMPLE, ResponseType.QUOTE].includes(responseType)) {
+    return `
+For this simple/factual question:
+- Answer directly in 1-3 short paragraphs
+- NO H1 title needed
+- Be concise and clear
+- Use **bold** for key terms
+`;
+  }
+
+  // Default - moderate structure
+  return `
+For this question:
+- Start with a clear answer
+- Use H2 headings (##) if you have multiple points
+- Keep it organized but not overly structured
+- Use **bold** for key information
+`;
+}
+
+// ============================================================================
 // COMPLETION VERIFICATION (NEW) - EXPORTED for streaming check
 // ============================================================================
 
@@ -299,10 +371,14 @@ export async function generateAdaptiveAnswer(
   
   console.log(`[AdaptiveAnswer] Query type: ${responseType}, maxTokens: ${config.maxTokens}`);
   
-  // Build prompt with language enforcement
+  // Build prompt with language enforcement and formatting rules
+  const formattingRules = getFormattingRulesForResponseType(responseType, language);
+
   const systemInstruction = `${KODA_CORE_PERSONA}
 
 ${KODA_DOCUMENT_CITATION_RULES}
+
+${formattingRules}
 
 CRITICAL: Answer in ${language === 'pt' ? 'Portuguese' : language === 'es' ? 'Spanish' : 'English'} ONLY. Do NOT mix languages.`;
 

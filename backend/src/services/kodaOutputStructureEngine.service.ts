@@ -476,9 +476,11 @@ class KodaOutputStructureEngine {
   }
 
   /**
-   * Step 8: Add title if needed
+   * Step 8: Add title if needed (SYNC version - uses simple title generation)
    * - Only for longer answers
    * - Based on query and intent
+   *
+   * NOTE: For async AI-generated titles, use addTitleIfNeededAsync()
    */
   private addTitleIfNeeded(
     text: string,
@@ -486,7 +488,7 @@ class KodaOutputStructureEngine {
   ): { text: string; hasTitle: boolean } {
     // Don't add title if:
     // 1. Answer is too short
-    // 2. Already has a title (## header)
+    // 2. Already has a title (# or ## header)
     // 3. Is a greeting
     // 4. Is a document listing
 
@@ -494,7 +496,8 @@ class KodaOutputStructureEngine {
       return { text, hasTitle: false };
     }
 
-    if (text.match(/^#{1,6}\s/m)) {
+    // Check for existing H1 or H2 title
+    if (text.match(/^#{1,2}\s+.+$/m)) {
       return { text, hasTitle: true };
     }
 
@@ -506,24 +509,87 @@ class KodaOutputStructureEngine {
       return { text, hasTitle: false };
     }
 
-    // Check if query suggests a summary/analysis
+    // Check if query suggests a summary/analysis (complex query)
     const queryLower = context.query.toLowerCase();
     const shouldHaveTitle =
       /\b(resumo|resumir|análise|analisar|explique|explicar|summary|summarize|analyze|explain)\b/.test(queryLower) ||
-      /\b(o que|what|como|how|por que|why)\b/.test(queryLower);
+      /\b(o que|what|como|how|por que|why|compare|comparar|calcul|roI|investimento|investment)\b/.test(queryLower);
 
     if (!shouldHaveTitle) {
       return { text, hasTitle: false };
     }
 
-    // Generate title from query
+    // Generate title from query (sync version - simple extraction)
     const title = this.generateTitle(context.query, context.intent);
 
     if (title) {
-      // Use ## for titles (not #) per Koda Markdown Contract
-      // This ensures chat-sized headings, not huge H1 margins
+      // Use # for H1 titles for complex/structured answers
       return {
-        text: `## ${title}\n\n${text}`,
+        text: `# ${title}\n\n${text}`,
+        hasTitle: true,
+      };
+    }
+
+    return { text, hasTitle: false };
+  }
+
+  /**
+   * Step 8b: Add title if needed (ASYNC version - uses AI-generated titles)
+   * Use this for better, context-aware titles
+   */
+  public async addTitleIfNeededAsync(
+    text: string,
+    context: FormattingContext
+  ): Promise<{ text: string; hasTitle: boolean }> {
+    // Don't add title if already has one or is too short
+    if (text.length < this.rules.minAnswerLengthForTitle) {
+      return { text, hasTitle: false };
+    }
+
+    // Check for existing H1 or H2 title
+    if (text.match(/^#{1,2}\s+.+$/m)) {
+      return { text, hasTitle: true };
+    }
+
+    if (context.isGreeting || context.isDocListing) {
+      return { text, hasTitle: false };
+    }
+
+    // Check if query suggests a complex answer that needs title
+    const queryLower = context.query.toLowerCase();
+    const shouldHaveTitle =
+      /\b(resumo|resumir|análise|analisar|explique|explicar|summary|summarize|analyze|explain)\b/.test(queryLower) ||
+      /\b(o que|what|como|how|por que|why|compare|comparar|calcul|roI|investimento|investment)\b/.test(queryLower);
+
+    if (!shouldHaveTitle) {
+      return { text, hasTitle: false };
+    }
+
+    try {
+      // Use AI to generate a warm, engaging title
+      const { generateAnswerTitleOnly } = await import('./titleGeneration.service');
+
+      const title = await generateAnswerTitleOnly({
+        userMessage: context.query,
+        answerDraft: text.substring(0, 500),
+        language: context.language || 'pt'
+      });
+
+      if (title && title !== 'Answer') {
+        return {
+          text: `# ${title}\n\n${text}`,
+          hasTitle: true,
+        };
+      }
+    } catch (error) {
+      console.warn('[OutputStructure] AI title generation failed, using fallback:', error);
+    }
+
+    // Fallback to simple title extraction
+    const fallbackTitle = this.generateTitle(context.query, context.intent);
+    if (fallbackTitle) {
+      return {
+        text: `# ${fallbackTitle}\n\n${text}`,
         hasTitle: true,
       };
     }

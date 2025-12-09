@@ -327,47 +327,36 @@ io.on('connection', (socket) => {
         // Fire-and-forget title generation (don't block response)
         (async () => {
           try {
-            const OpenAI = (await import('openai')).default;
-            const openai = new OpenAI({
-              apiKey: process.env.OPENAI_API_KEY,
-            });
+            const { generateChatTitleOnly } = await import('./services/titleGeneration.service');
+            const { detectLanguage } = await import('./services/languageDetection.service');
+
+            // Detect language from user message
+            const detectedLang = detectLanguage(userContent) || 'pt';
 
             // Emit title generation start
             io.to(`user:${userId}`).emit('title:generating:start', {
               conversationId: convId,
             });
-            console.log(`📡 [TITLE-STREAM] Started streaming title for ${convId}`);
+            console.log(`📡 [TITLE-STREAM] Started generating title for ${convId}`);
 
-            let fullTitle = '';
-            const stream = await openai.chat.completions.create({
-              model: 'gpt-4o-mini',
-              messages: [
-                {
-                  role: 'system',
-                  content: `Generate a short, descriptive title (max 50 chars) for this conversation. If it's just a greeting, return "New Chat". No quotes or special formatting.`,
-                },
-                {
-                  role: 'user',
-                  content: `User: "${userContent.slice(0, 500)}"\nAssistant: "${assistantContent.slice(0, 300)}"`,
-                },
-              ],
-              temperature: 0.3,
-              max_tokens: 30,
-              stream: true,
+            // Generate title using Gemini
+            const generatedTitle = await generateChatTitleOnly({
+              userMessage: userContent.slice(0, 500),
+              assistantPreview: assistantContent.slice(0, 300),
+              language: detectedLang
             });
 
-            for await (const chunk of stream) {
-              const content = chunk.choices[0]?.delta?.content || '';
-              if (content) {
-                fullTitle += content;
-                io.to(`user:${userId}`).emit('title:generating:chunk', {
-                  conversationId: convId,
-                  chunk: content,
-                });
-              }
-            }
+            const cleanTitle = generatedTitle.replace(/['"]/g, '').trim().substring(0, 100) || 'New Chat';
 
-            const cleanTitle = fullTitle.replace(/['"]/g, '').trim().substring(0, 100) || 'New Chat';
+            // Emit the full title as chunks for animation effect
+            const words = cleanTitle.split(' ');
+            for (const word of words) {
+              io.to(`user:${userId}`).emit('title:generating:chunk', {
+                conversationId: convId,
+                chunk: word + ' ',
+              });
+              await new Promise(resolve => setTimeout(resolve, 50)); // Small delay for animation
+            }
 
             // Update database
             await prisma.conversations.update({
@@ -446,6 +435,28 @@ httpServer.listen(portConfig.httpsPort, () => {
       console.log('✅ [STARTUP] Python sandbox initialized and ready');
     } catch (error) {
       console.error('⚠️  [STARTUP] Failed to initialize Python sandbox:', error);
+    }
+
+    // Pre-load domain skill packs and knowledge bases
+    console.log('📚 [STARTUP] Pre-loading domain skill packs...');
+    try {
+      const { preloadAllSkillPacks, validateSkillPacks } = await import('./services/skillPackLoader.service');
+      const { preloadKnowledgeBase } = await import('./services/appHelpEngine.service');
+
+      // Load skill packs for all domains
+      preloadAllSkillPacks();
+      const validation = validateSkillPacks();
+      if (validation.valid) {
+        console.log('✅ [STARTUP] All domain skill packs loaded and validated');
+      } else {
+        console.warn('⚠️  [STARTUP] Some skill packs failed validation:', validation.errors);
+      }
+
+      // Load app help knowledge base
+      preloadKnowledgeBase();
+      console.log('✅ [STARTUP] App help knowledge base loaded');
+    } catch (error) {
+      console.error('⚠️  [STARTUP] Failed to pre-load skill packs:', error);
     }
   })();
 

@@ -166,6 +166,7 @@ model Document {
   userId                 String
   folderId               String?
   filename               String
+  displayTitle           String?             // AI-generated human-readable title
   encryptedFilename      String
   fileSize               Int
   mimeType               String
@@ -1749,6 +1750,9 @@ model ConversationState {
   currentTopic            String   @default("General inquiry")
   knownSections           String[] @default([])  // Sections that have been discussed
   knownDocuments          String[] @default([])  // Documents that have been mentioned
+
+  // Language tracking (detected from first message, persisted for consistency)
+  language                String   @default("en")  // Language code: en, pt, es, fr
 
   // Rolling summary
   summary                 String   @default("Conversation just started.")

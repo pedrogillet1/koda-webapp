@@ -6,6 +6,7 @@ import * as textExtractionService from './textExtraction.service';
 import * as visionService from './vision.service';
 import * as geminiService from './gemini.service';
 import * as folderService from './folder.service';
+import { generateDocumentTitleOnly } from './titleGeneration.service';
 import markdownConversionService from './markdownConversion.service';
 import cacheService from './cache.service';
 import encryptionService from './encryption.service';
@@ -1384,6 +1385,25 @@ async function processDocumentWithTimeout(
         const crypto = require('crypto');
         const fileHashActual = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
+        // ═══════════════════════════════════════════════════════════════
+        // Generate AI-powered display title for the document
+        // ═══════════════════════════════════════════════════════════════
+        let displayTitle: string | null = null;
+        try {
+          const { detectLanguage } = await import('./languageDetection.service');
+          const detectedLang = detectLanguage(extractedText?.slice(0, 500) || '') || 'pt';
+
+          displayTitle = await generateDocumentTitleOnly({
+            filename,
+            documentText: extractedText?.slice(0, 1000), // First 1000 chars for context
+            language: detectedLang
+          });
+          console.log(`📝 [TITLE] Generated display title: "${displayTitle}"`);
+        } catch (titleError: any) {
+          console.warn(`⚠️ [TITLE] Failed to generate title: ${titleError.message}`);
+          // Don't fail the whole process - displayTitle will remain null
+        }
+
         await prisma.document.update({
           where: { id: documentId },
           data: {
@@ -1392,6 +1412,7 @@ async function processDocumentWithTimeout(
             renderableContent: extractedText || null,
             embeddingsGenerated: true,
             chunksCount: chunks?.length || 0,
+            displayTitle: displayTitle, // AI-generated human-readable title
             updatedAt: new Date()
           },
         });

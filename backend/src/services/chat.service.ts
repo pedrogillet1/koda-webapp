@@ -1242,11 +1242,14 @@ const autoGenerateTitle = async (
       }
     }
 
-    // ✅ NEW: Stream title generation character-by-character
-    let fullTitle = '';
-
+    // ✅ Generate title using Gemini via titleGeneration service
     try {
       const io = getIO();
+      const { generateChatTitleOnly } = await import('./titleGeneration.service');
+      const { detectLanguage } = await import('./languageDetection.service');
+
+      // Detect language from user message
+      const detectedLang = detectLanguage(firstMessage) || 'pt';
 
       // Emit title generation start event
       if (io) {
@@ -1254,70 +1257,29 @@ const autoGenerateTitle = async (
           conversationId,
         });
       }
-      console.log(`📡 [TITLE-STREAM] Started streaming for conversation ${conversationId}`);
+      console.log(`📡 [TITLE-STREAM] Started generating title for conversation ${conversationId}`);
 
-      // Generate title with streaming using OpenAI
-      const stream = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: `Generate a short, descriptive title for a conversation based on ACTUAL content.
-
-**CRITICAL RULES:**
-1. Maximum 50 characters
-2. NEVER use greetings as titles (hi, hello, hey, hi there, etc.)
-3. NEVER use the first line of the AI response as the title
-4. ONLY create a specific title if there is a clear topic or question
-5. Analyze the USER MESSAGE for the topic, not the AI response
-6. If the message is just a greeting with no specific topic, return "New Chat"
-7. Use natural, conversational language
-8. No quotes, no colons, no special formatting
-9. Focus on the ACTION or TOPIC mentioned in the USER MESSAGE
-10. DO NOT hallucinate or guess topics - only use what's explicitly mentioned
-
-**Examples:**
-- User: "hello" → "New Chat" (just a greeting)
-- User: "hi there" → "New Chat" (just a greeting)
-- User: "What are tax documents for 2024?" → "Tax documents for 2024"
-- User: "Check my passport expiry" → "Passport expiry date"
-- User: "Compare these lease agreements" → "Compare lease agreements"
-- User: "Help me organize medical records" → "Organize medical records"
-- User: "list companies mentioned in" → "List Companies Mentioned"
-- User: "what is trabalho projeto about" → "Trabalho Projeto Details"
-
-Return ONLY the title, nothing else.`,
-          },
-          {
-            role: 'user',
-            content: firstResponse
-              ? `User asked: "${firstMessage.slice(0, 500)}"\n\nCreate a title based on what the USER ASKED, not the AI response. Focus on the topic or action in the user's question.`
-              : `User: "${firstMessage.slice(0, 500)}"\n\nIf this is just a greeting with no specific topic, return "New Chat". Otherwise, create a title for the topic.`,
-          },
-        ],
-        temperature: 0.3,
-        max_tokens: 30,
-        stream: true,
+      // Generate title using Gemini
+      const generatedTitle = await generateChatTitleOnly({
+        userMessage: firstMessage.slice(0, 500),
+        assistantPreview: firstResponse?.slice(0, 300),
+        language: detectedLang
       });
 
-      // Stream each character to the frontend
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content || '';
-        if (content) {
-          fullTitle += content;
+      // Clean up the title
+      const cleanTitle = generatedTitle.replace(/['"]/g, '').trim().substring(0, 100) || 'New Chat';
 
-          // Emit each character/chunk
-          if (io) {
-            io.to(`user:${userId}`).emit('title:generating:chunk', {
-              conversationId,
-              chunk: content,
-            });
-          }
+      // Emit the full title as chunks for animation effect
+      if (io) {
+        const words = cleanTitle.split(' ');
+        for (const word of words) {
+          io.to(`user:${userId}`).emit('title:generating:chunk', {
+            conversationId,
+            chunk: word + ' ',
+          });
+          await new Promise(resolve => setTimeout(resolve, 50)); // Small delay for animation
         }
       }
-
-      // Clean up the title
-      const cleanTitle = fullTitle.replace(/['"]/g, '').trim().substring(0, 100) || 'New Chat';
 
       // Update the conversation in database
       await prisma.conversation.update({
@@ -1337,14 +1299,14 @@ Return ONLY the title, nothing else.`,
         });
       }
 
-      console.log(`✅ Generated and streamed title: "${cleanTitle}"`);
+      console.log(`✅ Generated title: "${cleanTitle}"`);
 
-    } catch (wsError) {
-      console.warn('⚠️ WebSocket streaming failed, falling back to instant title generation:', wsError);
+    } catch (titleError) {
+      console.warn('⚠️ Title generation failed, using fallback:', titleError);
 
-      // Fallback: Generate title without streaming using Gemini
-      const title = await generateConversationTitle(firstMessage, firstResponse);
-      const cleanTitle = title.replace(/['"]/g, '').trim().substring(0, 100) || 'New Chat';
+      // Fallback: Use first few words of message
+      const fallbackTitle = firstMessage.split(' ').slice(0, 5).join(' ') + '...';
+      const cleanTitle = fallbackTitle.substring(0, 100) || 'New Chat';
 
       await prisma.conversation.update({
         where: { id: conversationId },
@@ -1853,11 +1815,13 @@ export const handleFileActionsIfNeeded = async (
     // NEW: Use inline document injection for file listing
     // This injects {{DOC:::id:::filename:::mimeType:::size:::folder}} markers
     // that will be rendered as clickable buttons on the frontend
+    const queryLanguage = detectLanguage(message);  // Detect language from query
     const response = formatFileListingResponse(documents, {
       fileType,
       folderName,
       maxInline: 15, // Show up to 15 files inline
-      includeMetadata: true
+      includeMetadata: true,
+      language: queryLanguage  // ✅ Pass detected language for localized response
     });
 
     // =========================================================================
@@ -1989,14 +1953,23 @@ export const handleFileActionsIfNeeded = async (
     }
 
     // Multiple matches - show list with markers
+    const searchLang = detectLanguage(message);  // Detect language from query
     const response = formatFileListingResponse(documents, {
       maxInline: 5,
-      includeMetadata: true
+      includeMetadata: true,
+      language: searchLang  // ✅ Pass detected language for localized response
     });
+
+    // Localized "Found X files matching" header
+    const foundHeader = searchLang === 'pt' ? `Encontrei ${documents.length} arquivos correspondentes a "${searchTerm}"` :
+                        searchLang === 'es' ? `Encontré ${documents.length} archivos que coinciden con "${searchTerm}"` :
+                        searchLang === 'fr' ? `J'ai trouvé ${documents.length} fichiers correspondant à "${searchTerm}"` :
+                        searchLang === 'de' ? `Ich habe ${documents.length} Dateien gefunden, die zu "${searchTerm}" passen` :
+                        `Found ${documents.length} files matching "${searchTerm}"`;
 
     return {
       action: 'show_file',
-      message: `Found ${documents.length} files matching "${searchTerm}":\n\n${response}`
+      message: `${foundHeader}:\n\n${response}`
     };
   }
 
