@@ -683,14 +683,10 @@ export const DocumentsProvider = ({ children }) => {
 
     socket.on('folder-deleted', () => {
 
-      // ✅ BUG FIX #2: Invalidate cache AND schedule immediate refetch
-      // This ensures no stale data reappears even if the delete was from another tab/window
+      // ✅ FIX: Invalidate cache only, no immediate refetch
+      // Optimistic updates already handled deletion in the originating tab
+      // For other tabs, the next natural fetch will get fresh data
       invalidateCache();
-      // Schedule a refetch after a short delay to allow backend cache invalidation to complete
-      setTimeout(() => {
-
-        fetchAllData(true); // Force refresh
-      }, 500);
     });
 
     // ⚡ NEW: Listen for folder tree updates (emitted after cache invalidation completes)
@@ -1326,17 +1322,13 @@ export const DocumentsProvider = ({ children }) => {
     try {
       await api.delete(`/api/folders/${folderId}`);
 
-      // ✅ BUG FIX #2 & #3: Invalidate cache AND immediately fetch fresh data
-      // This ensures no stale data can reappear on window focus or race conditions
+      // ✅ Invalidate cache to ensure fresh data on next fetch
       invalidateCache();
 
-      // ✅ BUG FIX #2: Immediate refetch to ensure UI shows fresh data from database
-      // Wait a small delay for Redis cache invalidation to complete on backend
-
-      setTimeout(async () => {
-
-        await fetchAllData(true); // Force refresh, bypassing cache
-      }, 500);
+      // ✅ FIX: DO NOT refetch immediately after delete
+      // The optimistic update already removed items from UI
+      // Refetching can cause race conditions where stale cached data reappears
+      // Socket events (folder-deleted, folder-tree-updated) will handle updates from other tabs
 
     } catch (error) {
 

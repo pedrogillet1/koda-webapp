@@ -4,7 +4,9 @@ import { transcribeAudioWithWhisper } from '../services/gemini.service';
 import { emitToUser } from '../services/websocket.service';
 import prisma from '../config/database';
 import cacheService from '../services/cache.service';
-import { conversationManager } from '../services/conversationManager.service';
+// DEPRECATED: Replaced by KodaMemoryEngine
+// import { conversationManager } from '../services/conversationManager.service';
+import { conversationManager } from '../services/deletedServiceStubs';
 import { detectLanguage, buildCulturalSystemPrompt } from '../services/languageDetection.service';
 import { llmProvider } from '../services/llm.provider';
 

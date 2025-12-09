@@ -32,11 +32,12 @@ class OCRService {
    */
   private async initialize() {
     try {
-      const keyPath = process.env.GOOGLE_CLOUD_VISION_KEY_PATH;
+      // Support both env var names for compatibility
+      const keyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GOOGLE_CLOUD_VISION_KEY_PATH;
 
       if (!keyPath) {
-        console.warn('⚠️  [OCR] Google Cloud Vision API key not configured');
-        console.warn('   Set GOOGLE_CLOUD_VISION_KEY_PATH environment variable to enable OCR');
+        console.warn('[OCR] Google Cloud Vision API key not configured');
+        console.warn('   Set GOOGLE_APPLICATION_CREDENTIALS environment variable to enable OCR');
         return;
       }
 

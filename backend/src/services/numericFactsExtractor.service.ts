@@ -166,7 +166,7 @@ If you cannot classify confidently, respond with: OTHER|BRL|0.0`;
 
   try {
     const model = geminiClient.getModel({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.1,
         maxOutputTokens: 50,

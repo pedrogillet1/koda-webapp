@@ -14,7 +14,9 @@ import { sendMessageToGemini, sendMessageToGeminiStreaming, generateConversation
 import ragService from './rag.service';
 import cacheService from './cache.service';
 import { getIO } from './websocket.service';
-import * as memoryService from './memory.service';
+// DEPRECATED: Replaced by KodaMemoryEngine
+// import * as memoryService from './memory.service';
+import { memoryService } from './deletedServiceStubs';
 import { detectLanguage } from './languageDetection.service';
 import { profileService } from './profile.service';
 import historyService from './history.service';
@@ -25,7 +27,8 @@ import { conversationContextService } from './deletedServiceStubs';
 // ============================================================================
 import { documentListStateManager } from './documentListStateManager.service';
 import { referenceResolutionService } from './referenceResolution.service';
-import { memoryInjectionService } from './memoryInjection.service';
+// DEPRECATED: memoryInjection moved to _deprecated - using stub
+import { memoryInjectionService } from './deletedServiceStubs';
 
 // ============================================================================
 // MODE-BASED RAG OPTIMIZATION
@@ -388,6 +391,45 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
   analyticsTrackingService.incrementConversationMessages(conversationId, 'user')
     .catch(err => console.error('📊 Failed to increment user messages:', err));
 
+  // =========================================================================
+  // MEMORY ENGINE 3.0: Check for file actions FIRST (before RAG)
+  // =========================================================================
+  const fileActionResult = await handleFileActionsIfNeeded(
+    userId,
+    content,
+    conversationId,
+    undefined // attachedFiles
+  );
+
+  if (fileActionResult && fileActionResult.action !== 'resolved_reference') {
+    // This was a file action (list_files, create_folder, etc.) - return directly
+    console.log('✅ File action completed:', fileActionResult.action);
+
+    const assistantMessage = await prisma.message.create({
+      data: {
+        conversationId,
+        role: 'assistant',
+        content: fileActionResult.message,
+        createdAt: new Date(),
+      },
+    });
+
+    return { userMessage, assistantMessage };
+  }
+
+  // If resolved reference, enhance the content for RAG
+  let enhancedContent = content;
+  if (fileActionResult?.action === 'resolved_reference' && fileActionResult.message.startsWith('__RESOLVED_DOC_ID__:')) {
+    const parts = fileActionResult.message.split(':');
+    const resolvedDocId = parts[1];
+    const resolvedDocName = parts.slice(2).join(':');
+    enhancedContent = `[User is referring to document "${resolvedDocName}"] ${content}`;
+    console.log(`🧠 [Memory3.0] Enhanced content for RAG: "${enhancedContent.substring(0, 100)}..."`);
+
+    // Update last document reference
+    await documentListStateManager.setLastDocument(conversationId, resolvedDocId);
+  }
+
   // ✅ NEW: Fetch conversation history using helper function
   const conversationHistory = await getConversationHistory(conversationId);
 
@@ -398,7 +440,7 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
     : 'medium';
   const ragResult = await ragService.generateAnswer(
     userId,
-    content,
+    enhancedContent, // Use enhanced content if document reference was resolved
     conversationId,
     validAnswerLength,
     attachedDocumentId
@@ -950,8 +992,8 @@ export const sendMessageStreaming = async (
   if (isDocumentGeneration) {
     console.log(`📝 [CHAT] Triggering document generation: ${documentType}`);
 
-    // Import document generation service
-    const { generateDocument } = await import('./chatDocumentGeneration.service');
+    // DEPRECATED: chatDocumentGeneration moved to _deprecated - using stub
+    const { generateDocument } = await import('./deletedServiceStubs');
 
     // Stream progress message
     const progressMessage = `\n\n📝 Generating your ${documentType}...\n\n`;
@@ -1487,10 +1529,16 @@ export const handleFileActionsIfNeeded = async (
 
   // Check if this is a file action intent
   // ✅ FIX: Use OR (||) instead of AND (&&) - return null if EITHER condition is true
+  console.log(`🔍 [FileActions] Checking intent: "${intentResult.intent}" (confidence: ${intentResult.confidence})`);
+  console.log(`🔍 [FileActions] Is file action? ${fileActionIntents.includes(intentResult.intent)}, High confidence? ${intentResult.confidence >= 0.7}`);
+
   if (!fileActionIntents.includes(intentResult.intent) || intentResult.confidence < 0.7) {
     // Not a file action - return null to continue with RAG
+    console.log(`🔍 [FileActions] Returning null - not a file action or low confidence`);
     return null;
   }
+
+  console.log(`✅ [FileActions] Processing file action: ${intentResult.intent}`);
 
   // ========================================
   // CREATE FOLDER

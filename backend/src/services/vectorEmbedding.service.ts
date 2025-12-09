@@ -11,7 +11,8 @@
 
 import pineconeService from './pinecone.service';
 import prisma from '../config/database';
-import { generateMicroSummary } from './microSummaryGenerator.service';
+// DEPRECATED: microSummaryGenerator moved to _deprecated - using stub
+import { generateMicroSummary } from './deletedServiceStubs';
 
 /**
  * Store document embeddings in Pinecone AND PostgreSQL

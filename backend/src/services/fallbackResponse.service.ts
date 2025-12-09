@@ -262,7 +262,7 @@ class FallbackResponseService {
         .replace(/{alternatives}/g, alternatives);
 
       const model = geminiClient.getModel({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash',
         generationConfig: { temperature: 0.7, maxOutputTokens: 400 }
       });
 

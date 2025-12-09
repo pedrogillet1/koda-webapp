@@ -69,7 +69,7 @@ export async function generateSkillAwareAnswer(
 
     // 2. Configure the Gemini model with skill-aware parameters
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp', // Could be skill-dependent in future
+      model: 'gemini-2.5-flash', // Could be skill-dependent in future
       systemInstruction: 'You are Koda, an expert AI document assistant.',
       generationConfig: {
         temperature: ragConfig.temperature,

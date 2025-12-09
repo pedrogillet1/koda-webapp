@@ -16,10 +16,13 @@ import * as languageDetectionService from '../services/languageDetection.service
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 // ✅ FORMAT ENFORCEMENT: Import format enforcement services
 import { structureEnforcementService } from '../services/structureEnforcement.service';
-import formatEnforcementService from '../services/formatEnforcement.service';
+// DEPRECATED: Replaced by MasterFormatter and 3-layer architecture
+// import formatEnforcementService from '../services/formatEnforcement.service';
+import { formatEnforcementService } from '../services/deletedServiceStubs';
 // ✅ KODA FIX #2: Response validation to prevent empty responses
 import responseValidation from '../services/responseValidation.service';
 // ✅ FIX #6: Simple Intent Detection (replaces LLM-based intentDetection.service)
+// NOTE: simpleIntentDetection is still in use - KodaIntentEngine is for NEW code paths
 import { detectIntent as detectSimpleIntent, toLegacyIntent, Intent } from '../services/simpleIntentDetection.service';
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -14,7 +14,10 @@
 
 import prisma from '../config/database';
 import conversationEmbedding from './conversationEmbedding.service';
-import { getRelevantMemories } from './memory.service';
+// DEPRECATED: memory.service moved to _deprecated
+// import { getRelevantMemories } from './memory.service';
+import { memoryService } from './deletedServiceStubs';
+const getRelevantMemories = memoryService.getRelevantMemories;
 
 // Token budget configuration (Gemini 2.5 Flash: 1M input tokens)
 const TOKEN_BUDGET = {

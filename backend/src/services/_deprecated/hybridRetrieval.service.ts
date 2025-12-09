@@ -4,7 +4,9 @@
  */
 
 import { Pinecone } from '@pinecone-database/pinecone';
-import { bm25RetrievalService } from './bm25-retrieval.service';
+// DEPRECATED: Replaced by KodaRetrievalEngine
+// import { bm25RetrievalService } from './bm25-retrieval.service';
+import { bm25RetrievalService } from './deletedServiceStubs';
 
 // Pinecone client reference (will be initialized from rag.service)
 let pineconeIndex: any = null;

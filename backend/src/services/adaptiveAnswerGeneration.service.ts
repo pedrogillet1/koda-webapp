@@ -155,7 +155,7 @@ export const FLASH_OPTIMAL_CONFIG: Record<string, {
 }> = {
   simple: {
     targetWords: 150,
-    maxTokens: 2500,  // FIXED: 1000 → 2500 (2.5x increase)
+    maxTokens: 4000,  // INCREASED: 2500 → 4000 to prevent truncation
     temperature: 0.2,
     topP: 0.95,
     topK: 20,
@@ -166,7 +166,7 @@ export const FLASH_OPTIMAL_CONFIG: Record<string, {
   },
   medium: {
     targetWords: 180,
-    maxTokens: 3500,  // FIXED: 1500 → 3500 (2.3x increase)
+    maxTokens: 6000,  // INCREASED: 3500 → 6000 to prevent truncation
     temperature: 0.4,
     topP: 0.95,
     topK: 40,
@@ -177,7 +177,7 @@ export const FLASH_OPTIMAL_CONFIG: Record<string, {
   },
   complex: {
     targetWords: 550,
-    maxTokens: 6000,  // FIXED: 2500 → 6000 (2.4x increase)
+    maxTokens: 8000,  // INCREASED: 6000 → 8000 to prevent truncation
     temperature: 0.5,
     topP: 0.95,
     topK: 64,
@@ -188,7 +188,7 @@ export const FLASH_OPTIMAL_CONFIG: Record<string, {
   },
   explanation: {
     targetWords: 320,
-    maxTokens: 3500,  // FIXED: 1500 → 3500 (2.3x increase)
+    maxTokens: 5000,  // INCREASED: 3500 → 5000 to prevent truncation
     temperature: 0.4,
     topP: 0.95,
     topK: 40,
@@ -199,7 +199,7 @@ export const FLASH_OPTIMAL_CONFIG: Record<string, {
   },
   guidance: {
     targetWords: 250,
-    maxTokens: 3000,  // FIXED: 1200 → 3000 (2.5x increase)
+    maxTokens: 5000,  // INCREASED: 3000 → 5000 to prevent truncation
     temperature: 0.6,
     topP: 0.95,
     topK: 50,
@@ -244,10 +244,10 @@ export const FLASH_OPTIMAL_CONFIG: Record<string, {
 };
 
 // ============================================================================
-// COMPLETION VERIFICATION (NEW)
+// COMPLETION VERIFICATION (NEW) - EXPORTED for streaming check
 // ============================================================================
 
-function verifyAnswerCompletion(answer: string): { isComplete: boolean; reason?: string } {
+export function verifyAnswerCompletion(answer: string): { isComplete: boolean; reason?: string } {
   const trimmed = answer.trim();
   
   // Check for incomplete endings
@@ -319,7 +319,7 @@ Answer in ${language === 'pt' ? 'Portuguese' : language === 'es' ? 'Spanish' : '
 
   // Initialize model
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash-exp',
+    model: 'gemini-2.5-flash',
     systemInstruction,
     generationConfig: {
       temperature: config.temperature,

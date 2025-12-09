@@ -14,7 +14,13 @@
  * This is the key to making intent classification actually useful.
  */
 
-import { IntentResult, IntentCategory, ComplexityLevel } from './hierarchicalIntentClassifier.service';
+// DEPRECATED: Replaced by KodaIntentEngine
+// import { IntentResult, IntentCategory, ComplexityLevel } from './hierarchicalIntentClassifier.service';
+import { IntentResult } from './deletedServiceStubs';
+
+// Type aliases for backward compatibility
+type IntentCategory = string;
+type ComplexityLevel = 'simple' | 'medium' | 'complex';
 
 // ============================================================================
 // TYPES AND INTERFACES

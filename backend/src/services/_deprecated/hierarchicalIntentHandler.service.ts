@@ -14,8 +14,17 @@
  */
 
 import prisma from '../config/database';
-import { classifyIntent, shouldDecompose, decomposeQuery, type IntentResult, type ClassificationContext } from './hierarchicalIntentClassifier.service';
-import { getPipelineConfig, planAnswerShape, buildPromptWithPlan, type PipelineConfig, type AnswerPlan } from './pipelineConfiguration.service';
+// DEPRECATED: Replaced by KodaIntentEngine
+// import { classifyIntent, shouldDecompose, decomposeQuery, type IntentResult, type ClassificationContext } from './hierarchicalIntentClassifier.service';
+import { classifyIntent, shouldDecompose, decomposeQuery, type IntentResult } from './deletedServiceStubs';
+// DEPRECATED: Replaced by KodaIntentEngine
+// import { getPipelineConfig, planAnswerShape, buildPromptWithPlan, type PipelineConfig, type AnswerPlan } from './pipelineConfiguration.service';
+import { getPipelineConfig, planAnswerShape, type PipelineConfig, type AnswerPlan } from './deletedServiceStubs';
+
+// Type for classification context (simplified)
+interface ClassificationContext {
+  conversationHistory?: Array<{ role: string; content: string }>;
+}
 
 // ============================================================================
 // TYPES

@@ -25,12 +25,13 @@
  * ============================================================================
  */
 
+// DEPRECATED: documentNameFormatter moved to _deprecated - using stubs
 import {
   formatDocumentNamesForFrontend,
   addSeeAllLink,
   formatDocumentList,
-  Source as DocSource,
-} from './documentNameFormatter.service';
+  DocSource,
+} from './deletedServiceStubs';
 
 import { applySmartBolding } from './smartBoldingEnhanced.service';
 import { documentNameNormalizer } from './documentNameNormalizer.service';
@@ -44,6 +45,8 @@ interface Source {
   relevance?: number;
   pages?: number[];
 }
+// Also use DocSource from stubs
+type _DocSource = DocSource;
 
 interface FormatOptions {
   language?: string;

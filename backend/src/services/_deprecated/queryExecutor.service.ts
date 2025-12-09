@@ -13,8 +13,12 @@
  *  and finally tell me which one is most favorable."
  */
 
-import { IntentResult, SubQuestion } from './hierarchicalIntentClassifier.service';
-import { PipelineConfig, AnswerPlan } from './pipelineConfiguration.service';
+// DEPRECATED: Replaced by KodaIntentEngine
+// import { IntentResult, SubQuestion } from './hierarchicalIntentClassifier.service';
+import { IntentResult, SubQuestion } from './deletedServiceStubs';
+// DEPRECATED: Replaced by KodaIntentEngine
+// import { PipelineConfig, AnswerPlan } from './pipelineConfiguration.service';
+import { PipelineConfig, AnswerPlan } from './deletedServiceStubs';
 
 // ============================================================================
 // TYPES AND INTERFACES

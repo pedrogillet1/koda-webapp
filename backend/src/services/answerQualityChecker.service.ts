@@ -14,7 +14,8 @@
 
 import { verifyGrounding, type GroundingVerificationResult } from './groundingVerification.service';
 import { verifyCitations, type CitationVerificationResult } from './citationVerification.service';
-import { postProcessAnswer, type PostProcessingResult } from './outputPostProcessor.service';
+// DEPRECATED: outputPostProcessor moved to _deprecated - using stub
+import { postProcessAnswer, type PostProcessingResult } from './deletedServiceStubs';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES

@@ -10,7 +10,8 @@ import markdownConversionService from './markdownConversion.service';
 import cacheService from './cache.service';
 import encryptionService from './encryption.service';
 import pptxProcessorService from './pptxProcessor.service';
-import nerService from './ner.service';
+// DEPRECATED: ner.service moved to _deprecated - using stub
+import { nerService } from './deletedServiceStubs';
 import fileValidator from './fileValidator.service';
 import storageService from './storage.service';
 import { invalidateUserCache } from '../controllers/batch.controller';
@@ -20,11 +21,16 @@ import os from 'os';
 import path from 'path';
 
 // ═══════════════════════════════════════════════════════════════
-// Document Intelligence System - Classification, Entities, Keywords
+// Document Intelligence System - DEPRECATED - Using stubs
 // ═══════════════════════════════════════════════════════════════
-import { classifyDocument, type DocumentClassification } from './documentClassifier.service';
-import { extractEntities, type ExtractedEntity } from './entityExtractor.service';
-import { extractKeywords, type ExtractedKeyword } from './keywordExtractor.service';
+import {
+  classifyDocument,
+  type DocumentClassification,
+  extractEntities,
+  type ExtractedEntity,
+  extractKeywords,
+  type ExtractedKeyword
+} from './deletedServiceStubs';
 import { classifyChunk, type ChunkClassification } from './chunkClassifier.service';
 
 // ═══════════════════════════════════════════════════════════════
@@ -912,7 +918,7 @@ async function processDocumentWithTimeout(
         const docClassification = await classifyDocument(extractedText, filename, mimeType);
         docIntelligence.classification = docClassification;
         classification = `${docClassification.domain}:${docClassification.documentType}`;
-        console.log(`📊 [DocIntel] Classification: ${docClassification.domain}/${docClassification.documentType} (${(docClassification.domainConfidence * 100).toFixed(1)}%)`);
+        console.log(`📊 [DocIntel] Classification: ${docClassification.domain}/${docClassification.documentType} (${((docClassification.domainConfidence || docClassification.confidence) * 100).toFixed(1)}%)`);
 
         // 2. Entity Extraction (with domain context)
         const extractedEntities = await extractEntities(extractedText, {
@@ -954,8 +960,9 @@ async function processDocumentWithTimeout(
       // Run in background - don't await!
       Promise.resolve().then(async () => {
         try {
-          const metadataEnrichmentService = await import('./metadataEnrichment.service');
-          const enriched = await metadataEnrichmentService.default.enrichDocument(
+          // DEPRECATED: metadataEnrichment moved to _deprecated - using stub
+          const { metadataEnrichmentService } = await import('./deletedServiceStubs');
+          const enriched = await metadataEnrichmentService.enrichDocument(
             extractedText,
             filename,
             {
@@ -1464,8 +1471,9 @@ async function processDocumentWithTimeout(
       // This builds the methodology knowledge base for "What is X?" queries
       Promise.resolve().then(async () => {
         try {
-          const { methodologyExtractionService } = await import('./methodologyExtraction.service');
-          await methodologyExtractionService.processDocumentForKnowledge(userId, documentId, extractedText);
+          // DEPRECATED: methodologyExtraction moved to _deprecated - using stub
+          const { methodologyExtractionService } = await import('./deletedServiceStubs');
+          // Stub does nothing - methodology extraction disabled
         } catch (methodologyError: any) {
           // Methodology extraction is not critical - log error but continue
         }
@@ -1476,8 +1484,9 @@ async function processDocumentWithTimeout(
       // This builds the domain knowledge base for term definitions, formulas, etc.
       Promise.resolve().then(async () => {
         try {
-          const { domainKnowledgeService } = await import('./domainKnowledge.service');
-          await domainKnowledgeService.extractFromDocument(documentId, extractedText);
+          // DEPRECATED: domainKnowledge moved to _deprecated - using stub
+          const { domainKnowledgeService } = await import('./deletedServiceStubs');
+          // Stub does nothing - domain knowledge extraction disabled
         } catch (domainError: any) {
           // Domain extraction is not critical - log error but continue
         }
@@ -2077,8 +2086,9 @@ async function processDocumentAsync(
     let enrichedMetadata: { summary?: string; topics?: string[]; entities?: any[] } | null = null;
     if (extractedText && extractedText.length > 100) {
       try {
-        const metadataEnrichmentService = await import('./metadataEnrichment.service');
-        enrichedMetadata = await metadataEnrichmentService.default.enrichDocument(
+        // DEPRECATED: metadataEnrichment moved to _deprecated - using stub
+        const { metadataEnrichmentService } = await import('./deletedServiceStubs');
+        enrichedMetadata = await metadataEnrichmentService.enrichDocument(
           extractedText,
           filename,
           {

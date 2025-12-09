@@ -14,7 +14,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { skillAndIntentRouter, type SkillMapping, type RouterContext } from './skillAndIntentRouter.service';
 import { speedProfileManager, type RAGPipelineConfig } from './speedProfileManager.service';
-import { answerPostProcessor, type PostProcessResult } from './answerPostProcessor.service';
+// DEPRECATED: answerPostProcessor moved to _deprecated - using stub
+import { answerPostProcessor, type PostProcessResult } from './deletedServiceStubs';
 import { SpeedProfile } from './kodaSkillTaxonomyExtended';
 import type { RAGMode } from './ragModes.service';
 
@@ -124,14 +125,14 @@ export async function integrateSkillRouting(
  * @param skillMapping - Skill mapping from routing
  * @returns Post-processed answer with changes and warnings
  */
-export function postProcessSkillAnswer(
+export async function postProcessSkillAnswer(
   answer: string,
   skillMapping: SkillMapping
-): PostProcessedAnswer {
-  const result = answerPostProcessor.postProcessAnswer(answer, skillMapping);
+): Promise<PostProcessedAnswer> {
+  const result = await answerPostProcessor.postProcessAnswer(answer, skillMapping.skillId);
 
   return {
-    answer: result.cleanedAnswer,
+    answer: result.answer,
     changes: result.changes,
     warnings: result.warnings,
     skillId: skillMapping.skillId,

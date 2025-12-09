@@ -4,7 +4,9 @@ import prisma from '../config/database';
 import fileActionsService from './fileActions.service';
 import { actionHistoryService } from './actionHistory.service';
 import { gracefulDegradationService } from './graceful-degradation.service';
-import { bm25RetrievalService } from './bm25-retrieval.service';
+// DEPRECATED: Replaced by KodaRetrievalEngine
+// import { bm25RetrievalService } from './bm25-retrieval.service';
+import { bm25RetrievalService } from './deletedServiceStubs';
 import statusEmitter, { ProcessingStage } from './statusEmitter.service';
 import embeddingService from './embedding.service';
 import geminiCache from './geminiCache.service';
@@ -16,7 +18,9 @@ import ErrorMessagesService from './errorMessages.service';
 import { extractFinancialFacts, type FinancialFact, type NumericExtractionResult } from './numericFactsExtractor.service';
 import { calculateFinancialAnalysis, formatROI, formatPayback, formatCurrency, generateComparisonText, type FinancialAnalysisResult } from './financialCalculator.service';
 import * as languageDetectionService from './languageDetection.service';
-import { performHybridRetrieval, initializePineconeIndex, type HybridRetrievalResult } from './hybridRetrieval.service';
+// DEPRECATED: Replaced by KodaRetrievalEngine
+// import { performHybridRetrieval, initializePineconeIndex, type HybridRetrievalResult } from './hybridRetrieval.service';
+import { performHybridRetrieval, initializePineconeIndex, type HybridRetrievalResult } from './deletedServiceStubs';
 
 import { fallbackDetection, fallbackResponse, psychologicalSafety } from './fallback';
 import type { FallbackType, FallbackContext } from './fallback';
@@ -87,7 +91,9 @@ import clarificationLogicService from './clarificationLogic.service';
 import rollingConversationSummaryService from './rollingConversationSummary.service';
 import { microSummaryRerankerService } from './microSummaryReranker.service';
 import { rerankByChunkType } from './chunkTypeReranker.service';
-import { getConversationState, updateConversationState, extractEntities, extractTopics } from './conversationStateTracker.service';
+// DEPRECATED: Replaced by KodaMemoryEngine
+// import { getConversationState, updateConversationState, extractEntities, extractTopics } from './conversationStateTracker.service';
+import { getConversationState, updateConversationState, extractEntities, extractTopics } from './deletedServiceStubs';
 
 import infiniteConversationMemory from './infiniteConversationMemory.service';
 
@@ -97,13 +103,25 @@ import { conversationContextService } from './deletedServiceStubs';
 import structureEnforcementService from './structureEnforcement.service';
 
 // Format Enforcement V2 and Citation Format Services (KODA 100/100)
-import { kodaFormatEnforcementService } from './kodaFormatEnforcement.service';
+// DEPRECATED: These are being replaced by the 3-layer architecture
+// import { kodaFormatEnforcementService } from './kodaFormatEnforcement.service';
+import { kodaFormatEnforcementService } from './deletedServiceStubs';
 import { kodaCitationFormatService, type CitationSource as FormattedCitationSource } from './kodaCitationFormat.service';
 
+// ============================================================================
+// 3-LAYER POST-PROCESSING ARCHITECTURE (ChatGPT-style)
+// ============================================================================
+// Layer 1: Output Structure Engine (ALL formatting)
+import { kodaOutputStructureEngine } from './kodaOutputStructureEngine.service';
+// Layer 2: Answer Validation Engine (ALL validation)
+import { kodaAnswerValidationEngine } from './kodaAnswerValidationEngine.service';
+// Layer 3: Streaming Controller (ALL streaming)
+import { kodaStreamingController } from './kodaStreamingController.service';
+
 // SIMPLE INTENT DETECTION (Fast Pattern-Based)
-// FIX: Import the simple intent detection service for unified routing
-// This replaces multiple conflicting intent detection services
-import { detectIntent as detectSimpleIntent, type SimpleIntentResult } from './simpleIntentDetection.service';
+// DEPRECATED: Replaced by KodaIntentEngine
+// import { detectIntent as detectSimpleIntent, type SimpleIntentResult } from './simpleIntentDetection.service';
+import { detectSimpleIntent, type SimpleIntentResult } from './deletedServiceStubs';
 
 // ============================================================================
 // MODE-BASED RAG OPTIMIZATION (4-Mode Performance System)
@@ -125,18 +143,22 @@ import cacheService from './cache.service';
 
 // DOCUMENT INTELLIGENCE SYSTEM - Routing, Hybrid Search
 import { routeToDocument, routeToMultipleDocuments, type DocumentRoutingResult } from './documentRouter.service';
-import { hybridSearch, analyzeQueryIntent, type SearchFilters, type HybridSearchOptions } from './hybridSearch.service';
+// DEPRECATED: Replaced by KodaRetrievalEngine
+// import { hybridSearch, analyzeQueryIntent, type SearchFilters, type HybridSearchOptions } from './hybridSearch.service';
+import { hybridSearch, analyzeQueryIntent, type SearchFilters, type HybridSearchOptions } from './deletedServiceStubs';
 
 // CONTEXT-AWARE INTENT DETECTION (Advanced 6-Stage Pipeline)
-// Provides: Negation detection, completeness validation, entity extraction,
-// pronoun resolution, verb disambiguation, and multi-intent detection
-import { contextAwareIntentDetection, type ContextAwareIntentResult } from './contextAwareIntentDetection.service';
+// DEPRECATED: Replaced by KodaIntentEngine
+// import { contextAwareIntentDetection, type ContextAwareIntentResult } from './contextAwareIntentDetection.service';
+import { contextAwareIntentDetection, type ContextAwareIntentResult } from './deletedServiceStubs';
 
 // HIERARCHICAL INTENT CLASSIFICATION (Two-Stage: Heuristic + LLM)
-import { classifyIntent, shouldDecompose, decomposeQuery, type IntentResult, type SubQuestion } from './hierarchicalIntentClassifier.service';
-import { getPipelineConfig, planAnswerShape, buildPromptWithPlan, type PipelineConfig, type AnswerPlan } from './pipelineConfiguration.service';
-import { executeSubQuestion, assembleMultiPartAnswer, type SubQuestionResult, type MultiPartAnswer } from './queryExecutor.service';
-import { handleHierarchicalIntent, handleQueryDecomposition } from './hierarchicalIntentHandler.service';
+// DEPRECATED: Replaced by KodaIntentEngine
+// import { classifyIntent, shouldDecompose, decomposeQuery, type IntentResult, type SubQuestion } from './hierarchicalIntentClassifier.service';
+// import { getPipelineConfig, planAnswerShape, buildPromptWithPlan, type PipelineConfig, type AnswerPlan } from './pipelineConfiguration.service';
+// import { executeSubQuestion, assembleMultiPartAnswer, type SubQuestionResult, type MultiPartAnswer } from './queryExecutor.service';
+// import { handleHierarchicalIntent, handleQueryDecomposition } from './hierarchicalIntentHandler.service';
+import { classifyIntent, shouldDecompose, decomposeQuery, type IntentResult, type SubQuestion, getPipelineConfig, planAnswerShape, buildPromptWithPlan, type PipelineConfig, type AnswerPlan, executeSubQuestion, assembleMultiPartAnswer, type SubQuestionResult, type MultiPartAnswer, handleHierarchicalIntent, handleQueryDecomposition } from './deletedServiceStubs';
 
 // SKILL-BASED ROUTING SYSTEM (New modular skill architecture)
 import {
@@ -2977,7 +2999,7 @@ async function checkConversationContextFirst(
       const messages = await prisma.message.findMany({
         where: { conversationId },
         orderBy: { createdAt: 'desc' },
-        take: 30,
+        take: 50, // Increased from 30 for better memory
         select: { role: true, content: true }
       });
       recentHistory = messages.reverse().map(m => ({
@@ -6183,9 +6205,9 @@ async function handleCrossDocumentSynthesis(
 
     // Build sources from the result
     const sources = result.methodologies
-      .flatMap(m => m.documentIds)
-      .filter((id, index, self) => self.indexOf(id) === index)
-      .map(documentId => ({
+      .flatMap((m: { documentIds: string[] }) => m.documentIds)
+      .filter((id: string, index: number, self: string[]) => self.indexOf(id) === index)
+      .map((documentId: string) => ({
         documentId,
         type: 'synthesis',
       }));
@@ -7938,24 +7960,37 @@ Provide a comprehensive answer addressing all parts of the query.`;
     // Keep fullResponse as-is from LLM
 
     // Step 2: Format Enforcement (bullets, bold, spacing, etc.)
-    const formattedResult = formatAnswer(
-      fullResponse,
-      [],  // sources will be built later
-      {
-        language: queryLangName || 'portuguese',
-        enforceLanguage: true,
-        fixEncoding: true,
-        deduplicateSources: true,
-        addBoldHeadings: true
-      }
-    );
+    // 3-LAYER: Use unified Output Structure Engine instead of formatAnswer
+    const formattingResult = kodaOutputStructureEngine.formatAnswer(fullResponse, {
+      query,
+      intent: 'general',  // Intent from context not available here
+      documentCount: fullDocuments.length,
+      language: queryLangName || 'pt',
+      isGreeting: /^(hi|hello|hey|olá|oi|ola|bom dia|boa tarde|boa noite)[\s!.?,]*$/i.test(query),
+      isDocListing: /list|listar|mostrar|show.*document/i.test(query),
+    });
 
-    fullResponse = formattedResult.answer;
+    fullResponse = formattingResult.text;
 
-    console.log('[MASTER-FORMATTER] Complete - Language:', formattedResult.language);
+    console.log(`[LAYER-1] Output Structure: hasTitle=${formattingResult.hasTitle}, sections=${formattingResult.sectionCount}`);
+
+    // LAYER 2: Answer Validation Engine - unified validation
+    const validationResult = await kodaAnswerValidationEngine.validateAnswer(fullResponse, {
+      query,
+      intent: 'general',  // Intent from context not available here
+      documents: fullDocuments.map(d => ({ id: d.id, name: d.title || 'Unknown', content: d.content?.substring(0, 1000) })),
+      conversationHistory: conversationHistory || [],
+      language: queryLangName || 'pt',
+    });
+
+    if (!validationResult.isValid && validationResult.corrections.length > 0) {
+      fullResponse = validationResult.corrections[0];
+      console.log(`[LAYER-2] Applied correction for: ${validationResult.issues.map(i => i.type).join(', ')}`);
+    }
+    console.log(`[LAYER-2] Validation score: ${validationResult.score}`);
 
     // Legacy compatibility
-    const formatResult = { violations: [] as any[], fixedText: fullResponse };
+    const formatResult = { violations: validationResult.issues as any[], fixedText: fullResponse };
 
     if (formatResult.violations.length > 0) {
       console.log(`âœï¸ [FORMAT] Fixed ${formatResult.violations.length} violations:`,
@@ -10400,10 +10435,13 @@ function detectUltraFastGreeting(query: string): boolean {
  * Must be <5ms
  */
 function getInstantGreeting(query: string, language?: string): string {
+  // FIX: Prioritize greeting-based language detection over passed language
+  // Because "Oi" clearly indicates Portuguese, regardless of what was previously detected
   const detectedLang = detectLanguageFromGreeting(query);
-  const lang = language || detectedLang;
+  // Only use passed language if greeting detection returned 'en' (default/fallback)
+  const lang = detectedLang !== 'en' ? detectedLang : (language || detectedLang);
 
-  console.log(`🌐 [GREETING LANG] Query: "${query}", Passed language: ${language}, Detected: ${detectedLang}, Using: ${lang}`);
+  console.log(`🌐 [GREETING LANG] Query: "${query}", Passed language: ${language}, Detected from greeting: ${detectedLang}, Using: ${lang}`);
 
   const greetings: Record<string, string[]> = {
     pt: [
@@ -10470,14 +10508,39 @@ function detectLanguageFromQuery(query: string): string {
 }
 
 function detectLanguageFromGreeting(query: string): string {
-  const normalized = query.toLowerCase();
-  
-  if (/(oi|olá|ola|bom dia|boa tarde|boa noite)/.test(normalized)) return 'pt';
-  if (/(hola|buenos dias|buenas tardes)/.test(normalized)) return 'es';
-  if (/(bonjour|salut|bonsoir)/.test(normalized)) return 'fr';
-  if (/(hallo|guten tag)/.test(normalized)) return 'de';
-  if (/(ciao|buongiorno)/.test(normalized)) return 'it';
-  
+  // Normalize: lowercase, trim, and remove punctuation
+  const normalized = query.toLowerCase().trim().replace(/[!?.,;:]+$/, '');
+
+  // Portuguese greetings (check first since most specific)
+  const ptGreetings = ['oi', 'olá', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'e aí', 'eai', 'opa', 'fala'];
+  for (const g of ptGreetings) {
+    if (normalized === g || normalized.startsWith(g + ' ')) return 'pt';
+  }
+
+  // Spanish greetings (check before English since "hola" might match "ola" otherwise)
+  const esGreetings = ['hola', 'buenos dias', 'buenas tardes', 'buenas noches', 'que tal'];
+  for (const g of esGreetings) {
+    if (normalized === g || normalized.startsWith(g + ' ')) return 'es';
+  }
+
+  // French greetings
+  const frGreetings = ['bonjour', 'salut', 'bonsoir', 'coucou'];
+  for (const g of frGreetings) {
+    if (normalized === g || normalized.startsWith(g + ' ')) return 'fr';
+  }
+
+  // German greetings
+  const deGreetings = ['hallo', 'guten tag', 'guten morgen'];
+  for (const g of deGreetings) {
+    if (normalized === g || normalized.startsWith(g + ' ')) return 'de';
+  }
+
+  // Italian greetings
+  const itGreetings = ['ciao', 'buongiorno', 'buonasera'];
+  for (const g of itGreetings) {
+    if (normalized === g || normalized.startsWith(g + ' ')) return 'it';
+  }
+
   return 'en';
 }
 

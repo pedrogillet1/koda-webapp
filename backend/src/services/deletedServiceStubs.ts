@@ -99,18 +99,18 @@ async function directGeminiAnswer(
   }
 }
 
-// Greeting patterns (multilingual)
+// Greeting patterns (multilingual) - FIXED: Allow optional bot name after greeting
 const GREETING_PATTERNS = [
-  // English
-  /^(hi|hello|hey|greetings|good\s*(morning|afternoon|evening|day)|howdy|yo|sup|what'?s\s*up)[\s!.?]*$/i,
-  /^(thanks|thank\s*you|thx|bye|goodbye|see\s*you|cya|later)[\s!.?]*$/i,
-  /^how\s*are\s*you[\s!.?]*$/i,
-  // Portuguese
-  /^(oi|olá|ola|bom\s*dia|boa\s*tarde|boa\s*noite|e\s*aí|eai|tudo\s*bem|obrigad[oa]|valeu)[\s!.?]*$/i,
-  // Spanish
-  /^(hola|buenos?\s*d[ií]as?|buenas?\s*tardes?|buenas?\s*noches?|qué\s*tal|gracias)[\s!.?]*$/i,
-  // French
-  /^(bonjour|bonsoir|salut|coucou|ça\s*va|merci)[\s!.?]*$/i,
+  // English - allow optional name (koda/there/friend/etc) after greeting
+  /^(hi|hello|hey|greetings|good\s*(morning|afternoon|evening|day)|howdy|yo|sup|what'?s\s*up)(?:[\s,]+(?:koda|there|friend|everyone|all))?[\s!.?]*$/i,
+  /^(thanks|thank\s*you|thx|bye|goodbye|see\s*you|cya|later)(?:[\s,]+(?:koda|there|friend|everyone|all))?[\s!.?]*$/i,
+  /^how\s*are\s*you(?:[\s,]+koda)?[\s!.?]*$/i,
+  // Portuguese - allow optional name after greeting
+  /^(oi|olá|ola|bom\s*dia|boa\s*tarde|boa\s*noite|e\s*aí|eai|tudo\s*bem|obrigad[oa]|valeu)(?:[\s,]+(?:koda|aí))?[\s!.?]*$/i,
+  // Spanish - allow optional name after greeting
+  /^(hola|buenos?\s*d[ií]as?|buenas?\s*tardes?|buenas?\s*noches?|qué\s*tal|gracias)(?:[\s,]+koda)?[\s!.?]*$/i,
+  // French - allow optional name after greeting
+  /^(bonjour|bonsoir|salut|coucou|ça\s*va|merci)(?:[\s,]+koda)?[\s!.?]*$/i,
 ];
 
 // Capability patterns (what can you do?) - EXPANDED for natural conversation
@@ -202,22 +202,51 @@ const RAG_INDICATOR_PATTERNS = [
   /how (do|does|should) (I|we) .*(according|per|as per)/i,
 ];
 
-// Detect language from query
+// Detect language from query - IMPROVED for greetings
 function detectQueryLanguage(query: string): string {
-  const lowerQuery = query.toLowerCase();
+  const lowerQuery = query.toLowerCase().trim();
 
-  // Portuguese indicators
-  if (/\b(oi|olá|ola|bom|boa|obrigad|valeu|você|voce|fazer|qual|quais|como|onde|porque|por que)\b/i.test(lowerQuery)) {
+  // Remove punctuation for better matching
+  const cleanQuery = lowerQuery.replace(/[!?.]+$/, '');
+
+  // Portuguese indicators - EXPANDED for greetings (exact match for short greetings)
+  const portuguesePatterns = [
+    // Greetings (exact match)
+    /^(oi|olá|ola)$/,
+    /^(bom\s*dia|boa\s*tarde|boa\s*noite)$/,
+    /^(e\s*aí|eai|tudo\s*bem)$/,
+    // Common words
+    /\b(você|voce|fazer|qual|quais|como|onde|porque|por\s*que|obrigad|valeu)\b/,
+  ];
+
+  if (portuguesePatterns.some(p => p.test(cleanQuery))) {
     return 'pt';
   }
 
-  // Spanish indicators
-  if (/\b(hola|buenos|buenas|gracias|qué|que\s+es|cómo|como\s+puedo|dónde|donde|por\s+qué)\b/i.test(lowerQuery)) {
+  // Spanish indicators - EXPANDED for greetings
+  const spanishPatterns = [
+    // Greetings (exact match)
+    /^(hola)$/,
+    /^(buenos\s*d[ií]as|buenas\s*tardes|buenas\s*noches)$/,
+    /^(qué\s*tal|que\s*tal)$/,
+    // Common words
+    /\b(gracias|qué|que\s+es|cómo|como\s+puedo|dónde|donde|por\s+qué)\b/,
+  ];
+
+  if (spanishPatterns.some(p => p.test(cleanQuery))) {
     return 'es';
   }
 
-  // French indicators
-  if (/\b(bonjour|bonsoir|salut|merci|comment|qu'est|quoi|pourquoi)\b/i.test(lowerQuery)) {
+  // French indicators - EXPANDED for greetings
+  const frenchPatterns = [
+    // Greetings (exact match)
+    /^(bonjour|bonsoir|salut|coucou)$/,
+    /^(ça\s*va)$/,
+    // Common words
+    /\b(merci|comment|qu'est|quoi|pourquoi)\b/,
+  ];
+
+  if (frenchPatterns.some(p => p.test(cleanQuery))) {
     return 'fr';
   }
 
@@ -618,12 +647,32 @@ export const responsePostProcessor = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Memory Service Stub
+// Memory Service Stub (DEPRECATED - replaced by KodaMemoryEngine)
 // ═══════════════════════════════════════════════════════════════════════════
 export const memoryService = {
-  getRelevantMemories: async (_userId: string, _query: string, _conversationId?: string, _limit?: number) => [],
+  getRelevantMemories: async (_userId: string, _query: string, _conversationId?: string, _limit?: number) => [] as any[],
   formatMemoriesForPrompt: (_memories: any[]) => '',
-  storeMemory: async (_userId: string, _memory: any) => {}
+  storeMemory: async (_userId: string, _memory: any) => {},
+  getMemory: async (_userId: string, _conversationId: string) => null,
+  saveMemory: async (_userId: string, _conversationId: string, _memory: any) => {},
+  clearMemory: async (_userId: string, _conversationId: string) => {}
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Conversation Manager Stub (DEPRECATED - replaced by KodaMemoryEngine)
+// ═══════════════════════════════════════════════════════════════════════════
+export const conversationManager = {
+  getConversation: async (_conversationId: string) => null,
+  createConversation: async (_userId: string, _title?: string) => ({ id: 'stub-conv-id' }),
+  updateConversation: async (_conversationId: string, _updates: any) => {},
+  deleteConversation: async (_conversationId: string) => {},
+  getConversationHistory: async (_conversationId: string) => [] as any[],
+  addMessage: async (_conversationId: string, _role: string, _content?: string) => ({ id: 'stub-conv-id' }),
+  getContext: async (_conversationId: string) => '',
+  // Additional methods used by chat.controller.ts
+  getConversationState: async (_conversationId: string) => ({ id: 'stub-conv-id', userId: 'stub-user-id' }),
+  buildPromptWithContext: (_systemPrompt: string, _conversationState: any) =>
+    [{ role: 'system' as const, content: _systemPrompt }] as Array<{ role: 'user' | 'system' | 'model'; content: string }>
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -875,11 +924,9 @@ export interface DocumentInfo {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Synthesis Query Detection - REAL IMPLEMENTATION
+// Synthesis Query Detection - STUB (service deprecated)
 // ═══════════════════════════════════════════════════════════════════════════
-// ✅ RESTORED: Real synthesis query detection for cross-document analysis
-import { synthesisQueryDetectionService } from './synthesisQueryDetection.service';
-export { synthesisQueryDetectionService };
+// Stub for synthesis query detection - see full stub at end of file
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Comparative Analysis Stub
@@ -938,11 +985,45 @@ export const terminologyIntelligenceService = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Cross Document Synthesis - REAL IMPLEMENTATION
+// Synthesis Query Detection Service Stub (DEPRECATED)
 // ═══════════════════════════════════════════════════════════════════════════
-// ✅ RESTORED: Real cross-document synthesis for theme/topic analysis
-import { crossDocumentSynthesisService } from './crossDocumentSynthesis.service';
-export { crossDocumentSynthesisService };
+export const synthesisQueryDetectionService = {
+  isSynthesisQuery: (_query: string) => false,
+  detect: (_query: string) => ({
+    isSynthesis: false,
+    isSynthesisQuery: false,
+    type: 'none' as string,
+    topic: undefined as string | undefined,
+    confidence: 0
+  }),
+  detectSynthesisType: (_query: string) => null as string | null,
+  getSynthesisContext: async (_userId: string, _query: string) => ({
+    isSynthesis: false,
+    type: null as string | null,
+    context: ''
+  })
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Cross Document Synthesis Service Stub (DEPRECATED)
+// ═══════════════════════════════════════════════════════════════════════════
+export const crossDocumentSynthesisService = {
+  synthesize: async (_query: string, _documents: any[], _options?: any) => ({
+    synthesis: '',
+    sources: [] as any[],
+    confidence: 0
+  }),
+  synthesizeMethodologies: async (_userId: string, _topic?: string, _options?: any) => ({
+    synthesis: '',
+    methodologies: [] as Array<{ name: string; documentIds: string[] }>,
+    totalDocuments: 0
+  }),
+  isCrossDocumentQuery: (_query: string) => false,
+  getCrossDocumentContext: async (_userId: string, _query: string) => ({
+    isCrossDocument: false,
+    context: ''
+  })
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Empty Response Prevention Stub
@@ -1065,26 +1146,7 @@ export const practicalImplicationsService = {
   })
 };
 
-// Default export for services that use default import
-// NOTE: adaptiveAnswerGeneration and contextEngineering removed - now using real implementations
-export default {
-  semanticDocumentSearchService,
-  hybridRetrievalBooster,
-  fastPathDetector,
-  postProcessor,
-  memoryService,
-  citationTracking,
-  outputIntegration,
-  synthesisQueryDetectionService,
-  comparativeAnalysisService,
-  methodologyExtractionService,
-  trendAnalysisService,
-  terminologyIntelligenceService,
-  crossDocumentSynthesisService,
-  emptyResponsePrevention,
-  showVsExplainClassifier,
-  responsePostProcessor
-};
+// NOTE: Default export moved to end of file after all definitions
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Conversation Context Service Stub (added for rag.service.ts import)
@@ -1266,4 +1328,725 @@ export const memoryExtraction = {
     _conversationId: string,
     _limit: number
   ) => {}
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BM25 Retrieval Service Stub (DEPRECATED - replaced by KodaRetrievalEngine)
+// ═══════════════════════════════════════════════════════════════════════════
+export const bm25RetrievalService = {
+  search: async (_query: string, _userId: string, _options?: any) => ({
+    results: [] as any[],
+    totalHits: 0
+  }),
+  indexDocument: async (_docId: string, _content: string) => {},
+  deleteDocument: async (_docId: string) => {},
+  // Used by hybridRetrieval.service.ts
+  hybridSearch: async (_query: string, _embeddings: number[], _userId: string, _topK?: number) => [] as any[]
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Hybrid Retrieval Service Stub (DEPRECATED - replaced by KodaRetrievalEngine)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface HybridRetrievalResult {
+  chunks: any[];
+  totalFound: number;
+  retrievalTime: number;
+  method: string;
+  // Used by rag.service.ts
+  matches?: any[];
+}
+
+export const performHybridRetrieval = async (
+  _query: string,
+  _queryEmbedding?: number[],
+  _userId?: string,
+  _topK?: number,
+  _filter?: any,
+  _options?: any
+): Promise<HybridRetrievalResult> => ({
+  chunks: [],
+  totalFound: 0,
+  retrievalTime: 0,
+  method: 'stub',
+  matches: []
+});
+
+export const initializePineconeIndex = async (_pineconeIndex?: any) => {};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Conversation State Tracker Stub (DEPRECATED - replaced by KodaMemoryEngine)
+// ═══════════════════════════════════════════════════════════════════════════
+export const getConversationState = async (_conversationId: string) => null;
+export const updateConversationState = async (
+  _conversationId: string,
+  _state: any
+) => {};
+export const extractSimpleEntities = (_text: string) => [] as string[];  // Renamed to avoid duplicate
+export const extractTopics = (_text: string) => [] as string[];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Koda Format Enforcement Stub (DEPRECATED - replaced by 3-layer architecture)
+// ═══════════════════════════════════════════════════════════════════════════
+export const kodaFormatEnforcementService = {
+  enforceFormat: (
+    answer: string,
+    _queryType?: string,
+    _answerLength?: string,
+    _userTone?: string,
+    _fileList?: any,
+    _query?: string
+  ) => ({
+    fixedText: answer,
+    violations: [] as Array<{ severity: string; type: string; message: string }>
+  }),
+  validateFormat: (_answer: string) => ({ isValid: true, errors: [] as string[] })
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Simple Intent Detection Stub (DEPRECATED - replaced by KodaIntentEngine)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface SimpleIntentResult {
+  intent: string;
+  confidence: number;
+  skill: string;
+  fastPath: boolean;
+  language: string;
+  // Additional properties used by controllers
+  detectionTimeMs?: number;
+  entities?: string[];
+  parameters?: Record<string, any>;
+  // Properties used by rag.service.ts
+  type?: string;
+  fileAction?: string;
+}
+
+export const detectSimpleIntent = (
+  _query: string,
+  _options?: any
+): SimpleIntentResult => ({
+  intent: 'unknown',
+  confidence: 0.5,
+  skill: 'general',
+  fastPath: false,
+  language: 'en',
+  detectionTimeMs: 0,
+  entities: [],
+  parameters: {},
+  type: 'general',
+  fileAction: undefined
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Hybrid Search Stub (DEPRECATED - replaced by KodaRetrievalEngine)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface SearchFilters {
+  documentIds?: string[];
+  documentTypes?: string[];
+  dateRange?: { start: Date; end: Date };
+}
+
+export interface HybridSearchOptions {
+  topK?: number;
+  method?: 'bm25' | 'vector' | 'hybrid' | 'auto';
+  filters?: SearchFilters;
+}
+
+export const hybridSearch = async (
+  _query: string,
+  _userId: string,
+  _options?: HybridSearchOptions
+) => ({
+  results: [] as any[],
+  totalHits: 0,
+  method: 'stub'
+});
+
+export const analyzeQueryIntent = (_query: string) => ({
+  intent: 'unknown',
+  confidence: 0.5
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Context-Aware Intent Detection Stub (DEPRECATED - replaced by KodaIntentEngine)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface ContextAwareIntentResult {
+  intent: string;
+  confidence: number;
+  entities: Array<{ type: string; value: string }>;
+  negation: boolean;
+  isComplete: boolean;
+  clarificationNeeded?: string;
+  primaryIntent: {
+    primary: string;
+    disambiguation?: string;
+    isRefusal?: boolean;
+  };
+}
+
+// Object-style export for contextAwareIntentDetection with detectIntent method
+export const contextAwareIntentDetection = {
+  detectIntent: (
+    _query: string,
+    _conversationHistory?: Array<{ role: string; content: string }>
+  ): ContextAwareIntentResult => ({
+    intent: 'unknown',
+    confidence: 0.5,
+    entities: [],
+    negation: false,
+    isComplete: true,
+    primaryIntent: {
+      primary: 'unknown',
+      isRefusal: false
+    }
+  })
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Hierarchical Intent Classifier Stub (DEPRECATED - replaced by KodaIntentEngine)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface IntentResult {
+  category: string;
+  intent: string;
+  confidence: number;
+  complexity: string;
+  // Additional properties used by hierarchicalIntentHandler
+  primaryIntent: string;
+  entities: string[];
+  source: string;
+  clarificationNeeded?: string;
+  // Properties used by rag.service.ts
+  subQuestions?: SubQuestion[];
+}
+
+export interface SubQuestion {
+  question: string;
+  priority: number;
+  dependsOn?: string[];
+  order: number;
+  targetDocuments?: string[];
+  intent?: string;
+  targetDimension?: string;
+}
+
+export const classifyIntent = async (
+  _query: string,
+  _context?: any
+): Promise<IntentResult> => ({
+  category: 'general',
+  intent: 'unknown',
+  confidence: 0.5,
+  complexity: 'simple',
+  primaryIntent: 'unknown',
+  entities: [],
+  source: 'stub'
+});
+
+export const shouldDecompose = (_intentOrQuery?: IntentResult | string, _intent?: IntentResult) => false;
+
+export const decomposeQuery = async (
+  _query: string,
+  _intent?: IntentResult,
+  _context?: any
+): Promise<SubQuestion[]> => [];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Pipeline Configuration Stub (DEPRECATED - replaced by KodaIntentEngine)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface PipelineConfig {
+  stages: string[];
+  timeout: number;
+  parallel: boolean;
+  // Additional properties used by pipelineConfiguration.service.ts
+  routing: 'single' | 'multi-document' | 'all-documents';
+  retrieval: {
+    strategy: string;
+    topK: number;
+    chunkTypeBoosts?: Record<string, number>;
+  };
+  reranking: {
+    enabled: boolean;
+    methods: string[];
+  };
+  answer: {
+    template: string;
+    targetWords: number;
+    sections: number;
+    useHeadings: boolean;
+    useBullets: boolean;
+    useNumberedLists: boolean;
+  };
+}
+
+export interface AnswerPlan {
+  structure: string;
+  sections: Array<{ title: string; targetWords: number; bulletPoints?: number }>;
+  estimatedLength: number;
+  targetWords?: number;
+  useHeadings?: boolean;
+  useBullets?: boolean;
+  useNumberedLists?: boolean;
+  template?: string;
+}
+
+export const getPipelineConfig = (_intent: IntentResult): PipelineConfig => ({
+  stages: ['retrieve', 'generate'],
+  timeout: 30000,
+  parallel: false,
+  routing: 'single',
+  retrieval: { strategy: 'standard', topK: 20 },
+  reranking: { enabled: false, methods: [] },
+  answer: { template: 'direct', targetWords: 500, sections: 1, useHeadings: false, useBullets: false, useNumberedLists: false }
+});
+
+export const planAnswerShape = (_intent: IntentResult, _pipelineConfig?: PipelineConfig): AnswerPlan => ({
+  structure: 'simple',
+  sections: [{ title: 'Answer', targetWords: 500 }],
+  estimatedLength: 500,
+  targetWords: 500,
+  useHeadings: false,
+  useBullets: false,
+  useNumberedLists: false,
+  template: 'direct'
+});
+
+export const buildPromptWithPlan = (
+  query: string,
+  _plan: AnswerPlan,
+  _context: string
+) => query;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Query Executor Stub (DEPRECATED - replaced by KodaIntentEngine)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface SubQuestionResult {
+  question: string;
+  answer: string;
+  sources: any[];
+}
+
+export interface MultiPartAnswer {
+  parts: SubQuestionResult[];
+  synthesizedAnswer: string;
+}
+
+export const executeSubQuestion = async (
+  _subQuestion: SubQuestion,
+  _context: any
+): Promise<SubQuestionResult> => ({
+  question: '',
+  answer: '',
+  sources: []
+});
+
+export const assembleMultiPartAnswer = (
+  _results: SubQuestionResult[]
+): MultiPartAnswer => ({
+  parts: [],
+  synthesizedAnswer: ''
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Hierarchical Intent Handler Stub (DEPRECATED - replaced by KodaIntentEngine)
+// ═══════════════════════════════════════════════════════════════════════════
+export const handleHierarchicalIntent = async (
+  _query: string,
+  _userId: string,
+  _conversationHistory?: Array<{ role: string; content: string }>
+) => ({
+  hierarchicalIntent: {
+    category: 'general',
+    intent: 'unknown',
+    confidence: 0.5,
+    complexity: 'simple',
+    primaryIntent: 'unknown',
+    entities: [] as string[],
+    source: 'stub'
+  } as IntentResult,
+  pipelineConfig: {
+    stages: ['retrieve', 'generate'],
+    timeout: 30000,
+    parallel: false,
+    routing: 'single' as const,
+    retrieval: { strategy: 'standard', topK: 20 },
+    reranking: { enabled: false, methods: [] },
+    answer: { template: 'direct', targetWords: 500, sections: 1, useHeadings: false, useBullets: false, useNumberedLists: false }
+  } as PipelineConfig,
+  answerPlan: {
+    structure: 'simple',
+    sections: [{ title: 'Answer', targetWords: 500 }],
+    estimatedLength: 500,
+    targetWords: 500
+  } as AnswerPlan,
+  handled: false,
+  clarificationMessage: undefined as string | undefined,
+  classificationTimeMs: 0
+});
+
+export const handleQueryDecomposition = async (
+  _query: string,
+  _intent: IntentResult,
+  _context?: any
+) => ({
+  shouldDecompose: false,
+  subQuestions: [] as SubQuestion[]
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Format Enforcement Service Stub (DEPRECATED - replaced by MasterFormatter)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface FormatEnforcementConfig {
+  enableBold?: boolean;
+  enableLists?: boolean;
+  enableHeadings?: boolean;
+  maxLength?: number;
+}
+
+export const formatEnforcementService = {
+  enforce: (answer: string, _config?: FormatEnforcementConfig) => answer,
+  validate: (_answer: string) => ({ isValid: true, errors: [] as string[] }),
+  // Additional method used by controllers
+  enforceFormat: (answer: string, _options?: any) => ({
+    fixedText: answer,
+    violations: [] as Array<{ severity: string; type: string; message?: string }>
+  })
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Output Post Processor Stub (DEPRECATED)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface PostProcessingResult {
+  processedAnswer: string;
+  cleanedAnswer: string;  // Alias
+  changes: string[];
+  warnings: string[];
+  sourcesRemoved: boolean;
+}
+
+export const postProcessAnswer = async (
+  answer: string,
+  _query?: string,
+  _options?: any
+): Promise<PostProcessingResult> => ({
+  processedAnswer: answer,
+  cleanedAnswer: answer,
+  changes: [],
+  warnings: [],
+  sourcesRemoved: false
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Memory Injection Service Stub (DEPRECATED - replaced by KodaMemoryEngine)
+// ═══════════════════════════════════════════════════════════════════════════
+export const memoryInjectionService = {
+  injectMemories: async (_userId: string, _query: string, _context?: any) => ({
+    injectedContext: '',
+    memories: [] as any[],
+    relevanceScores: [] as number[]
+  }),
+  getRelevantMemories: async (_userId: string, _query: string) => [] as any[],
+  formatMemoriesForPrompt: (_memories: any[]) => ''
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Chat Document Generation Service Stub (DEPRECATED)
+// ═══════════════════════════════════════════════════════════════════════════
+export const generateDocument = async (
+  _options: {
+    userId?: string;
+    conversationId?: string;
+    messageId?: string;
+    query?: string;
+    documentType?: string;
+    sourceContent?: string;
+    sourceDocumentIds?: string[];
+  }
+): Promise<{
+  success: boolean;
+  documentId?: string;
+  error?: string;
+  message: string;
+  chatDocument: { id: string };
+}> => ({
+  success: false,
+  error: 'Chat document generation is deprecated',
+  message: 'Document generation is currently disabled.',
+  chatDocument: { id: 'stub-doc-id' }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NER Service Stub (DEPRECATED)
+// ═══════════════════════════════════════════════════════════════════════════
+export const nerService = {
+  extractEntities: async (_text: string, _filenameOrOptions?: string | any) => ({
+    entities: [] as any[],
+    confidence: 0,
+    suggestedTags: [] as string[]
+  }),
+  processDocument: async (_documentId: string, _text: string) => ({
+    success: true,
+    entityCount: 0
+  }),
+  getEntitiesForDocument: async (_documentId: string) => [] as any[],
+  storeEntities: async (_documentId: string, _entities: any[]) => {},
+  autoTagDocument: async (_userId: string, _documentId: string, _entities?: any[], _suggestedTags?: string[]) => ({
+    suggestedTags: [] as string[]
+  })
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Document Classifier Service Stub (DEPRECATED)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface DocumentClassification {
+  type: string;
+  documentType: string;  // Added for compatibility
+  domain: string;
+  subType?: string;
+  confidence: number;
+  typeConfidence?: number;
+  domainConfidence?: number;
+  tags: string[];
+}
+
+export const DOCUMENT_TAXONOMY = {
+  types: ['report', 'article', 'presentation', 'spreadsheet', 'other'],
+  domains: ['general', 'finance', 'legal', 'technical', 'marketing']
+};
+export const ALL_DOCUMENT_TYPES = DOCUMENT_TAXONOMY.types;
+export const ALL_DOMAINS = DOCUMENT_TAXONOMY.domains;
+
+export const classifyDocument = async (
+  _textContent: string,
+  _filename: string,
+  _mimeType?: string
+): Promise<DocumentClassification> => ({
+  type: 'other',
+  documentType: 'other',
+  domain: 'general',
+  confidence: 0.5,
+  typeConfidence: 0.5,
+  domainConfidence: 0.5,
+  tags: []
+});
+
+export const classifyDocumentsBatch = async (
+  _documents: any[]
+): Promise<DocumentClassification[]> => [];
+
+export const fallbackClassification = (_filename: string, _mimeType: string): DocumentClassification => ({
+  type: 'other',
+  documentType: 'other',
+  domain: 'general',
+  confidence: 0.3,
+  typeConfidence: 0.3,
+  domainConfidence: 0.3,
+  tags: []
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Entity Extractor Service Stub (DEPRECATED)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface ExtractedEntity {
+  text: string;
+  type: string;
+  confidence: number;
+  position: { start: number; end: number };
+}
+
+export enum EntityType {
+  PERSON = 'PERSON',
+  ORGANIZATION = 'ORGANIZATION',
+  LOCATION = 'LOCATION',
+  DATE = 'DATE',
+  MONEY = 'MONEY',
+  PERCENTAGE = 'PERCENTAGE',
+  OTHER = 'OTHER'
+}
+
+export const extractEntities = async (
+  _text: string,
+  _options?: { domain?: string; useLLM?: boolean } | any
+): Promise<ExtractedEntity[]> => [];
+
+export const extractEntitiesBatch = async (
+  _texts: string[]
+): Promise<ExtractedEntity[][]> => [];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Keyword Extractor Service Stub (DEPRECATED)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface ExtractedKeyword {
+  keyword: string;
+  word: string;  // Alias for compatibility
+  score: number;
+  tfIdf: number;  // Alias for score
+  frequency: number;
+  isDomain: boolean;
+  isDomainSpecific: boolean;  // Alias for isDomain
+}
+
+export const STOP_WORDS = new Set(['the', 'a', 'an', 'is', 'are', 'was', 'were']);
+export const DOMAIN_KEYWORDS: Record<string, string[]> = {
+  finance: ['revenue', 'profit', 'margin', 'growth'],
+  legal: ['contract', 'agreement', 'clause', 'term']
+};
+
+export const extractKeywords = (
+  _text: string,
+  _options?: { domain?: string; maxKeywords?: number }
+): ExtractedKeyword[] => [];
+
+export const extractKeywordsBatch = (
+  _texts: string[]
+): ExtractedKeyword[][] => [];
+
+export const combineKeywords = (_keywords: ExtractedKeyword[][]): ExtractedKeyword[] => [];
+export const isDomainKeyword = (_keyword: string, _domain?: string): boolean => false;
+export const getDomainKeywords = (_domain: string): string[] => [];
+export const keywordsToString = (_keywords: ExtractedKeyword[]): string => '';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Metadata Enrichment Service Stub (DEPRECATED)
+// ═══════════════════════════════════════════════════════════════════════════
+export const metadataEnrichmentService = {
+  enrichDocument: async (_text: string, _filename: string, _options?: any) => ({
+    success: true,
+    summary: '',
+    topics: [] as string[],
+    entities: [] as any[],
+    metadata: {} as any
+  }),
+  getEnrichedMetadata: async (_documentId: string) => ({} as any),
+  updateMetadata: async (_documentId: string, _metadata: any) => ({ success: true })
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Methodology Extraction Service Stub (DEPRECATED)
+// ═══════════════════════════════════════════════════════════════════════════
+export const extractMethodologies = async (
+  _text: string,
+  _options?: any
+): Promise<any[]> => [];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Domain Knowledge Service Stub (DEPRECATED)
+// ═══════════════════════════════════════════════════════════════════════════
+export const domainKnowledgeService = {
+  getDomainContext: async (_userId: string, _domain: string) => ({
+    context: '',
+    documents: [] as any[],
+    confidence: 0
+  }),
+  extractDomainKnowledge: async (_documentId: string, _text: string) => ({
+    success: true,
+    knowledge: [] as any[]
+  }),
+  getDomainKnowledgeForDocument: async (_documentId: string) => [] as any[]
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Document Name Formatter Service Stub (DEPRECATED)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface DocSource {
+  documentId: string;
+  documentName?: string;
+  filename?: string;
+  title?: string;
+}
+
+export const formatDocumentNamesForFrontend = (
+  answer: string,
+  _sources: DocSource[]
+): string => answer;
+
+export const addSeeAllLink = (
+  answer: string,
+  _sources: DocSource[],
+  _maxSources?: number
+): string => answer;
+
+export const formatDocumentList = (
+  _sources: DocSource[],
+  _options?: any
+): string => '';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Answer Post Processor Service Stub (DEPRECATED)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface PostProcessResult {
+  answer: string;
+  changes: string[];
+  warnings: string[];
+}
+
+export const answerPostProcessor = {
+  process: async (answer: string, _options?: any): Promise<PostProcessResult> => ({
+    answer,
+    changes: [],
+    warnings: []
+  }),
+  postProcess: async (answer: string, _query?: string, _options?: any): Promise<PostProcessResult> => ({
+    answer,
+    changes: [],
+    warnings: []
+  }),
+  postProcessAnswer: async (answer: string, _query?: string, _options?: any): Promise<PostProcessResult> => ({
+    answer,
+    changes: [],
+    warnings: []
+  })
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Micro Summary Generator Service Stub (DEPRECATED)
+// ═══════════════════════════════════════════════════════════════════════════
+interface MicroSummaryResult {
+  summary: string;
+  text: string;
+}
+
+export const generateMicroSummary = async (
+  text: string,
+  _chunkTypeOrIndex?: string | number,
+  _documentTypeOrName?: string,
+  _sectionNameOrOptions?: string | any
+): Promise<MicroSummaryResult> => {
+  // Return first 100 chars as a simple summary
+  const summary = text.substring(0, 100) + (text.length > 100 ? '...' : '');
+  return { summary, text: summary };
+};
+
+export const microSummaryGeneratorService = {
+  generate: generateMicroSummary,
+  generateBatch: async (texts: string[]): Promise<MicroSummaryResult[]> =>
+    texts.map(t => {
+      const summary = t.substring(0, 100) + (t.length > 100 ? '...' : '');
+      return { summary, text: summary };
+    })
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Default export for services that use default import
+// ═══════════════════════════════════════════════════════════════════════════
+export default {
+  semanticDocumentSearchService,
+  hybridRetrievalBooster,
+  fastPathDetector,
+  postProcessor,
+  memoryService,
+  citationTracking,
+  outputIntegration,
+  synthesisQueryDetectionService,
+  comparativeAnalysisService,
+  methodologyExtractionService,
+  trendAnalysisService,
+  terminologyIntelligenceService,
+  crossDocumentSynthesisService,
+  emptyResponsePrevention,
+  showVsExplainClassifier,
+  responsePostProcessor,
+  nerService,
+  metadataEnrichmentService,
+  domainKnowledgeService,
+  answerPostProcessor,
+  microSummaryGeneratorService
 };

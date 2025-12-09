@@ -12,6 +12,7 @@
 import prisma from '../config/database';
 import type { Document, Folder } from '@prisma/client';
 // ✅ FIX #6: Simple Intent Detection (replaces LLM-based intentDetection.service)
+// NOTE: simpleIntentDetection is still in use - KodaIntentEngine is for NEW code paths
 import { detectIntent as detectSimpleIntent, toLegacyIntent } from './simpleIntentDetection.service';
 import { findBestMatch } from 'string-similarity';
 import fuzzyMatchService from './fuzzy-match.service';

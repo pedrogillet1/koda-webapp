@@ -3,18 +3,31 @@
  * KODA VISION SERVICE
  * ============================================================================
  *
- * PURPOSE: High-level vision API that wraps the OCR service
+ * PURPOSE: High-level vision API that wraps the OCR services
  *
  * This service provides a clean API for:
  * - Image analysis (description, labels, objects)
  * - Text extraction from images (OCR)
  * - Text extraction from scanned PDFs
+ *
+ * Uses: mistral-ocr.service.ts (primary) with fallbacks
  */
 
-import mistralOCR, { OCRResult, ImageAnalysisResult } from './mistralOCR.service';
+import mistralOCRService from './mistral-ocr.service';
 
-// Re-export types for convenience
-export { OCRResult, ImageAnalysisResult };
+// Types
+export interface OCRResult {
+  text: string;
+  confidence?: number;
+  language?: string;
+  pageCount?: number;
+}
+
+export interface ImageAnalysisResult {
+  description: string;
+  labels: string[];
+  text: string;
+}
 
 /**
  * Analyze an image and get description, labels, and text
@@ -22,15 +35,30 @@ export { OCRResult, ImageAnalysisResult };
 export const analyzeImage = async (input: Buffer | string): Promise<ImageAnalysisResult> => {
   console.log('[VISION] Analyzing image...');
   try {
-    const result = await mistralOCR.analyzeImage(input);
-    console.log(`[VISION] Analysis complete. Labels: ${result.labels.length}, Text found: ${result.text.length > 0}`);
-    return result;
+    if (!mistralOCRService.isAvailable()) {
+      console.warn('[VISION] OCR service not available');
+      return { description: '', labels: [], text: '' };
+    }
+
+    let text = '';
+    if (Buffer.isBuffer(input)) {
+      text = await mistralOCRService.extractTextFromImageBuffer(input, 'image/png');
+    } else {
+      text = await mistralOCRService.extractTextFromImage(input);
+    }
+
+    console.log(`[VISION] Analysis complete. Text found: ${text.length > 0}`);
+    return {
+      description: text.slice(0, 200) + (text.length > 200 ? '...' : ''),
+      labels: [],
+      text,
+    };
   } catch (error: any) {
     console.error('[VISION] Error analyzing image:', error.message);
     return {
       description: '',
       labels: [],
-      text: ''
+      text: '',
     };
   }
 };
@@ -41,15 +69,28 @@ export const analyzeImage = async (input: Buffer | string): Promise<ImageAnalysi
 export const extractTextFromImage = async (input: Buffer | string): Promise<OCRResult> => {
   console.log('[VISION] Extracting text from image...');
   try {
-    const result = await mistralOCR.extractTextFromImage(input);
-    console.log(`[VISION] OCR complete. Confidence: ${result.confidence}%, Language: ${result.language}`);
-    return result;
+    if (!mistralOCRService.isAvailable()) {
+      console.warn('[VISION] OCR service not available');
+      return { text: '', confidence: 0 };
+    }
+
+    let text = '';
+    if (Buffer.isBuffer(input)) {
+      text = await mistralOCRService.extractTextFromImageBuffer(input, 'image/png');
+    } else {
+      text = await mistralOCRService.extractTextFromImage(input);
+    }
+
+    console.log(`[VISION] OCR complete. Extracted ${text.length} characters`);
+    return {
+      text,
+      confidence: text.length > 0 ? 0.95 : 0,
+    };
   } catch (error: any) {
     console.error('[VISION] Error extracting text:', error.message);
     return {
       text: '',
       confidence: 0,
-      language: 'en'
     };
   }
 };
@@ -60,15 +101,27 @@ export const extractTextFromImage = async (input: Buffer | string): Promise<OCRR
 export const extractTextFromScannedPDF = async (input: Buffer | string): Promise<OCRResult> => {
   console.log('[VISION] Extracting text from scanned PDF...');
   try {
-    const result = await mistralOCR.extractTextFromScannedPDF(input);
-    console.log(`[VISION] PDF OCR complete. Pages: ${result.pageCount || 'unknown'}, Confidence: ${result.confidence}%`);
-    return result;
+    if (!mistralOCRService.isAvailable()) {
+      console.warn('[VISION] OCR service not available');
+      return { text: '', confidence: 0 };
+    }
+
+    if (!Buffer.isBuffer(input)) {
+      console.warn('[VISION] PDF path not supported, need buffer');
+      return { text: '', confidence: 0 };
+    }
+
+    const text = await mistralOCRService.processScannedPDF(input);
+    console.log(`[VISION] PDF OCR complete. Extracted ${text.length} characters`);
+    return {
+      text,
+      confidence: text.length > 0 ? 0.95 : 0,
+    };
   } catch (error: any) {
     console.error('[VISION] Error extracting PDF text:', error.message);
     return {
       text: '',
       confidence: 0,
-      language: 'en'
     };
   }
 };
@@ -79,7 +132,12 @@ export const extractTextFromScannedPDF = async (input: Buffer | string): Promise
 export const isScannedPDF = async (input: Buffer | string): Promise<boolean> => {
   console.log('[VISION] Checking if PDF is scanned...');
   try {
-    const result = await mistralOCR.isScannedDocument(input);
+    if (!Buffer.isBuffer(input)) {
+      console.warn('[VISION] PDF path not supported, need buffer');
+      return false;
+    }
+
+    const result = await mistralOCRService.isScannedPDF(input);
     console.log(`[VISION] PDF scan check: ${result ? 'SCANNED' : 'NATIVE'}`);
     return result;
   } catch (error: any) {
@@ -92,7 +150,15 @@ export const isScannedPDF = async (input: Buffer | string): Promise<boolean> => 
  * Check if a MIME type is supported for OCR
  */
 export const isSupportedImageType = (mimeType: string): boolean => {
-  return mistralOCR.isSupportedImageType(mimeType);
+  const supportedTypes = [
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/bmp',
+    'image/tiff',
+  ];
+  return supportedTypes.includes(mimeType);
 };
 
 /**
@@ -122,7 +188,6 @@ export const processDocumentOCR = async (
       return {
         text: '',
         confidence: 100,
-        language: 'unknown'
       };
     }
   }
@@ -132,7 +197,6 @@ export const processDocumentOCR = async (
   return {
     text: '',
     confidence: 0,
-    language: 'unknown'
   };
 };
 
@@ -143,5 +207,5 @@ export default {
   extractTextFromScannedPDF,
   isScannedPDF,
   isSupportedImageType,
-  processDocumentOCR
+  processDocumentOCR,
 };

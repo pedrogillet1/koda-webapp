@@ -12,7 +12,9 @@
  *   service.enforceFormat(text, { maxItemsPerLine: 5 });
  */
 
-import { FormatEnforcementConfig } from '../services/formatEnforcement.service';
+// DEPRECATED: formatEnforcement.service moved to _deprecated
+// import { FormatEnforcementConfig } from '../services/formatEnforcement.service';
+import { FormatEnforcementConfig } from '../services/deletedServiceStubs';
 
 /**
  * Default configuration for KODA document AI responses

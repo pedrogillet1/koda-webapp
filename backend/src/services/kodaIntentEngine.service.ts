@@ -1,0 +1,593 @@
+/**
+ * ============================================================================
+ * KODA INTENT ENGINE - UNIFIED INTENT DETECTION & QUERY CLASSIFICATION
+ * ============================================================================
+ * 
+ * This service consolidates ALL intent detection logic into a single engine.
+ * 
+ * CONSOLIDATES:
+ * - llmIntentDetector.service.ts
+ * - simpleIntentDetection.service.ts (✅ currently in use)
+ * - contextAwareIntentDetection.service.ts
+ * - hierarchicalIntentClassifier.service.ts
+ * - hierarchicalIntentHandler.service.ts
+ * - kodaSkillMapper.service.ts
+ * - skillAndIntentRouter.service.ts (✅ currently in use)
+ * - documentGenerationDetection.service.ts
+ * - synthesisQueryDetection.service.ts
+ * - clarificationLogic.service.ts
+ * 
+ * INTEGRATION STRATEGY:
+ * This engine integrates with the existing skill system and fast-path detection
+ * that was recently added to rag.service.ts. It provides a clean API for all
+ * intent detection needs.
+ * 
+ * @version 2.0.0
+ * @date 2025-12-08
+ */
+
+// Removed NestJS dependency for compatibility
+import { detectLanguage as detectLanguageFromService } from './languageDetection.service';
+
+// ============================================================================
+// TYPES & INTERFACES
+// ============================================================================
+
+export enum QueryIntent {
+  // Document Management
+  LIST_DOCUMENTS = 'list_documents',
+  OPEN_DOCUMENT = 'open_document',
+  SEARCH_DOCUMENTS = 'search_documents',
+  DELETE_DOCUMENT = 'delete_document',
+  UPLOAD_DOCUMENT = 'upload_document',
+  COUNT_DOCUMENTS = 'count_documents',
+  
+  // Information Retrieval
+  FACTUAL_QUESTION = 'factual_question',
+  ANALYTICAL_QUESTION = 'analytical_question',
+  COMPARISON_QUESTION = 'comparison_question',
+  SYNTHESIS_QUESTION = 'synthesis_question',
+  
+  // Conversation
+  GREETING = 'greeting',
+  CLARIFICATION = 'clarification',
+  FOLLOW_UP = 'follow_up',
+  REFERENCE_RESOLUTION = 'reference_resolution',
+  
+  // Document Generation
+  GENERATE_DOCUMENT = 'generate_document',
+  GENERATE_SUMMARY = 'generate_summary',
+  GENERATE_REPORT = 'generate_report',
+  
+  // Calculation & Analysis
+  CALCULATION = 'calculation',
+  DATA_ANALYSIS = 'data_analysis',
+  FINANCIAL_ANALYSIS = 'financial_analysis',
+  
+  // Fallback
+  UNKNOWN = 'unknown',
+  AMBIGUOUS = 'ambiguous',
+}
+
+export enum QueryComplexity {
+  TRIVIAL = 'trivial',      // < 500ms expected
+  SIMPLE = 'simple',        // 500ms-2s expected
+  MODERATE = 'moderate',    // 2-4s expected
+  COMPLEX = 'complex',      // 4-8s expected
+  VERY_COMPLEX = 'very_complex', // 8s+ expected
+}
+
+export enum SkillType {
+  FILE_MANAGEMENT = 'file_management',
+  DOCUMENT_QA = 'document_qa',
+  FINANCIAL_ANALYSIS = 'financial_analysis',
+  DATA_EXTRACTION = 'data_extraction',
+  SYNTHESIS = 'synthesis',
+  COMPARISON = 'comparison',
+  GENERAL_CHAT = 'general_chat',
+}
+
+export interface IntentAnalysis {
+  intent: QueryIntent;
+  skill: SkillType;
+  confidence: number;
+  complexity: QueryComplexity;
+  requiresRetrieval: boolean;
+  requiresMemory: boolean;
+  requiresCalculation: boolean;
+  requiresClarification: boolean;
+  extractedEntities: {
+    documentReferences?: string[];
+    ordinalReferences?: string[]; // "first", "second", "last"
+    pronounReferences?: string[]; // "it", "that", "this"
+    keywords?: string[];
+    numbers?: number[];
+    dates?: string[];
+  };
+  fastPathEligible: boolean;
+  suggestedAction: string;
+  language: string;
+}
+
+// ============================================================================
+// KODA INTENT ENGINE
+// ============================================================================
+
+// @Injectable()
+export class KodaIntentEngine {
+  
+  /**
+   * Main entry point: Analyze a query and return comprehensive intent analysis
+   */
+  async analyzeQuery(
+    query: string,
+    conversationContext?: any,
+    userId?: string
+  ): Promise<IntentAnalysis> {
+    
+    // Step 1: Detect language
+    const language = this.detectLanguage(query);
+    
+    // Step 2: Quick pattern matching for ultra-fast intents (greetings, doc count)
+    const quickIntent = this.quickPatternMatch(query, language);
+    if (quickIntent) {
+      return { ...quickIntent, language } as IntentAnalysis;
+    }
+    
+    // Step 3: Entity extraction
+    const entities = this.extractEntities(query);
+    
+    // Step 4: Classify intent and skill using hierarchical rules
+    const { intent, skill } = this.classifyIntentAndSkill(query, entities, conversationContext);
+    
+    // Step 5: Determine complexity
+    const complexity = this.determineComplexity(query, intent, skill, entities);
+    
+    // Step 6: Determine requirements
+    const requirements = this.determineRequirements(intent, skill, entities);
+    
+    // Step 7: Check fast-path eligibility
+    const fastPathEligible = this.checkFastPathEligibility(intent, complexity);
+    
+    // Step 8: Generate suggested action
+    const suggestedAction = this.generateSuggestedAction(intent, skill, entities);
+    
+    // Step 9: Calculate confidence
+    const confidence = this.calculateConfidence(intent, skill, entities);
+    
+    return {
+      intent,
+      skill,
+      confidence,
+      complexity,
+      ...requirements,
+      extractedEntities: entities,
+      fastPathEligible,
+      suggestedAction,
+      language,
+    };
+  }
+  
+  // ==========================================================================
+  // LANGUAGE DETECTION
+  // ==========================================================================
+  
+  private detectLanguage(query: string): string {
+    // Use centralized language detection service for comprehensive detection
+    return detectLanguageFromService(query);
+  }
+  
+  // ==========================================================================
+  // QUICK PATTERN MATCHING (for ultra-fast queries)
+  // ==========================================================================
+  
+  private quickPatternMatch(query: string, language: string): Partial<IntentAnalysis> | null {
+    const lowerQuery = query.toLowerCase().trim();
+    
+    // Greetings (multilingual)
+    const greetingPatterns: Record<string, RegExp[]> = {
+      en: [/^(hi|hello|hey|good morning|good afternoon|good evening)$/i],
+      pt: [/^(oi|olá|bom dia|boa tarde|boa noite)$/i],
+      es: [/^(hola|buenos días|buenas tardes|buenas noches)$/i],
+      fr: [/^(bonjour|salut|bonsoir)$/i],
+    };
+    
+    if (greetingPatterns[language]?.some(p => p.test(lowerQuery))) {
+      return {
+        intent: QueryIntent.GREETING,
+        skill: SkillType.GENERAL_CHAT,
+        confidence: 1.0,
+        complexity: QueryComplexity.TRIVIAL,
+        requiresRetrieval: false,
+        requiresMemory: false,
+        requiresCalculation: false,
+        requiresClarification: false,
+        extractedEntities: {},
+        fastPathEligible: true,
+        suggestedAction: 'respond_with_greeting',
+      };
+    }
+    
+    // Document count (multilingual)
+    const countPatterns: Record<string, RegExp[]> = {
+      en: [/how many (documents|files) do i have/i, /count (my )?(documents|files)/i],
+      pt: [/quantos documentos (eu )?tenho/i, /contar (meus )?documentos/i],
+      es: [/cuántos documentos tengo/i, /contar (mis )?documentos/i],
+      fr: [/combien de documents (j')?ai/i, /compter (mes )?documents/i],
+    };
+    
+    if (countPatterns[language]?.some(p => p.test(lowerQuery))) {
+      return {
+        intent: QueryIntent.COUNT_DOCUMENTS,
+        skill: SkillType.FILE_MANAGEMENT,
+        confidence: 1.0,
+        complexity: QueryComplexity.SIMPLE,
+        requiresRetrieval: true,
+        requiresMemory: false,
+        requiresCalculation: false,
+        requiresClarification: false,
+        extractedEntities: {},
+        fastPathEligible: true,
+        suggestedAction: 'count_user_documents',
+      };
+    }
+    
+    // List documents (multilingual)
+    const listPatterns: Record<string, RegExp[]> = {
+      en: [/^(list|show|display) (my )?(documents|files)$/i],
+      pt: [/^(liste|mostre|exiba) (meus )?(documentos|arquivos)$/i],
+      es: [/^(lista|muestra|exhibe) (mis )?(documentos|archivos)$/i],
+      fr: [/^(liste|montre|affiche) (mes )?(documents|fichiers)$/i],
+    };
+    
+    if (listPatterns[language]?.some(p => p.test(lowerQuery))) {
+      return {
+        intent: QueryIntent.LIST_DOCUMENTS,
+        skill: SkillType.FILE_MANAGEMENT,
+        confidence: 1.0,
+        complexity: QueryComplexity.SIMPLE,
+        requiresRetrieval: true,
+        requiresMemory: false,
+        requiresCalculation: false,
+        requiresClarification: false,
+        extractedEntities: {},
+        fastPathEligible: true,
+        suggestedAction: 'list_user_documents',
+      };
+    }
+    
+    return null;
+  }
+  
+  // ==========================================================================
+  // ENTITY EXTRACTION
+  // ==========================================================================
+  
+  private extractEntities(query: string): IntentAnalysis['extractedEntities'] {
+    const entities: IntentAnalysis['extractedEntities'] = {};
+    
+    // Extract ordinal references
+    const ordinalPattern = /\b(first|second|third|fourth|fifth|last|previous|next|1st|2nd|3rd|4th|5th|primeiro|segundo|terceiro|último|primero|segundo|tercero|último|premier|deuxième|troisième|dernier)\b/gi;
+    const ordinalMatches = query.match(ordinalPattern);
+    if (ordinalMatches) {
+      entities.ordinalReferences = ordinalMatches.map(m => m.toLowerCase());
+    }
+    
+    // Extract pronoun references
+    const pronounPattern = /\b(it|this|that|these|those|ele|isso|isto|estes|esses|aqueles|él|esto|eso|estos|esos|aquellos|il|ce|cela|ces|ceux)\b/gi;
+    const pronounMatches = query.match(pronounPattern);
+    if (pronounMatches) {
+      entities.pronounReferences = pronounMatches.map(m => m.toLowerCase());
+    }
+    
+    // Extract document references (quoted strings or filenames)
+    const docPattern = /"([^"]+)"|'([^']+)'|(\w+\.(pdf|docx|xlsx|pptx|txt))/gi;
+    const docMatches = [...query.matchAll(docPattern)];
+    if (docMatches.length > 0) {
+      entities.documentReferences = docMatches.map(m => m[1] || m[2] || m[3]);
+    }
+    
+    // Extract numbers
+    const numberPattern = /\b\d+(?:\.\d+)?\b/g;
+    const numberMatches = query.match(numberPattern);
+    if (numberMatches) {
+      entities.numbers = numberMatches.map(n => parseFloat(n));
+    }
+    
+    // Extract dates (simple pattern)
+    const datePattern = /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b/g;
+    const dateMatches = query.match(datePattern);
+    if (dateMatches) {
+      entities.dates = dateMatches;
+    }
+    
+    // Extract keywords (simple tokenization, filter stop words)
+    const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'be', 'been', 'being', 'o', 'a', 'os', 'as', 'um', 'uma', 'e', 'ou', 'mas', 'em', 'de', 'para', 'el', 'la', 'los', 'las', 'un', 'una', 'y', 'o', 'pero', 'en', 'de', 'para', 'le', 'la', 'les', 'un', 'une', 'et', 'ou', 'mais', 'dans', 'de', 'pour']);
+    const words = query.toLowerCase().match(/\b\w+\b/g) || [];
+    entities.keywords = words.filter(w => w.length > 2 && !stopWords.has(w));
+    
+    return entities;
+  }
+  
+  // ==========================================================================
+  // INTENT & SKILL CLASSIFICATION
+  // ==========================================================================
+  
+  private classifyIntentAndSkill(
+    query: string,
+    entities: IntentAnalysis['extractedEntities'],
+    conversationContext?: any
+  ): { intent: QueryIntent; skill: SkillType } {
+    const lowerQuery = query.toLowerCase();
+    
+    // Check for reference resolution needs
+    if (entities.ordinalReferences || entities.pronounReferences) {
+      return {
+        intent: QueryIntent.REFERENCE_RESOLUTION,
+        skill: SkillType.FILE_MANAGEMENT,
+      };
+    }
+    
+    // Check for document management intents
+    if (lowerQuery.includes('open') || lowerQuery.includes('show me') || lowerQuery.includes('abra') || lowerQuery.includes('mostre') || lowerQuery.includes('abre') || lowerQuery.includes('muestra') || lowerQuery.includes('ouvre') || lowerQuery.includes('montre')) {
+      return {
+        intent: QueryIntent.OPEN_DOCUMENT,
+        skill: SkillType.FILE_MANAGEMENT,
+      };
+    }
+    if (lowerQuery.includes('delete') || lowerQuery.includes('remove') || lowerQuery.includes('excluir') || lowerQuery.includes('eliminar') || lowerQuery.includes('supprimer')) {
+      return {
+        intent: QueryIntent.DELETE_DOCUMENT,
+        skill: SkillType.FILE_MANAGEMENT,
+      };
+    }
+    if (lowerQuery.includes('upload') || lowerQuery.includes('add document') || lowerQuery.includes('carregar') || lowerQuery.includes('subir') || lowerQuery.includes('télécharger')) {
+      return {
+        intent: QueryIntent.UPLOAD_DOCUMENT,
+        skill: SkillType.FILE_MANAGEMENT,
+      };
+    }
+    if (lowerQuery.includes('search for') || lowerQuery.includes('find document') || lowerQuery.includes('procurar') || lowerQuery.includes('buscar') || lowerQuery.includes('chercher')) {
+      return {
+        intent: QueryIntent.SEARCH_DOCUMENTS,
+        skill: SkillType.FILE_MANAGEMENT,
+      };
+    }
+    
+    // Check for financial analysis
+    if (lowerQuery.includes('revenue') || lowerQuery.includes('profit') || lowerQuery.includes('loss') || lowerQuery.includes('balance sheet') || lowerQuery.includes('income statement') || lowerQuery.includes('cash flow') || lowerQuery.includes('financial') || lowerQuery.includes('receita') || lowerQuery.includes('lucro') || lowerQuery.includes('prejuízo') || lowerQuery.includes('balanço') || lowerQuery.includes('demonstração') || lowerQuery.includes('fluxo de caixa') || lowerQuery.includes('financeiro') || lowerQuery.includes('ingresos') || lowerQuery.includes('ganancias') || lowerQuery.includes('pérdidas') || lowerQuery.includes('balance') || lowerQuery.includes('estado de resultados') || lowerQuery.includes('flujo de efectivo') || lowerQuery.includes('financier') || lowerQuery.includes('revenus') || lowerQuery.includes('bénéfices') || lowerQuery.includes('pertes') || lowerQuery.includes('bilan') || lowerQuery.includes('compte de résultat') || lowerQuery.includes('flux de trésorerie')) {
+      return {
+        intent: QueryIntent.FINANCIAL_ANALYSIS,
+        skill: SkillType.FINANCIAL_ANALYSIS,
+      };
+    }
+    
+    // Check for document generation
+    if (lowerQuery.includes('generate') || lowerQuery.includes('create') || lowerQuery.includes('gerar') || lowerQuery.includes('criar') || lowerQuery.includes('generar') || lowerQuery.includes('crear') || lowerQuery.includes('générer') || lowerQuery.includes('créer')) {
+      if (lowerQuery.includes('summary') || lowerQuery.includes('resumo') || lowerQuery.includes('resumen') || lowerQuery.includes('résumé')) {
+        return {
+          intent: QueryIntent.GENERATE_SUMMARY,
+          skill: SkillType.SYNTHESIS,
+        };
+      }
+      if (lowerQuery.includes('report') || lowerQuery.includes('relatório') || lowerQuery.includes('informe') || lowerQuery.includes('rapport')) {
+        return {
+          intent: QueryIntent.GENERATE_REPORT,
+          skill: SkillType.SYNTHESIS,
+        };
+      }
+      return {
+        intent: QueryIntent.GENERATE_DOCUMENT,
+        skill: SkillType.SYNTHESIS,
+      };
+    }
+    
+    // Check for calculation
+    if (lowerQuery.includes('calculate') || lowerQuery.includes('compute') || /\d+\s*[\+\-\*\/]\s*\d+/.test(lowerQuery) || lowerQuery.includes('calcular') || lowerQuery.includes('computar') || lowerQuery.includes('calculer')) {
+      return {
+        intent: QueryIntent.CALCULATION,
+        skill: SkillType.DATA_EXTRACTION,
+      };
+    }
+    
+    // Check for comparison
+    if (lowerQuery.includes('compare') || lowerQuery.includes('difference between') || lowerQuery.includes('versus') || lowerQuery.includes('comparar') || lowerQuery.includes('diferença entre') || lowerQuery.includes('comparer') || lowerQuery.includes('différence entre')) {
+      return {
+        intent: QueryIntent.COMPARISON_QUESTION,
+        skill: SkillType.COMPARISON,
+      };
+    }
+    
+    // Check for synthesis
+    if (lowerQuery.includes('synthesize') || lowerQuery.includes('combine') || lowerQuery.includes('across all') || lowerQuery.includes('sintetizar') || lowerQuery.includes('combinar') || lowerQuery.includes('em todos') || lowerQuery.includes('sintetizar') || lowerQuery.includes('combinar') || lowerQuery.includes('en todos') || lowerQuery.includes('synthétiser') || lowerQuery.includes('combiner') || lowerQuery.includes('dans tous')) {
+      return {
+        intent: QueryIntent.SYNTHESIS_QUESTION,
+        skill: SkillType.SYNTHESIS,
+      };
+    }
+    
+    // Check for analytical questions
+    if (lowerQuery.includes('why') || lowerQuery.includes('how') || lowerQuery.includes('explain') || lowerQuery.includes('por que') || lowerQuery.includes('como') || lowerQuery.includes('explique') || lowerQuery.includes('por qué') || lowerQuery.includes('cómo') || lowerQuery.includes('pourquoi') || lowerQuery.includes('comment') || lowerQuery.includes('expliquer')) {
+      return {
+        intent: QueryIntent.ANALYTICAL_QUESTION,
+        skill: SkillType.DOCUMENT_QA,
+      };
+    }
+    
+    // Check for follow-up
+    if (conversationContext && (lowerQuery.includes('tell me more') || lowerQuery.includes('continue') || lowerQuery.includes('go on') || lowerQuery.includes('me diga mais') || lowerQuery.includes('continue') || lowerQuery.includes('siga') || lowerQuery.includes('dime más') || lowerQuery.includes('continúa') || lowerQuery.includes('sigue') || lowerQuery.includes('dis-moi plus') || lowerQuery.includes('continue') || lowerQuery.includes('vas-y'))) {
+      return {
+        intent: QueryIntent.FOLLOW_UP,
+        skill: SkillType.DOCUMENT_QA,
+      };
+    }
+    
+    // Default to factual question
+    if (lowerQuery.includes('what') || lowerQuery.includes('when') || lowerQuery.includes('where') || lowerQuery.includes('who') || lowerQuery.includes('o que') || lowerQuery.includes('quando') || lowerQuery.includes('onde') || lowerQuery.includes('quem') || lowerQuery.includes('qué') || lowerQuery.includes('cuándo') || lowerQuery.includes('dónde') || lowerQuery.includes('quién') || lowerQuery.includes('quoi') || lowerQuery.includes('quand') || lowerQuery.includes('où') || lowerQuery.includes('qui')) {
+      return {
+        intent: QueryIntent.FACTUAL_QUESTION,
+        skill: SkillType.DOCUMENT_QA,
+      };
+    }
+    
+    // If nothing matches, it's unknown
+    return {
+      intent: QueryIntent.UNKNOWN,
+      skill: SkillType.GENERAL_CHAT,
+    };
+  }
+  
+  // ==========================================================================
+  // COMPLEXITY DETERMINATION
+  // ==========================================================================
+  
+  private determineComplexity(
+    query: string,
+    intent: QueryIntent,
+    skill: SkillType,
+    entities: IntentAnalysis['extractedEntities']
+  ): QueryComplexity {
+    
+    // Trivial: greetings, simple commands
+    if (intent === QueryIntent.GREETING || intent === QueryIntent.COUNT_DOCUMENTS) {
+      return QueryComplexity.TRIVIAL;
+    }
+    
+    // Simple: single-document operations, factual lookups
+    if (intent === QueryIntent.LIST_DOCUMENTS || intent === QueryIntent.OPEN_DOCUMENT) {
+      return QueryComplexity.SIMPLE;
+    }
+    
+    // Very Complex: financial analysis, deep synthesis
+    if (skill === SkillType.FINANCIAL_ANALYSIS || intent === QueryIntent.SYNTHESIS_QUESTION) {
+      return QueryComplexity.VERY_COMPLEX;
+    }
+    
+    // Complex: comparison, multi-document analysis
+    if (intent === QueryIntent.COMPARISON_QUESTION || skill === SkillType.COMPARISON) {
+      return QueryComplexity.COMPLEX;
+    }
+    
+    // Moderate: everything else
+    return QueryComplexity.MODERATE;
+  }
+  
+  // ==========================================================================
+  // REQUIREMENTS DETERMINATION
+  // ==========================================================================
+  
+  private determineRequirements(
+    intent: QueryIntent,
+    skill: SkillType,
+    entities: IntentAnalysis['extractedEntities']
+  ): Pick<IntentAnalysis, 'requiresRetrieval' | 'requiresMemory' | 'requiresCalculation' | 'requiresClarification'> {
+    
+    const requiresRetrieval = ![
+      QueryIntent.GREETING,
+      QueryIntent.CALCULATION,
+    ].includes(intent);
+    
+    const requiresMemory = [
+      QueryIntent.FOLLOW_UP,
+      QueryIntent.REFERENCE_RESOLUTION,
+      QueryIntent.CLARIFICATION,
+    ].includes(intent);
+    
+    const requiresCalculation = [
+      QueryIntent.CALCULATION,
+      QueryIntent.DATA_ANALYSIS,
+      QueryIntent.FINANCIAL_ANALYSIS,
+    ].includes(intent);
+    
+    const requiresClarification = intent === QueryIntent.AMBIGUOUS;
+    
+    return {
+      requiresRetrieval,
+      requiresMemory,
+      requiresCalculation,
+      requiresClarification,
+    };
+  }
+  
+  // ==========================================================================
+  // FAST-PATH ELIGIBILITY
+  // ==========================================================================
+  
+  private checkFastPathEligibility(
+    intent: QueryIntent,
+    complexity: QueryComplexity
+  ): boolean {
+    // Fast-path eligible if trivial or simple AND no complex retrieval needed
+    return complexity === QueryComplexity.TRIVIAL || 
+           (complexity === QueryComplexity.SIMPLE && [
+             QueryIntent.GREETING,
+             QueryIntent.LIST_DOCUMENTS,
+             QueryIntent.COUNT_DOCUMENTS,
+             QueryIntent.OPEN_DOCUMENT,
+           ].includes(intent));
+  }
+  
+  // ==========================================================================
+  // SUGGESTED ACTION
+  // ==========================================================================
+  
+  private generateSuggestedAction(
+    intent: QueryIntent,
+    skill: SkillType,
+    entities: IntentAnalysis['extractedEntities']
+  ): string {
+    const actionMap: Record<QueryIntent, string> = {
+      [QueryIntent.LIST_DOCUMENTS]: 'list_user_documents',
+      [QueryIntent.COUNT_DOCUMENTS]: 'count_user_documents',
+      [QueryIntent.OPEN_DOCUMENT]: 'open_document',
+      [QueryIntent.SEARCH_DOCUMENTS]: 'search_documents',
+      [QueryIntent.DELETE_DOCUMENT]: 'delete_document',
+      [QueryIntent.UPLOAD_DOCUMENT]: 'upload_document',
+      [QueryIntent.FACTUAL_QUESTION]: 'retrieve_and_answer',
+      [QueryIntent.ANALYTICAL_QUESTION]: 'deep_analysis',
+      [QueryIntent.COMPARISON_QUESTION]: 'compare_documents',
+      [QueryIntent.SYNTHESIS_QUESTION]: 'synthesize_across_documents',
+      [QueryIntent.GREETING]: 'respond_with_greeting',
+      [QueryIntent.CLARIFICATION]: 'request_clarification',
+      [QueryIntent.FOLLOW_UP]: 'continue_conversation',
+      [QueryIntent.REFERENCE_RESOLUTION]: 'resolve_reference',
+      [QueryIntent.GENERATE_DOCUMENT]: 'generate_document',
+      [QueryIntent.GENERATE_SUMMARY]: 'generate_summary',
+      [QueryIntent.GENERATE_REPORT]: 'generate_report',
+      [QueryIntent.CALCULATION]: 'perform_calculation',
+      [QueryIntent.DATA_ANALYSIS]: 'analyze_data',
+      [QueryIntent.FINANCIAL_ANALYSIS]: 'financial_deep_analysis',
+      [QueryIntent.UNKNOWN]: 'fallback_response',
+      [QueryIntent.AMBIGUOUS]: 'request_clarification',
+    };
+    
+    return actionMap[intent] || 'fallback_response';
+  }
+  
+  // ==========================================================================
+  // CONFIDENCE CALCULATION
+  // ==========================================================================
+  
+  private calculateConfidence(
+    intent: QueryIntent,
+    skill: SkillType,
+    entities: IntentAnalysis['extractedEntities']
+  ): number {
+    // Simple heuristic: more extracted entities = higher confidence
+    let confidence = 0.5;
+    
+    if (entities.documentReferences && entities.documentReferences.length > 0) {
+      confidence += 0.2;
+    }
+    if (entities.keywords && entities.keywords.length > 2) {
+      confidence += 0.2;
+    }
+    if (intent !== QueryIntent.UNKNOWN) {
+      confidence += 0.1;
+    }
+    
+    return Math.min(confidence, 1.0);
+  }
+}
+
+export default KodaIntentEngine;

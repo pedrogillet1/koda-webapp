@@ -2,9 +2,10 @@
  * Document Intelligence System
  *
  * Exports all document intelligence services for easy importing.
+ * NOTE: Most services deprecated and using stubs from deletedServiceStubs.ts
  */
 
-// Document Classification
+// Document Classification - DEPRECATED - using stubs
 export {
   classifyDocument,
   classifyDocumentsBatch,
@@ -13,17 +14,17 @@ export {
   ALL_DOCUMENT_TYPES,
   ALL_DOMAINS,
   type DocumentClassification
-} from '../documentClassifier.service';
+} from '../deletedServiceStubs';
 
-// Entity Extraction
+// Entity Extraction - DEPRECATED - using stubs
 export {
   extractEntities,
   extractEntitiesBatch,
   EntityType,
   type ExtractedEntity
-} from '../entityExtractor.service';
+} from '../deletedServiceStubs';
 
-// Keyword Extraction
+// Keyword Extraction - DEPRECATED - using stubs
 export {
   extractKeywords,
   extractKeywordsBatch,
@@ -34,7 +35,7 @@ export {
   STOP_WORDS,
   DOMAIN_KEYWORDS,
   type ExtractedKeyword
-} from '../keywordExtractor.service';
+} from '../deletedServiceStubs';
 
 // Chunk Classification
 export {
@@ -58,16 +59,19 @@ export {
   type DocumentSummary
 } from '../documentRouter.service';
 
-// Hybrid Search
+// Hybrid Search - DEPRECATED: hybridSearch.service moved to _deprecated
+// Using stubs from deletedServiceStubs
 export {
   hybridSearch,
-  keywordSearch,
-  vectorSearch,
   analyzeQueryIntent,
   type SearchFilters,
-  type SearchResult,
   type HybridSearchOptions
-} from '../hybridSearch.service';
+} from '../deletedServiceStubs';
+
+// Stub exports for backward compatibility
+export const keywordSearch = async (_query: string, _options?: any) => [] as any[];
+export const vectorSearch = async (_query: string, _options?: any) => [] as any[];
+export type SearchResult = { id: string; score: number; metadata?: any };
 
 /**
  * Document Intelligence Pipeline
@@ -82,13 +86,14 @@ export async function processDocumentIntelligence(
     textContent: string;
   }
 ): Promise<{
-  classification: import('../documentClassifier.service').DocumentClassification;
-  entities: import('../entityExtractor.service').ExtractedEntity[];
-  keywords: import('../keywordExtractor.service').ExtractedKeyword[];
+  classification: import('../deletedServiceStubs').DocumentClassification;
+  entities: import('../deletedServiceStubs').ExtractedEntity[];
+  keywords: import('../deletedServiceStubs').ExtractedKeyword[];
 }> {
-  const { classifyDocument } = await import('../documentClassifier.service');
-  const { extractEntities } = await import('../entityExtractor.service');
-  const { extractKeywords } = await import('../keywordExtractor.service');
+  // DEPRECATED: Using stubs for document intelligence
+  const { classifyDocument } = await import('../deletedServiceStubs');
+  const { extractEntities } = await import('../deletedServiceStubs');
+  const { extractKeywords } = await import('../deletedServiceStubs');
 
   // Classify document
   const classification = await classifyDocument(

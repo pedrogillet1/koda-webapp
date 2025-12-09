@@ -48,7 +48,7 @@ export interface RAGModeConfig {
   maxChunks: number;
 
   // LLM
-  model: 'gemini-2.0-flash-exp' | 'gemini-1.5-pro';
+  model: 'gemini-2.5-flash';
   systemPromptType: 'micro' | 'small' | 'standard' | 'maximal';
   maxOutputTokens: number;
   temperature: number;
@@ -117,7 +117,7 @@ export const MODE_CONFIGS: Record<RAGMode, RAGModeConfig> = {
     maxChunks: 0,
 
     // LLM - TINY OR NONE
-    model: 'gemini-2.0-flash-exp',
+    model: 'gemini-2.5-flash',
     systemPromptType: 'micro',  // 1-2 sentences
     maxOutputTokens: 50,  // Very short
     temperature: 0.7,
@@ -181,7 +181,7 @@ export const MODE_CONFIGS: Record<RAGMode, RAGModeConfig> = {
     maxChunks: 4,
 
     // LLM - FLASH WITH LIMITS
-    model: 'gemini-2.0-flash-exp',
+    model: 'gemini-2.5-flash',
     systemPromptType: 'small',  // Short persona + simple instructions
     maxOutputTokens: 150,  // ✅ Short answer
     temperature: 0.3,
@@ -244,8 +244,8 @@ export const MODE_CONFIGS: Record<RAGMode, RAGModeConfig> = {
     enableEntityMap: false,
     maxChunks: 8,
 
-    // LLM - FLASH OR PRO
-    model: 'gemini-2.0-flash-exp',  // Can switch to Pro for quality
+    // LLM - FLASH
+    model: 'gemini-2.5-flash',  // Use 2.5 Flash for quality
     systemPromptType: 'standard',  // Full persona + structure
     maxOutputTokens: 512,
     temperature: 0.3,
@@ -308,8 +308,8 @@ export const MODE_CONFIGS: Record<RAGMode, RAGModeConfig> = {
     enableEntityMap: true,
     maxChunks: 20,
 
-    // LLM - PRO FOR QUALITY
-    model: 'gemini-1.5-pro',  // ✅ Use Pro for complex reasoning
+    // LLM - FLASH FOR QUALITY
+    model: 'gemini-2.5-flash',  // ✅ Use 2.5 Flash for complex reasoning
     systemPromptType: 'maximal',  // Full persona + all specs
     maxOutputTokens: 2048,  // ✅ Long structured outputs
     temperature: 0.3,
@@ -372,8 +372,8 @@ export const MODE_CONFIGS: Record<RAGMode, RAGModeConfig> = {
     enableEntityMap: true,
     maxChunks: 25,  // ✅ More chunks for financial context
 
-    // LLM - PRO FOR NUMERICAL ACCURACY
-    model: 'gemini-1.5-pro',  // ✅ Pro for accurate calculations
+    // LLM - FLASH FOR NUMERICAL ACCURACY
+    model: 'gemini-2.5-flash',  // ✅ 2.5 Flash for accurate calculations
     systemPromptType: 'maximal',  // Full financial analysis prompt
     maxOutputTokens: 2048,  // ✅ Long structured financial reports
     temperature: 0.2,  // ✅ Lower temp for numerical precision
