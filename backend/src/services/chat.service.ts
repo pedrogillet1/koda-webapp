@@ -11,7 +11,7 @@
 import prisma from '../config/database';
 import { sendMessageToGemini, sendMessageToGeminiStreaming, generateConversationTitle } from './gemini.service';
 // A+ RAG: Using new modular RAG orchestrator via adapter
-import ragService from './rag/rag-service-adapter';
+import ragService from './rag.service';
 import cacheService from './cache.service';
 import { getIO } from './websocket.service';
 import * as memoryService from './memory.service';
@@ -19,6 +19,13 @@ import { detectLanguage } from './languageDetection.service';
 import { profileService } from './profile.service';
 import historyService from './history.service';
 import { conversationContextService } from './deletedServiceStubs';
+
+// ============================================================================
+// MEMORY ENGINE 3.0 - Document Reference Resolution
+// ============================================================================
+import { documentListStateManager } from './documentListStateManager.service';
+import { referenceResolutionService } from './referenceResolution.service';
+import { memoryInjectionService } from './memoryInjection.service';
 
 // ============================================================================
 // MODE-BASED RAG OPTIMIZATION
@@ -55,6 +62,7 @@ import {
 const openai = new OpenAI({
   apiKey: config.OPENAI_API_KEY,
 });
+import kodaMemoryEngine from './kodaMemoryEngine.service';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -472,6 +480,11 @@ export const sendMessageStreaming = async (
 
   console.log('💬 Sending streaming message in conversation:', conversationId);
 
+  // ==========================================================================
+  // ALL GREETING DETECTION IS NOW HANDLED BY rag.service.ts ULTRA-FAST PATH
+  // This ensures consistent behavior and single source of truth for greetings
+  // ==========================================================================
+
   // ⚡ PERFORMANCE: Start DB writes async - don't block streaming
   // Only await conversation check and history (needed for processing)
   const [conversation, conversationHistory] = await Promise.all([
@@ -516,39 +529,88 @@ export const sendMessageStreaming = async (
   );
 
   if (fileActionResult) {
-    // This was a file action - send result and return
-    const actionMessage = fileActionResult.message;
-    const fullResponse = actionMessage;
-    onChunk(actionMessage);
+    // =========================================================================
+    // MEMORY ENGINE 3.0: Handle resolved document references
+    // =========================================================================
+    if (fileActionResult.action === 'resolved_reference' && fileActionResult.message.startsWith('__RESOLVED_DOC_ID__:')) {
+      // Parse the resolved document info
+      const parts = fileActionResult.message.split(':');
+      const resolvedDocId = parts[1];
+      const resolvedDocName = parts.slice(2).join(':'); // Handle colons in filenames
 
-    console.log('✅ File action completed:', fileActionResult.action);
+      console.log(`🧠 [Memory3.0] Processing resolved reference: "${resolvedDocName}" (${resolvedDocId})`);
 
-    // ⚡ PERFORMANCE: Create assistant message async (don't block)
-    const assistantMessagePromise = prisma.message.create({
-      data: {
-        conversationId,
-        role: 'assistant',
-        content: fullResponse,
-        createdAt: new Date(),
-      },
-    });
+      // Update the content to include the explicit document reference for RAG
+      // This ensures the RAG system knows exactly which document to use
+      const enhancedContent = `[User is referring to document "${resolvedDocName}"] ${content}`;
 
-    // ⚡ PERFORMANCE: Update conversation timestamp async (fire-and-forget)
-    prisma.conversation.update({
-      where: { id: conversationId },
-      data: { updatedAt: new Date() },
-    }).catch(err => console.error('❌ Error updating conversation timestamp:', err));
+      // Update last document reference
+      await documentListStateManager.setLastDocument(conversationId, resolvedDocId);
 
-    // Wait for critical promises before returning
-    const [userMessage, assistantMessage] = await Promise.all([
-      userMessagePromise,
-      assistantMessagePromise
-    ]);
+      // Continue to RAG processing with the enhanced content
+      // The RAG system will now have explicit document context
+      // We'll fall through to the normal RAG flow below
+      console.log(`🧠 [Memory3.0] Passing to RAG with enhanced content: "${enhancedContent.substring(0, 100)}..."`);
 
-    return {
-      userMessage,
-      assistantMessage,
-    };
+      // DON'T return here - fall through to RAG processing
+      // We'll use the enhanced content for the RAG query
+      console.log(`🧠 [Memory3.0] Will use enhanced content for RAG query`);
+
+      // Store enhanced content in global for use after this block
+      (globalThis as any).__memory3_enhancedContent = enhancedContent;
+      (globalThis as any).__memory3_resolvedDocId = resolvedDocId;
+      // Fall through to RAG with enhanced content...
+    } else {
+      // This was a normal file action - send result and return
+      const actionMessage = fileActionResult.message;
+      const fullResponse = actionMessage;
+      onChunk(actionMessage);
+
+      console.log('✅ File action completed:', fileActionResult.action);
+
+      // ⚡ PERFORMANCE: Create assistant message async (don't block)
+      const assistantMessagePromise = prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: fullResponse,
+          createdAt: new Date(),
+        },
+      });
+
+      // ⚡ PERFORMANCE: Update conversation timestamp async (fire-and-forget)
+      prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() },
+      }).catch(err => console.error('❌ Error updating conversation timestamp:', err));
+
+      // Wait for critical promises before returning
+      const [userMessage, assistantMessage] = await Promise.all([
+        userMessagePromise,
+        assistantMessagePromise
+      ]);
+
+      return {
+        userMessage,
+        assistantMessage,
+      };
+    }
+  }
+
+  // =========================================================================
+  // MEMORY ENGINE 3.0: Apply enhanced content from resolved reference
+  // =========================================================================
+  let effectiveContent = content;
+  let resolvedDocumentId: string | null = null;
+
+  if ((globalThis as any).__memory3_enhancedContent) {
+    effectiveContent = (globalThis as any).__memory3_enhancedContent;
+    resolvedDocumentId = (globalThis as any).__memory3_resolvedDocId || null;
+    console.log(`🧠 [Memory3.0] Using enhanced content: "${effectiveContent.substring(0, 80)}..."`);
+
+    // Clean up global variables
+    delete (globalThis as any).__memory3_enhancedContent;
+    delete (globalThis as any).__memory3_resolvedDocId;
   }
 
   // Not a file action - continue with normal RAG
@@ -559,7 +621,10 @@ export const sendMessageStreaming = async (
   // ✅ NEW: Build memory context for personalized responses
   console.log('🧠 Building memory context...');
   // TODO: Implement buildMemoryContext in memory.service
-  const memoryContext = '';
+  // ✅ MEMORY ENGINE: Get full conversation memory (50 messages + rolling summary)
+  const kodaMemory = await kodaMemoryEngine.getConversationMemory(conversationId, userId);
+  const memoryContext = kodaMemory.formattedContext;
+  console.log();
 
   // ✅ NEW: Build full conversation history for comprehensive context
   console.log('📚 Building conversation context...');
@@ -567,7 +632,7 @@ export const sendMessageStreaming = async (
 
   // ✅ LANGUAGE DETECTION: Detect user's language for proper response
   console.log('🌍 Detecting query language...');
-  const detectedLanguage = detectLanguage(content);
+  const detectedLanguage = detectLanguage(effectiveContent);
   console.log(`🌍 Detected language: ${detectedLanguage}`);
 
   // ✅ USER PROFILE: Load user profile for personalized responses
@@ -586,11 +651,11 @@ export const sendMessageStreaming = async (
   // ============================================================================
 
   // Step 1: Classify query mode (<10ms)
-  const modeClassification = classifyQueryMode(content, conversationHistory);
+  const modeClassification = classifyQueryMode(effectiveContent, conversationHistory);
   const mode: RAGMode = modeClassification.mode;
   const modeConfig: RAGModeConfig = getModeConfig(mode);
 
-  logModeClassification(content, modeClassification);
+  logModeClassification(effectiveContent, modeClassification);
   console.log(`🎯 [MODE] ${mode} (target: ${modeConfig.targetLatency})`);
 
   // Step 2: Check cache BEFORE any processing
@@ -641,9 +706,9 @@ export const sendMessageStreaming = async (
     console.log('🚀 [ULTRA_FAST_META] Fast path activated');
 
     // Check if it's a document count query
-    const isDocCountQuery = content.toLowerCase().includes('quantos documentos') ||
-                           content.toLowerCase().includes('how many documents') ||
-                           content.toLowerCase().includes('cuántos documentos');
+    const isDocCountQuery = effectiveContent.toLowerCase().includes('quantos documentos') ||
+                           effectiveContent.toLowerCase().includes('how many documents') ||
+                           effectiveContent.toLowerCase().includes('cuántos documentos');
 
     if (isDocCountQuery) {
       // Get document count from database
@@ -827,7 +892,7 @@ export const sendMessageStreaming = async (
 
   await ragService.generateAnswerStream(
     userId,
-    content,
+    effectiveContent,
     conversationId,
     (chunk: string) => {
       // Check the chunk content BEFORE adding to fullResponse or sending
@@ -1394,6 +1459,29 @@ export const handleFileActionsIfNeeded = async (
   console.log(`⚡ [Intent] ${intentResult.intent} (confidence: ${intentResult.confidence}) [pattern/${simpleResult.detectionTimeMs}ms]`);
   console.log(`📝 [Entities]`, intentResult.parameters);
 
+  // =========================================================================
+  // MEMORY ENGINE 3.0: Resolve document references BEFORE intent processing
+  // =========================================================================
+  // Check if the query contains a reference like "the first one", "it", "that document"
+  if (referenceResolutionService.hasDocumentReference(message)) {
+    console.log(`🧠 [Memory3.0] Detected document reference in query`);
+
+    const resolved = await referenceResolutionService.resolveReference(conversationId, message);
+
+    if (resolved.document) {
+      console.log(`🧠 [Memory3.0] Resolved "${message}" -> document "${resolved.document.name}" (${resolved.referenceType}, confidence: ${resolved.confidence})`);
+
+      // Return a response that works with the resolved document
+      // The document ID can now be used for RAG queries
+      return {
+        action: 'resolved_reference',
+        message: `__RESOLVED_DOC_ID__:${resolved.document.id}:${resolved.document.name}`,
+      };
+    } else {
+      console.log(`🧠 [Memory3.0] Could not resolve reference - no document list in context`);
+    }
+  }
+
   // Only process file actions with high confidence
   const fileActionIntents = ['create_folder', 'list_files', 'search_files', 'file_location', 'rename_file', 'delete_file', 'move_files', 'list_folders', 'metadata_query'];
 
@@ -1723,6 +1811,26 @@ export const handleFileActionsIfNeeded = async (
       maxInline: 15, // Show up to 15 files inline
       includeMetadata: true
     });
+
+    // =========================================================================
+    // MEMORY ENGINE 3.0: Save document list for reference resolution
+    // =========================================================================
+    // This enables "tell me about the first one", "open it", etc.
+    try {
+      await documentListStateManager.setDocumentList(
+        conversationId,
+        documents.map(doc => ({
+          id: doc.id,
+          name: doc.filename,
+          type: doc.mimeType || 'unknown',
+          folderId: doc.folderId || undefined,
+          folderName: doc.folder?.name || undefined,
+        }))
+      );
+      console.log(`[Memory3.0] Saved ${documents.length} documents for conversation ${conversationId}`);
+    } catch (memError) {
+      console.error('[Memory3.0] Error saving document list:', memError);
+    }
 
     return {
       action: 'list_files',
@@ -2086,7 +2194,7 @@ async function getConversationHistory(
       role: true,
       content: true
     },
-    take: 10 // Last 10 messages
+    take: 50 // Last 50 messages for robust conversation memory
   });
 
   return messages.map(msg => ({

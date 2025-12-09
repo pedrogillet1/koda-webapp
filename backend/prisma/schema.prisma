@@ -369,6 +369,11 @@ model Conversation {
   isDeleted         Boolean       @default(false)
   isPinned          Boolean       @default(false)
   summary           String?
+
+  // Memory Engine 3.0: Store document list shown to user for reference resolution
+  documentList      Json?         // Array of {id, name, type} for "the first one" resolution
+  lastDocumentId    String?       // Last explicitly referenced document ID
+
   chatContexts      ChatContext[]
   user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages          Message[]
