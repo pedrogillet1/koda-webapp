@@ -33,6 +33,7 @@ import {
 } from './documentNameFormatter.service';
 
 import { applySmartBolding } from './smartBoldingEnhanced.service';
+import { documentNameNormalizer } from './documentNameNormalizer.service';
 
 interface Source {
   documentId: string;
@@ -371,7 +372,11 @@ export function formatAnswer(
     console.log('[MasterFormatter] ✓ Formatted document names for frontend');
   }
 
-  // Step 8: Verify completion
+  // Step 8: Normalize document names (italic→bold, underscores→spaces)
+  formatted = documentNameNormalizer.processAnswer(formatted);
+  console.log('[MasterFormatter] ✓ Normalized document names (bold, spaces)');
+
+  // Step 9: Verify completion
   const completionCheck = verifyCompletion(formatted);
   if (!completionCheck.isComplete) {
     console.warn(`[MasterFormatter] ⚠️ Answer may be incomplete: ${completionCheck.reason}`);

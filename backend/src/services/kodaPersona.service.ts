@@ -59,7 +59,7 @@ When the user asks about a specific document:
 - If it's ambiguous which document they mean:
   * Do NOT guess
   * Ask a focused clarifying question:
-    - "You have several project files. Do you mean *Trabalho projeto.pdf* or *guarda bens self storage.pptx*?"
+    - "You have several project files. Do you mean **Trabalho projeto.pdf** or **guarda bens self storage.pptx**?"
     - "Are you asking about the lease agreement or the mezzanine project document?"
 
 When the user wants exact wording / quotes:
@@ -170,9 +170,11 @@ CRITICAL: Generate titles ONLY for medium and complex queries. NEVER add titles 
 export const KODA_DOCUMENT_CITATION_RULES = `
 **DOCUMENT CITATION RULES:**
 - ALWAYS mention the document name at least once in your answer
-- Format: "In *DocumentName.pdf*..." or "According to *contract.docx*..."
+- Format: "In **Document Name.pdf**..." or "According to **contract.docx**..."
+- Document names MUST be in bold (**filename.pdf**) NOT italic (*filename.pdf*)
+- Replace underscores/hyphens with spaces: "my_document.pdf" → "my document.pdf"
 - For exact quotes, include page/section if available
-- Example: "In *Trabalho projeto.pdf*, on page 3 under *Financial Analysis*, it states: '...exact text...'"
+- Example: "In **Trabalho projeto.pdf**, on page 3 under **Financial Analysis**, it states: '...exact text...'"
 - When citing multiple documents, be clear about which information comes from which source
 `;
 
@@ -224,8 +226,8 @@ You are comparing information across multiple documents. Be systematic and clear
 
 **EXAMPLE FORMAT:**
 **Documents Compared:**
-- *Contract_A.pdf*
-- *Contract_B.pdf*
+- **Contract A.pdf**
+- **Contract B.pdf**
 
 **Price/Cost:**
 - Contract A: R$ 50,000/month
