@@ -92,10 +92,14 @@ function detectFileNavigationIntent(query: string): {
     /(?:where|onde)\s+(?:is|está|fica)\s+(?:the\s+|a\s+)?(?:folder|pasta)\s+["']?([^"'?]+)["']?/i,
   ];
 
-  // List files patterns
+  // List files patterns - MUST require explicit folder reference
+  // Patterns like "quais documentos eu tenho" should NOT match here (handled by document listing)
   const listFilesPatterns = [
-    /(?:list|show|what)\s+(?:all\s+)?(?:files|documents)\s+(?:in\s+)?(?:the\s+)?(?:folder\s+)?["']?([^"'?]*)["']?/i,
-    /(?:listar?|mostrar?|quais)\s+(?:os\s+)?(?:arquivos|documentos)\s+(?:na\s+|da\s+)?(?:pasta\s+)?["']?([^"'?]*)["']?/i,
+    // English: REQUIRE "in" or "folder" to be present
+    /(?:list|show|what)\s+(?:all\s+)?(?:files|documents)\s+in\s+(?:the\s+)?(?:folder\s+)?["']?([^"'?]+)["']?/i,
+    /(?:list|show)\s+(?:all\s+)?(?:files|documents)\s+(?:in\s+)?(?:the\s+)?folder\s+["']?([^"'?]+)["']?/i,
+    // Portuguese: REQUIRE "na pasta" or "da pasta" to be present
+    /(?:listar?|mostrar?|quais)\s+(?:os\s+)?(?:arquivos|documentos)\s+(?:na|da)\s+pasta\s+["']?([^"'?]+)["']?/i,
   ];
 
   // Recent files patterns
