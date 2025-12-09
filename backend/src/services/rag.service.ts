@@ -99,6 +99,14 @@ import { getConversationState, updateConversationState, extractEntities, extract
 import infiniteConversationMemory from './infiniteConversationMemory.service';
 
 // ============================================================================
+// KODA CENTRALIZED ENGINES (NEW - Dec 2025)
+// Single source of truth for all Koda engines
+// ============================================================================
+import { kodaEngines, kodaInfrastructure, type AnswerType } from './kodaEngines';
+import { detectAnswerType, logAnswerTypeDetection } from './answerTypeRouter.service';
+import { kodaNavigationEngine } from './kodaNavigationEngine.service';
+
+// ============================================================================
 // CHATGPT-STYLE MEMORY ENGINE 4.0
 // ============================================================================
 import {
