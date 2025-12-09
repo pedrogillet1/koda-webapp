@@ -21,7 +21,7 @@ import semanticFileMatcher from './semanticFileMatcher.service'; // ✅ FIX #7: 
 import clarificationService from './clarification.service'; // ✅ P0 Feature: Smart clarification with grouping
 import { generateDynamicResponse } from './dynamicResponseGenerator.service'; // ✅ Dynamic LLM-based responses
 import { createLoadMoreMarker } from '../utils/inlineDocumentInjector'; // ✅ UI: Load more button instead of text
-import { detectLanguage as detectLanguageFromService } from './languageDetection.service'; // ✅ FIX: Use centralized language detection
+import { detectLanguageSimple } from './languageEngine.service'; // ✅ FIX: Use centralized language engine
 
 /**
  * Enhanced fuzzy matching using our dedicated service
@@ -44,21 +44,15 @@ function fuzzyMatchName(searchName: string, actualName: string): boolean {
 
 /**
  * Language Detection Function
- * ✅ FIX: Now uses centralized languageDetection.service for comprehensive detection
- * Supports: English (EN), Portuguese (PT), Spanish (ES), French (FR)
+ * ✅ FIX: Now uses centralized languageEngine.service for comprehensive detection
+ * Supports: English (EN), Portuguese (PT), Spanish (ES)
+ * @deprecated Use detectLanguageSimple directly from languageEngine.service.ts
  */
 function detectLanguage(query: string): 'pt' | 'es' | 'fr' | 'en' {
-  // Use the centralized language detection service which has:
-  // - Greeting detection (olá, hola, bonjour, etc.)
-  // - Question word patterns (quantos, cuántos, etc.)
-  // - Common verbs and phrases
-  // - Character-based detection (ã, ñ, ç, etc.)
-  const detectedLang = detectLanguageFromService(query);
-
-  // Map to our supported languages (fr is detected by service, ensure type compatibility)
-  if (detectedLang === 'pt' || detectedLang === 'es' || detectedLang === 'fr') {
-    return detectedLang;
-  }
+  const detected = detectLanguageSimple(query, 'pt-BR');
+  // Map SupportedLanguage to legacy format
+  if (detected === 'pt-BR') return 'pt';
+  if (detected === 'es') return 'es';
   return 'en';
 }
 

@@ -37,6 +37,7 @@ import {
 
 import { applySmartBolding } from './smartBoldingEnhanced.service';
 import { documentNameNormalizer } from './documentNameNormalizer.service';
+import { detectLanguageSimple } from './languageEngine.service';
 
 // NEW: Import Koda Markdown Contract
 import {
@@ -87,21 +88,18 @@ interface FormattedResult {
 }
 
 // ============================================================================
-// 1. LANGUAGE DETECTION
+// 1. LANGUAGE DETECTION (Uses centralized languageEngine.service.ts)
 // ============================================================================
 
+/**
+ * Detect language from text - uses centralized language engine
+ * @deprecated Use detectLanguageSimple directly from languageEngine.service.ts
+ */
 function detectLanguage(text: string): string {
-  const portugueseWords = /\b(que|para|com|por|uma|dos|das|são|está|como|mais|seu|sua|seus|suas|muito|bem|fazer|sobre|entre|quando|onde|quem|qual|quais|porque|porquê|também|já|ainda|sempre|nunca|depois|antes|agora|hoje|ontem|amanhã|sim|não|talvez)\b/gi;
-  const englishWords = /\b(the|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|may|might|can|must|shall|of|to|in|for|on|with|at|by|from|as|an|this|that|these|those|what|which|who|when|where|why|how)\b/gi;
-  const spanishWords = /\b(que|para|con|por|una|los|las|son|está|como|más|su|sus|muy|bien|hacer|sobre|entre|cuando|donde|quien|cual|cuales|porque|también|ya|aún|siempre|nunca|después|antes|ahora|hoy|ayer|mañana|sí|no|tal vez)\b/gi;
-
-  const ptMatches = (text.match(portugueseWords) || []).length;
-  const enMatches = (text.match(englishWords) || []).length;
-  const esMatches = (text.match(spanishWords) || []).length;
-
-  if (ptMatches > enMatches && ptMatches > esMatches) return 'pt';
-  if (esMatches > enMatches && esMatches > ptMatches) return 'es';
-  return 'en';
+  const detected = detectLanguageSimple(text, 'pt-BR');
+  // Map SupportedLanguage to legacy format
+  if (detected === 'pt-BR') return 'pt';
+  return detected;
 }
 
 // ============================================================================

@@ -18,6 +18,7 @@ import ErrorMessagesService from './errorMessages.service';
 import { extractFinancialFacts, type FinancialFact, type NumericExtractionResult } from './numericFactsExtractor.service';
 import { calculateFinancialAnalysis, formatROI, formatPayback, formatCurrency, generateComparisonText, type FinancialAnalysisResult } from './financialCalculator.service';
 import * as languageDetectionService from './languageDetection.service';
+import { detectLanguageSimple as detectLanguageFromEngine, type SupportedLanguage } from './languageEngine.service';
 // DEPRECATED: Replaced by KodaRetrievalEngine
 // import { performHybridRetrieval, initializePineconeIndex, type HybridRetrievalResult } from './hybridRetrieval.service';
 import { performHybridRetrieval, initializePineconeIndex, type HybridRetrievalResult } from './deletedServiceStubs';
@@ -97,6 +98,36 @@ import { getConversationState, updateConversationState, extractEntities, extract
 
 import infiniteConversationMemory from './infiniteConversationMemory.service';
 
+// ============================================================================
+// CHATGPT-STYLE MEMORY ENGINE 4.0
+// ============================================================================
+import {
+  getConversationMemory,
+  updateConversationMemory,
+  isMemoryRecallQuery,
+  isFollowUpQuery,
+  type KodaMemory,
+  type MemoryOptions
+} from './kodaMemoryEngine.service';
+
+// ============================================================================
+// 8-ENGINE ORCHESTRATOR - NEW UNIFIED RAG PIPELINE
+// ============================================================================
+import { processQuery as processQuery8Engine } from './koda8EngineOrchestrator.service';
+
+// ============================================================================
+// NAVIGATION & APP HELP ORCHESTRATOR (Fast Path for Folder/File Queries)
+// ============================================================================
+import { handleNavigationQuery as handleNavigationOrchestrator } from './navigationOrchestrator.service';
+
+// ============================================================================
+// FAST-PATH ADAPTIVE ANSWER SYSTEM (Instant responses for simple queries)
+// ============================================================================
+import { classifyFastPathIntent, mightBeFastPath, type FastPathClassification } from './kodaFastPathIntent.service';
+import { retrieveFastData, type FastDataResult } from './kodaFastDataRetrieval.service';
+import { generateDirectResponse, canGenerateDirectResponse } from './kodaMicroPromptGenerator.service';
+import { getCachedResponse, cacheResponse } from './kodaFastCache.service';
+
 // Conversation Context Service (Multi-turn context management)
 import { conversationContextService } from './deletedServiceStubs';
 
@@ -117,6 +148,16 @@ import { kodaOutputStructureEngine } from './kodaOutputStructureEngine.service';
 import { kodaAnswerValidationEngine } from './kodaAnswerValidationEngine.service';
 // Layer 3: Streaming Controller (ALL streaming)
 import { kodaStreamingController } from './kodaStreamingController.service';
+
+// ============================================================================
+// COMPLEX QUERY HANDLING SYSTEM (ChatGPT-style Multi-Part Query Support)
+// ============================================================================
+import {
+  checkComplexQuery,
+  handleComplexQuery,
+  type ComplexQueryCheckResult,
+  type ComplexQueryResult,
+} from './kodaComplexQueryIntegration.service';
 
 // SIMPLE INTENT DETECTION (Fast Pattern-Based)
 // DEPRECATED: Replaced by KodaIntentEngine
@@ -2113,10 +2154,29 @@ async function pureBM25Search(query: string, userId: string, topK: number = 20):
 }
 
 // ============================================================================
-// LANGUAGE DETECTION UTILITY
+// LANGUAGE DETECTION UTILITY (Uses centralized languageEngine.service.ts)
 // ============================================================================
 
+/**
+ * Detect language from query using centralized language engine.
+ * This wrapper maintains backward compatibility with existing code.
+ * @deprecated Use detectLanguageFromEngine directly from languageEngine.service.ts
+ */
 function detectLanguage(query: string): 'pt' | 'es' | 'en' | 'fr' {
+  // Use centralized language engine
+  const detected = detectLanguageFromEngine(query, 'pt-BR');
+
+  // Map SupportedLanguage to legacy format (pt-BR -> pt)
+  if (detected === 'pt-BR') return 'pt';
+  if (detected === 'es') return 'es';
+  if (detected === 'en') return 'en';
+
+  // Default to English for unsupported languages
+  return 'en';
+}
+
+// Legacy detection code kept for reference (DEPRECATED - to be removed)
+function detectLanguage_LEGACY(query: string): 'pt' | 'es' | 'en' | 'fr' {
   const lower = query.toLowerCase();
 
   const strongEnglishPatterns = [
@@ -2315,7 +2375,7 @@ Be concise (<80 words), friendly. Use **bold** for key terms, • for lists.`;
 
   try {
     const model = geminiClient.getModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       generationConfig: { temperature: 0.3, maxOutputTokens: 250 }
     });
     const result = await model.generateContent(fullPrompt);
@@ -3186,6 +3246,37 @@ export async function generateAnswerStream(
   console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
 
   // ============================================================================
+  // STEP -3: LOAD CHATGPT-STYLE MEMORY (3-Layer System)
+  // ============================================================================
+  // Layer 1: Short-term buffer (last 50 messages)
+  // Layer 2: Rolling summary + ConversationState
+  // Layer 3: Infinite memory (semantic search for recall queries)
+
+  let kodaMemory: KodaMemory | null = null;
+  try {
+    const needsInfiniteMemory = isMemoryRecallQuery(query);
+    kodaMemory = await getConversationMemory(
+      conversationId,
+      userId,
+      query,
+      {
+        enableInfiniteMemory: needsInfiniteMemory,
+        bufferSize: 50,
+        includeState: true
+      }
+    );
+    console.log('[MEMORY ENGINE 4.0] Memory loaded:', {
+      shortTermMessages: kodaMemory.shortTermBuffer.length,
+      hasSummary: !!kodaMemory.rollingSummary,
+      currentDocument: kodaMemory.conversationState?.currentDocument || 'None',
+      currentTopic: kodaMemory.conversationState?.currentTopic || 'None',
+      infiniteSnippets: kodaMemory.infiniteMemorySnippets.length
+    });
+  } catch (memoryError) {
+    console.error('[MEMORY ENGINE 4.0] Failed to load memory, continuing without:', memoryError);
+  }
+
+  // ============================================================================
   // STEP 0: ULTRA-FAST GREETING DETECTION (MUST BE FIRST!)
   // ============================================================================
   // REASON: Greetings should be <1s, not 20s
@@ -3236,6 +3327,88 @@ export async function generateAnswerStream(
   }
 
   console.log('⏩ Not a pure greeting or doc count - continuing with normal pipeline');
+
+  // ============================================================================
+  // STEP 0.6: NAVIGATION & APP HELP FAST PATH
+  // ============================================================================
+  // REASON: Navigation/folder queries and app help should be instant
+  // HOW: Pattern-based detection + direct DB queries (no LLM needed)
+  // IMPACT: 4s -> <500ms for folder listing and app guidance queries
+
+  try {
+    const navResult = await handleNavigationOrchestrator(query, {
+      userId,
+      conversationId,
+      language: detectedLanguage || kodaMemory?.conversationState?.language
+    });
+
+    if (navResult.handled) {
+      console.log(`[NAV] Fast path: ${navResult.intentType} (${Math.round((navResult.confidence || 0) * 100)}%)`);
+      if (onChunk) onChunk(navResult.response!);
+      if (onStage) onStage('complete', 'Complete');
+      return { sources: [] };
+    }
+  } catch (navError) {
+    console.error('[NAVIGATION] Error in navigation handler:', navError);
+    // Continue with normal pipeline on error
+  }
+
+  // ============================================================================
+  // STEP 0.7: FAST-PATH ADAPTIVE ANSWER SYSTEM (NEW!)
+  // ============================================================================
+  // REASON: Simple queries (file list, count, metadata) should be <1.5s
+  // HOW: Pattern-based intent detection + direct DB queries + template responses
+  // IMPACT: 4s -> <1.5s for file operations, greetings, metadata queries
+
+  if (mightBeFastPath(query)) {
+    const fastPathStart = Date.now();
+    const classification = classifyFastPathIntent(query);
+
+    console.log(`⚡ [FAST-PATH] Intent: ${classification.intent} (${(classification.confidence * 100).toFixed(0)}%)`);
+    console.log(`   Language: ${classification.language}, IsFastPath: ${classification.isFastPath}`);
+
+    if (classification.isFastPath) {
+      // Check cache first
+      const cachedResponse = getCachedResponse(userId, classification);
+      if (cachedResponse) {
+        console.log(`⚡ [FAST-PATH] CACHE HIT - returning cached response`);
+        if (onChunk) onChunk(cachedResponse);
+        if (onStage) onStage('complete', 'Complete');
+        return { sources: [] };
+      }
+
+      // Can we generate direct response without LLM?
+      if (canGenerateDirectResponse(classification.intent)) {
+        try {
+          // Retrieve data from database
+          const dataResult = await retrieveFastData(userId, classification);
+
+          if (dataResult.success && dataResult.data) {
+            // Generate response using templates (no LLM!)
+            const response = generateDirectResponse(
+              classification.intent,
+              dataResult.data,
+              classification.language
+            );
+
+            const totalTime = Date.now() - fastPathStart;
+            console.log(`⚡ [FAST-PATH] SUCCESS in ${totalTime}ms (DB: ${dataResult.retrievalTimeMs}ms, Gen: ${response.processingTimeMs}ms)`);
+
+            // Cache the response
+            cacheResponse(userId, classification, response.text);
+
+            // Return the response
+            if (onChunk) onChunk(response.text);
+            if (onStage) onStage('complete', 'Complete');
+            return { sources: [] };
+          }
+        } catch (fastPathError) {
+          console.error('[FAST-PATH] Error, falling back to normal pipeline:', fastPathError);
+          // Continue with normal pipeline on error
+        }
+      }
+    }
+  }
 
   // ============================================================================
   // STEP -2: CONTEXT-AWARE INTENT DETECTION (6-Stage Pipeline)
@@ -3327,6 +3500,51 @@ Is there something about your documents I can help with instead?`;
     if (onChunk) onChunk(refusalMessage);
     if (onStage) onStage('complete', 'Complete');
     return { sources: [] };
+  }
+
+  // ============================================================================
+  // STEP -1.4: COMPLEX QUERY DETECTION (ChatGPT-style Multi-Part Query Support)
+  // ============================================================================
+  // Detects complex multi-part queries and handles them with plan-driven retrieval
+  // Examples: "Compare X and Y, and also tell me Z"
+  //           "What are my obligations in the contract and what happens if I breach them?"
+
+  try {
+    const complexQueryCheck = checkComplexQuery(query);
+
+    if (complexQueryCheck.isComplex && complexQueryCheck.queryPlan) {
+      console.log('┌─────────────────────────────────────────────────────────────');
+      console.log('│ 🧠 [COMPLEX QUERY] Multi-part query detected');
+      console.log(`│    Complexity: ${complexQueryCheck.complexity}`);
+      console.log(`│    Sub-questions: ${complexQueryCheck.queryPlan.subQuestions.length}`);
+      console.log(`│    Response Profile: ${complexQueryCheck.queryPlan.responseProfile}`);
+      console.log('└─────────────────────────────────────────────────────────────');
+
+      const complexResult = await handleComplexQuery(
+        query,
+        complexQueryCheck.queryPlan,
+        {
+          userId,
+          conversationId,
+          onChunk,
+          onStage,
+          documentIds: attachedDocumentId
+            ? (Array.isArray(attachedDocumentId) ? attachedDocumentId : [attachedDocumentId])
+            : undefined,
+          conversationHistory,
+          profilePrompt,
+        }
+      );
+
+      console.log(`✅ [COMPLEX QUERY] Completed in ${complexResult.metadata.totalLatencyMs}ms`);
+      console.log(`   Validation: ${complexResult.validation?.isValid ? 'PASSED' : 'NEEDS_REVIEW'}`);
+      console.log(`   Coverage: ${complexResult.validation?.coverageScore ?? 'N/A'}%`);
+
+      return { sources: complexResult.sources };
+    }
+  } catch (complexError) {
+    console.error('[COMPLEX QUERY] Error handling complex query, falling back to normal pipeline:', complexError);
+    // Continue with normal pipeline if complex query handling fails
   }
 
   // ============================================================================
@@ -5592,58 +5810,146 @@ function isDocumentListingQuery(query: string): boolean {
     'data', 'information', 'details', 'facts',
     'value', 'amount', 'number', 'date', 'name',
 
+    // NEW: Specific content words that indicate analysis
+    'main', 'primary', 'key', 'important', 'significant',
+    'risks', 'benefits', 'advantages', 'disadvantages',
+    'costs', 'prices', 'budget', 'timeline', 'schedule',
+    'requirements', 'specifications', 'features',
+    'recommendations', 'conclusions', 'findings',
+    'issues', 'problems', 'challenges', 'solutions',
+    'goals', 'objectives', 'targets', 'metrics',
+    'trends', 'patterns', 'insights', 'observations',
+    'topic', 'topics', 'subject', 'subjects', 'theme', 'themes',
+    'discussed', 'mentioned', 'covered', 'addressed',
+
+    // NEW: Question patterns that indicate content analysis
+    'what are', 'what is', 'what does', 'what do',
+    'which are', 'which is', 'which does', 'which do',
+    'how many', 'how much', 'how does', 'how do',
+    'why are', 'why is', 'why does', 'why do',
+
     // Portuguese
-    'entender', 'explicar', 'me fale sobre', 'o que Ã©',
+    'entender', 'explicar', 'me fale sobre', 'o que e',
     'como', 'por que', 'quando', 'onde', 'quem',
     'comparar', 'resumir', 'encontrar', 'buscar',
 
+    // NEW: Portuguese content words
+    'principais', 'importantes', 'significativos',
+    'riscos', 'beneficios', 'vantagens', 'desvantagens',
+    'custos', 'precos', 'orcamento', 'cronograma',
+    'requisitos', 'especificacoes', 'caracteristicas',
+    'recomendacoes', 'conclusoes', 'descobertas',
+    'problemas', 'desafios', 'solucoes',
+    'objetivos', 'metas', 'metricas',
+    'tendencias', 'padroes', 'observacoes',
+    'topico', 'topicos', 'assunto', 'assuntos', 'tema', 'temas',
+    'discutido', 'mencionado', 'abordado',
+
     // Spanish
-    'entender', 'explicar', 'dime sobre', 'quÃ© es',
-    'cÃ³mo', 'por quÃ©', 'cuÃ¡ndo', 'dÃ³nde', 'quiÃ©n',
+    'entender', 'explicar', 'dime sobre', 'que es',
+    'como', 'por que', 'cuando', 'donde', 'quien',
     'comparar', 'resumir', 'encontrar', 'buscar',
+
+    // NEW: Spanish content words
+    'principales', 'importantes', 'significativos',
+    'riesgos', 'beneficios', 'ventajas', 'desventajas',
+    'costos', 'precios', 'presupuesto', 'cronograma',
+    'requisitos', 'especificaciones', 'caracteristicas',
+    'recomendaciones', 'conclusiones', 'hallazgos',
+    'problemas', 'desafios', 'soluciones',
+    'objetivos', 'metas', 'metricas',
+    'tendencias', 'patrones', 'observaciones',
+    'tema', 'temas', 'asunto', 'asuntos',
+    'discutido', 'mencionado', 'abordado',
   ];
 
   const isContentQuery = contentKeywords.some(keyword => lower.includes(keyword));
 
   if (isContentQuery) {
-    console.log('ðŸ” [QUERY ROUTING] Content query detected, not a document listing request');
+    console.log('🔍 [QUERY ROUTING] Content query detected, not a document listing request');
     return false; // This is a content query, not a listing query
   }
 
   // ============================================================================
-  // STEP 2: Require EXPLICIT document listing intent
+  // STEP 1.5: Check for content analysis PHRASES (not just keywords)
+  // ============================================================================
+
+  const contentAnalysisPatterns = [
+    // "What are the X in/from/about documents?"
+    /what\s+(are|is)\s+the\s+\w+\s+(in|from|about|of|within)\s+(the\s+)?(documents?|files?)/i,
+
+    // "Which documents contain X?" (X is not just "documents")
+    /which\s+(documents?|files?)\s+(contain|have|include|mention|discuss|describe)\s+\w+/i,
+
+    // "Show me X from documents" (X is content, not just "documents")
+    /show\s+(me\s+)?(\w+\s+){1,3}(from|in|about)\s+(the\s+)?(documents?|files?)/i,
+
+    // "Find X in documents"
+    /find\s+(\w+\s+){1,3}(in|from|within)\s+(the\s+)?(documents?|files?)/i,
+
+    // "What do the documents say about X?"
+    /what\s+do\s+(the\s+|my\s+)?(documents?|files?)\s+say\s+about/i,
+
+    // "Analyze X in documents"
+    /analyze\s+(\w+\s+){0,3}(in|from|within)\s+(the\s+)?(documents?|files?)/i,
+
+    // Portuguese
+    /quais\s+sao\s+(os?|as?)\s+\w+\s+(nos?|das?|sobre)\s+(documentos?|arquivos?)/i,
+    /o\s+que\s+(os?|as?)\s+(documentos?|arquivos?)\s+dizem\s+sobre/i,
+    /encontre\s+\w+\s+(nos?|das?)\s+(documentos?|arquivos?)/i,
+    /analise\s+\w+\s+(nos?|das?)\s+(documentos?|arquivos?)/i,
+
+    // Spanish
+    /cuales\s+son\s+(los?|las?)\s+\w+\s+(en|de|sobre)\s+(los?\s+)?(documentos?|archivos?)/i,
+    /que\s+dicen\s+(los?\s+)?(documentos?|archivos?)\s+sobre/i,
+    /encuentra\s+\w+\s+(en|de)\s+(los?\s+)?(documentos?|archivos?)/i,
+    /analiza\s+\w+\s+(en|de)\s+(los?\s+)?(documentos?|archivos?)/i,
+  ];
+
+  const isContentAnalysisPhrase = contentAnalysisPatterns.some(pattern => pattern.test(query));
+
+  if (isContentAnalysisPhrase) {
+    console.log('📊 [QUERY ROUTING] Content analysis phrase detected, not a document listing request');
+    return false; // This is asking about content, not listing files
+  }
+
+  // ============================================================================
+  // STEP 2: Require EXPLICIT document listing intent (STRICTER)
   // ============================================================================
 
   const explicitPatterns = [
-    // English
-    /what\s+(documents?|files?)\s+(do\s+i\s+have|are\s+there|did\s+i\s+upload)/i,
-    /show\s+(me\s+)?(my\s+)?(documents?|files?|uploads?)/i,
-    /list\s+(all\s+)?(my\s+)?(documents?|files?|uploads?)/i,
-    /which\s+(documents?|files?)\s+(do\s+i\s+have|did\s+i\s+upload|are\s+available)/i,
-    /what\s+(files?|documents?)\s+did\s+i\s+upload/i,
-    /give\s+me\s+(a\s+)?list\s+of\s+(my\s+)?(documents?|files?)/i,
+    // English - MUST be asking for list/names only
+    /^(show|list|display)\s+(me\s+)?(my\s+|all\s+)?(documents?|files?|uploads?)$/i,
+    /^what\s+(documents?|files?)\s+(do\s+i\s+have|did\s+i\s+upload)$/i,
+    /^which\s+(documents?|files?)\s+(do\s+i\s+have|did\s+i\s+upload|are\s+available)$/i,
+    /^give\s+me\s+(a\s+)?list\s+of\s+(my\s+)?(documents?|files?)$/i,
+    /^how\s+many\s+(documents?|files?)\s+(do\s+i\s+have|did\s+i\s+upload)$/i,
+    /^count\s+(my\s+)?(documents?|files?)$/i,
 
-    // Portuguese
-    /quais\s+(documentos?|arquivos?)\s+(eu\s+)?(tenho|carreguei|enviei)/i,
-    /mostrar\s+(meus\s+)?(documentos?|arquivos?)/i,
-    /listar\s+(todos\s+)?(meus\s+)?(documentos?|arquivos?)/i,
-    /me\s+mostre\s+(os\s+)?(meus\s+)?(documentos?|arquivos?)/i,
+    // Allow some variations but require "list" or "show" explicitly
+    /^(show|list)\s+(me\s+)?(all\s+)?(my\s+)?(documents?|files?)\s*(i\s+have|i\s+uploaded)?$/i,
 
-    // Spanish
-    /cuÃ¡les\s+(documentos?|archivos?)\s+(tengo|subÃ­|carguÃ©)/i,
-    /mostrar\s+(mis\s+)?(documentos?|archivos?)/i,
-    /listar\s+(todos\s+)?(mis\s+)?(documentos?|archivos?)/i,
-    /dame\s+una\s+lista\s+de\s+(mis\s+)?(documentos?|archivos?)/i,
+    // Portuguese - MUST be asking for list/names only
+    /^(mostrar|listar|exibir)\s+(meus\s+|todos\s+)?(documentos?|arquivos?)$/i,
+    /^quais\s+(documentos?|arquivos?)\s+(eu\s+)?(tenho|carreguei|enviei)$/i,
+    /^me\s+mostre\s+(os\s+)?(meus\s+)?(documentos?|arquivos?)$/i,
+    /^quantos\s+(documentos?|arquivos?)\s+(eu\s+)?(tenho|carreguei)$/i,
+
+    // Spanish - MUST be asking for list/names only
+    /^(mostrar|listar|exhibir)\s+(mis\s+|todos\s+)?(documentos?|archivos?)$/i,
+    /^cuales\s+(documentos?|archivos?)\s+(tengo|subi|cargue)$/i,
+    /^dame\s+una\s+lista\s+de\s+(mis\s+)?(documentos?|archivos?)$/i,
+    /^cuantos\s+(documentos?|archivos?)\s+(tengo|subi)$/i,
   ];
 
   const isExplicitListingRequest = explicitPatterns.some(pattern => pattern.test(query));
 
   if (isExplicitListingRequest) {
-    console.log('ðŸ“‹ [QUERY ROUTING] Explicit document listing request detected');
+    console.log('📋 [QUERY ROUTING] Explicit document listing request detected');
     return true;
   }
 
-  console.log('ðŸ” [QUERY ROUTING] Not a document listing request, routing to regular query handler');
+  console.log('🔍 [QUERY ROUTING] Not a document listing request, routing to regular query handler');
   return false;
 }
 
@@ -5705,7 +6011,8 @@ async function handleDocumentListing(
     // that the frontend parses to render clickable document buttons
     response = formatFileListingResponse(documents, {
       maxInline: DISPLAY_LIMIT,
-      includeMetadata: true
+      includeMetadata: true,
+      language: lang  // ✅ Pass detected language for localized response
     });
   }
 
@@ -8648,6 +8955,11 @@ function convertTableLinesToBullets(tableLines: string[]): string {
 // KODA FIX #1: Enhanced with debug logging, validation, and safety checks
 // to fix the empty response bug (0% retention rate -> 95%+ retention)
 
+// ============================================================================
+// 8-ENGINE ORCHESTRATOR INTEGRATION (v2.1.0)
+// Set USE_8_ENGINE_ORCHESTRATOR=true in .env to enable the new pipeline
+// ============================================================================
+
 export async function generateAnswer(
   userId: string,
   query: string,
@@ -8657,6 +8969,41 @@ export async function generateAnswer(
   conversationHistory?: Array<{ role: string; content: string }>,
   isFirstMessage?: boolean  // NEW: Flag to control greeting logic
 ): Promise<{ answer: string; sources: any[] }> {
+
+  // ============================================================================
+  // 8-ENGINE ORCHESTRATOR - NEW UNIFIED RAG PIPELINE
+  // Check env at runtime (not module load time)
+  // ============================================================================
+  const USE_8_ENGINE = process.env.USE_8_ENGINE_ORCHESTRATOR === 'true';
+  if (USE_8_ENGINE) {
+    console.log('[8-ENGINE] Using new unified RAG pipeline...');
+    try {
+      // Get user's documents for fast-path operations
+      const userDocuments = await prisma.documents.findMany({
+        where: { userId, status: { not: 'deleted' } },
+        select: { id: true, filename: true },
+      });
+
+      const result = await processQuery8Engine({
+        query,
+        userId,
+        conversationId,
+        documents: userDocuments,
+      });
+
+      console.log(`[8-ENGINE] Complete in ${result.metadata.totalTime}ms`);
+      console.log(`   Intent: ${result.metadata.intent}, Skill: ${result.metadata.skill}`);
+      console.log(`   FastPath: ${result.metadata.fastPath}, Sources: ${result.sources.length}`);
+
+      return {
+        answer: result.answer,
+        sources: result.sources,
+      };
+    } catch (error) {
+      console.error('[8-ENGINE] Failed, falling back to legacy pipeline:', error);
+      // Fall through to legacy pipeline
+    }
+  }
 
   // ============================================================================
   // DEBUG LOGGING - Identify where chunks are lost
@@ -8975,6 +9322,26 @@ export async function generateAnswer(
 
     formatted = postProcessResult.processedAnswer;
 
+    // ============================================================================
+    // UPDATE CONVERSATION MEMORY (ChatGPT-style memory)
+    // ============================================================================
+    try {
+      await updateConversationMemory(
+        conversationId,
+        userId,
+        query,
+        formatted,
+        {
+          currentDocument: postProcessResult.dedupedSources?.[0]?.documentName || undefined,
+          resolvedDocuments: postProcessResult.dedupedSources?.map((s: any) => s.documentName).filter(Boolean) || [],
+        }
+      );
+      console.log('[MEMORY ENGINE 4.0] Memory updated after answer generation');
+    } catch (memoryUpdateError) {
+      console.error('[MEMORY ENGINE 4.0] Failed to update memory:', memoryUpdateError);
+      // Non-critical - don't fail the response
+    }
+
     // Return with deduplicated sources
     return {
       answer: formatted,
@@ -8984,6 +9351,17 @@ export async function generateAnswer(
     };
   } catch (error) {
     console.error('[UNIFIED POST-PROCESSOR] Post-processing failed:', error);
+
+    // ============================================================================
+    // UPDATE CONVERSATION MEMORY (even on post-processing error)
+    // ============================================================================
+    try {
+      await updateConversationMemory(conversationId, userId, query, formatted);
+      console.log('[MEMORY ENGINE 4.0] Memory updated (post-process error path)');
+    } catch (memoryUpdateError) {
+      console.error('[MEMORY ENGINE 4.0] Failed to update memory:', memoryUpdateError);
+    }
+
     // Continue with original formatted answer
     return {
       answer: formatted,
@@ -10357,7 +10735,8 @@ async function handleDocumentMetadataQuery(
     // This injects {{DOC:::id:::filename:::mimeType:::size:::folder}} markers
     response = formatFileListingResponse(documents, {
       maxInline: limit,
-      includeMetadata: true
+      includeMetadata: true,
+      language: lang  // ✅ Pass detected language for localized response
     });
   }
 
@@ -10492,56 +10871,26 @@ function detectUltraFastDocCount(query: string): boolean {
   return false;
 }
 
+/**
+ * Detect language from query - uses centralized language engine
+ * @deprecated Use detectLanguageFromEngine from languageEngine.service.ts
+ */
 function detectLanguageFromQuery(query: string): string {
-  const normalized = query.toLowerCase();
-
-  // Portuguese indicators
-  if (/(quantos?|tenho|você|documentos?|arquivos?|sobre|fazer|gostaria)/i.test(normalized)) return 'pt';
-  // Spanish indicators
-  if (/(cuántos?|tengo|usted|archivos?|sobre|hacer|gustaría)/i.test(normalized)) return 'es';
-  // French indicators
-  if (/(combien|avez|vous|fichiers?|sur|faire|voudrais)/i.test(normalized)) return 'fr';
-  // German indicators
-  if (/(wie\s+viele|haben|sie|dateien?|über|machen|möchte)/i.test(normalized)) return 'de';
-
-  return 'en';
+  const detected = detectLanguageFromEngine(query, 'pt-BR');
+  // Map SupportedLanguage to legacy format
+  if (detected === 'pt-BR') return 'pt';
+  return detected;
 }
 
+/**
+ * Detect language from greeting - uses centralized language engine
+ * @deprecated Use detectLanguageFromEngine from languageEngine.service.ts
+ */
 function detectLanguageFromGreeting(query: string): string {
-  // Normalize: lowercase, trim, and remove punctuation
-  const normalized = query.toLowerCase().trim().replace(/[!?.,;:]+$/, '');
-
-  // Portuguese greetings (check first since most specific)
-  const ptGreetings = ['oi', 'olá', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'e aí', 'eai', 'opa', 'fala'];
-  for (const g of ptGreetings) {
-    if (normalized === g || normalized.startsWith(g + ' ')) return 'pt';
-  }
-
-  // Spanish greetings (check before English since "hola" might match "ola" otherwise)
-  const esGreetings = ['hola', 'buenos dias', 'buenas tardes', 'buenas noches', 'que tal'];
-  for (const g of esGreetings) {
-    if (normalized === g || normalized.startsWith(g + ' ')) return 'es';
-  }
-
-  // French greetings
-  const frGreetings = ['bonjour', 'salut', 'bonsoir', 'coucou'];
-  for (const g of frGreetings) {
-    if (normalized === g || normalized.startsWith(g + ' ')) return 'fr';
-  }
-
-  // German greetings
-  const deGreetings = ['hallo', 'guten tag', 'guten morgen'];
-  for (const g of deGreetings) {
-    if (normalized === g || normalized.startsWith(g + ' ')) return 'de';
-  }
-
-  // Italian greetings
-  const itGreetings = ['ciao', 'buongiorno', 'buonasera'];
-  for (const g of itGreetings) {
-    if (normalized === g || normalized.startsWith(g + ' ')) return 'it';
-  }
-
-  return 'en';
+  const detected = detectLanguageFromEngine(query, 'pt-BR');
+  // Map SupportedLanguage to legacy format
+  if (detected === 'pt-BR') return 'pt';
+  return detected;
 }
 
 // ============================================================================
@@ -10822,3 +11171,4 @@ function formatValue(value: number, unit: string): string {
 }
 
 // trigger reload Fri, Dec  5, 2025  5:59:47 PM
+

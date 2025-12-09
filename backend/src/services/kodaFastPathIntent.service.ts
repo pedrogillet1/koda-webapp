@@ -10,6 +10,8 @@
  * @version 1.0.0
  */
 
+import { detectLanguageSimple, type SupportedLanguage } from './languageEngine.service';
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Types & Interfaces
 // ═══════════════════════════════════════════════════════════════════════════
@@ -227,47 +229,15 @@ const LIMIT_PATTERNS = {
 // Language Detection
 // ═══════════════════════════════════════════════════════════════════════════
 
-const LANGUAGE_INDICATORS = {
-  pt: [
-    /\b(meu|minha|meus|minhas|você|está|são|tenho|quero|onde|qual|como)\b/i,
-    /\b(arquivo|documento|pasta|mostrar|listar|recente)\b/i,
-  ],
-  es: [
-    /\b(mi|mis|tú|está|son|tengo|quiero|dónde|cuál|cómo)\b/i,
-    /\b(archivo|documento|carpeta|mostrar|listar|reciente)\b/i,
-  ],
-  en: [
-    /\b(my|your|is|are|have|want|where|what|how)\b/i,
-    /\b(file|document|folder|show|list|recent)\b/i,
-  ],
-};
-
+/**
+ * Detect language from query - uses centralized language engine
+ * @deprecated Use detectLanguageSimple directly from languageEngine.service.ts
+ */
 function detectLanguage(query: string): 'en' | 'pt' | 'es' {
-  const scores = { en: 0, pt: 0, es: 0 };
-
-  for (const [lang, patterns] of Object.entries(LANGUAGE_INDICATORS)) {
-    for (const pattern of patterns) {
-      if (pattern.test(query)) {
-        scores[lang as keyof typeof scores]++;
-      }
-    }
-  }
-
-  // Portuguese-specific characters
-  if (/[ãõçáéíóúâêô]/i.test(query)) {
-    scores.pt += 2;
-  }
-
-  // Spanish-specific characters
-  if (/[ñ¿¡]/i.test(query)) {
-    scores.es += 2;
-  }
-
-  const maxScore = Math.max(scores.en, scores.pt, scores.es);
-  if (maxScore === 0) return 'en'; // Default to English
-
-  if (scores.pt === maxScore && scores.pt > scores.es) return 'pt';
-  if (scores.es === maxScore && scores.es > scores.pt) return 'es';
+  const detected = detectLanguageSimple(query, 'pt-BR');
+  // Map SupportedLanguage to legacy format
+  if (detected === 'pt-BR') return 'pt';
+  if (detected === 'es') return 'es';
   return 'en';
 }
 

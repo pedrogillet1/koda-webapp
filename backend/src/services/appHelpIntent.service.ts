@@ -14,6 +14,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { detectLanguageSimple } from './languageEngine.service';
 
 export type AppHelpIntentType =
   | 'HOME_SCREEN'
@@ -222,25 +223,15 @@ function loadKnowledgeBaseContent(intentType: AppHelpIntentType): string | null 
 // DETECTION FUNCTIONS
 // ============================================================================
 
+/**
+ * Detect language from query - uses centralized language engine
+ * @deprecated Use detectLanguageSimple directly from languageEngine.service.ts
+ */
 function detectLanguage(query: string): string {
-  const lowerQuery = query.toLowerCase();
-
-  // Portuguese indicators
-  if (/\b(como|onde|ajuda|configurac[oõ]es|documentos|arquivos)\b/.test(lowerQuery)) {
-    return 'pt';
-  }
-
-  // Spanish indicators
-  if (/\b(c[oó]mo|d[oó]nde|ayuda|configuraci[oó]n|archivos)\b/.test(lowerQuery)) {
-    return 'es';
-  }
-
-  // French indicators
-  if (/\b(comment|o[uù]|aide|param[eè]tres|fichiers)\b/.test(lowerQuery)) {
-    return 'fr';
-  }
-
-  return 'en';
+  const detected = detectLanguageSimple(query, 'pt-BR');
+  // Map SupportedLanguage to legacy format
+  if (detected === 'pt-BR') return 'pt';
+  return detected;
 }
 
 function isHelpQuestion(query: string, language: string): boolean {

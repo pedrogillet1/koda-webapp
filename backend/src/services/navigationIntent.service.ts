@@ -12,6 +12,8 @@
  * - DOCUMENT_COUNT: "how many files", "count documents"
  */
 
+import { detectLanguageSimple } from './languageEngine.service';
+
 export type NavigationIntentType =
   | 'FOLDER_LIST'
   | 'FOLDER_CONTENT'
@@ -261,25 +263,15 @@ const DOCUMENT_COUNT_PATTERNS: Record<string, PatternSet> = {
 // DETECTION FUNCTIONS
 // ============================================================================
 
+/**
+ * Detect language from query - uses centralized language engine
+ * @deprecated Use detectLanguageSimple directly from languageEngine.service.ts
+ */
 function detectLanguage(query: string): string {
-  const lowerQuery = query.toLowerCase();
-
-  // Portuguese indicators
-  if (/\b(minha?s?|pasta|arquivo|mostr[ae]|list[ae]|quant[oa]s?|conte[uú]do)\b/.test(lowerQuery)) {
-    return 'pt';
-  }
-
-  // Spanish indicators
-  if (/\b(mis?|carpeta|archivo|muestra|lista|cu[aá]nt[oa]s?|contenido)\b/.test(lowerQuery)) {
-    return 'es';
-  }
-
-  // French indicators
-  if (/\b(mes?|dossier|fichier|montre|affiche|combien|contenu)\b/.test(lowerQuery)) {
-    return 'fr';
-  }
-
-  return 'en';
+  const detected = detectLanguageSimple(query, 'pt-BR');
+  // Map SupportedLanguage to legacy format
+  if (detected === 'pt-BR') return 'pt';
+  return detected;
 }
 
 function matchPatterns(

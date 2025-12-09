@@ -36,6 +36,8 @@ import {
   type AppHelpIntent,
 } from './appHelpIntent.service';
 
+import { detectLanguageSimple } from './languageEngine.service';
+
 export interface NavigationResult {
   handled: boolean;
   response?: string;
@@ -55,22 +57,14 @@ export interface OrchestratorContext {
 }
 
 /**
- * Detect the language from query
+ * Detect the language from query - uses centralized language engine
+ * @deprecated Use detectLanguageSimple directly from languageEngine.service.ts
  */
 function detectLanguage(query: string): string {
-  const portuguesePatterns = [
-    /onde|como|qual|quais|mostrar|abrir|encontrar|procurar|buscar/i,
-    /arquivo|documento|pasta|recente|ultimo/i,
-    /ajuda|como funciona|me explica/i,
-  ];
-
-  for (const pattern of portuguesePatterns) {
-    if (pattern.test(query)) {
-      return 'pt';
-    }
-  }
-
-  return 'en';
+  const detected = detectLanguageSimple(query, 'pt-BR');
+  // Map SupportedLanguage to legacy format
+  if (detected === 'pt-BR') return 'pt';
+  return detected;
 }
 
 /**

@@ -27,6 +27,7 @@
 
 import { smartProcessSpacing } from '../utils/markdownSpacing';
 import { fixBrokenMarkdown, applyMarkdownContract } from './kodaMarkdownContract.service';
+import { detectLanguageSimple } from './languageEngine.service';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -80,68 +81,20 @@ export interface PostProcessingResult {
 }
 
 // ============================================================================
-// LANGUAGE DETECTION
+// LANGUAGE DETECTION (Uses centralized languageEngine.service.ts)
 // ============================================================================
 
 /**
- * Detect language from text using common patterns
+ * Detect language from text - uses centralized language engine
+ * @deprecated Use detectLanguageSimple directly from languageEngine.service.ts
  */
 export function detectLanguage(text: string): QueryLanguage {
-  const lowerText = text.toLowerCase();
-
-  // Portuguese patterns
-  const ptPatterns = [
-    /\b(olá|oi|bom dia|boa tarde|boa noite|obrigad[oa]|por favor|como|qual|quais|onde|quando|porque|porquê)\b/,
-    /\b(você|voce|vocês|voces|está|estão|são|ser|ter|fazer|dizer)\b/,
-    /\b(documento|arquivo|pasta|buscar|mostrar|listar|explicar)\b/,
-    /[ãõçáéíóúâêôà]/
-  ];
-
-  // Spanish patterns
-  const esPatterns = [
-    /\b(hola|buenos días|buenas tardes|buenas noches|gracias|por favor|cómo|cuál|cuáles|dónde|cuándo|por qué)\b/,
-    /\b(usted|ustedes|está|están|son|ser|tener|hacer|decir)\b/,
-    /[ñ¿¡]/
-  ];
-
-  // French patterns
-  const frPatterns = [
-    /\b(bonjour|bonsoir|merci|s'il vous plaît|comment|quel|quelle|où|quand|pourquoi)\b/,
-    /\b(vous|êtes|sont|être|avoir|faire|dire)\b/,
-    /[àâçéèêëîïôùûü]/
-  ];
-
-  // German patterns
-  const dePatterns = [
-    /\b(guten tag|guten morgen|guten abend|danke|bitte|wie|welcher|welche|wo|wann|warum)\b/,
-    /\b(sie|sind|sein|haben|machen|sagen)\b/,
-    /[äöüß]/
-  ];
-
-  // Italian patterns
-  const itPatterns = [
-    /\b(ciao|buongiorno|buonasera|grazie|per favore|come|quale|quali|dove|quando|perché)\b/,
-    /\b(lei|sono|essere|avere|fare|dire)\b/,
-    /[àèéìòù]/
-  ];
-
-  // Count matches
-  const ptScore = ptPatterns.filter(p => p.test(lowerText)).length;
-  const esScore = esPatterns.filter(p => p.test(lowerText)).length;
-  const frScore = frPatterns.filter(p => p.test(lowerText)).length;
-  const deScore = dePatterns.filter(p => p.test(lowerText)).length;
-  const itScore = itPatterns.filter(p => p.test(lowerText)).length;
-
-  const maxScore = Math.max(ptScore, esScore, frScore, deScore, itScore);
-
-  if (maxScore === 0) return 'en'; // Default to English
-
-  if (ptScore === maxScore && ptScore > 0) return 'pt';
-  if (esScore === maxScore && esScore > 0) return 'es';
-  if (frScore === maxScore && frScore > 0) return 'fr';
-  if (deScore === maxScore && deScore > 0) return 'de';
-  if (itScore === maxScore && itScore > 0) return 'it';
-
+  const detected = detectLanguageSimple(text, 'pt-BR');
+  // Map SupportedLanguage to QueryLanguage format
+  if (detected === 'pt-BR') return 'pt';
+  if (detected === 'es') return 'es';
+  if (detected === 'en') return 'en';
+  // Default to 'en' for unsupported languages
   return 'en';
 }
 
