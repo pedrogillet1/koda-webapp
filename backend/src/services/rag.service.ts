@@ -2482,6 +2482,10 @@ function applyFormatEnforcement(
   try {
     console.log(`${logPrefix} Applying format enforcement to ${responseType} response (${response.length} chars)...`);
 
+    // ✅ FIX: Merge numbered list items that are split across lines
+    // Pattern: "1.\n" followed by text should become "1. text"
+    response = response.replace(/^(\d+)\.\s*\n+([A-Za-z\[\*])/gm, '$1. $2');
+
     // Apply format enforcement with query for smart title decisions
     const formatResult = kodaFormatEnforcementService.enforceFormat(
       response,

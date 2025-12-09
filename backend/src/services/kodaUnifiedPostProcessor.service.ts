@@ -625,6 +625,13 @@ export class KodaUnifiedPostProcessor {
     processed = spacingResult.text;
     stats.spacingFixed = spacingResult.fixed;
 
+    // Step 11.5: Fix numbered lists split across lines
+    // Pattern: "1.\n" or "1.\n\n" followed by text/link should become "1. text"
+    // Handle: markdown links, bold text, plain text
+    processed = processed.replace(/^(\d+)\.\s*[\n\r]+\s*(\[)/gm, '$1. $2');  // Links [text](url)
+    processed = processed.replace(/^(\d+)\.\s*[\n\r]+\s*(\*\*)/gm, '$1. $2'); // Bold **text**
+    processed = processed.replace(/^(\d+)\.\s*[\n\r]+\s*([A-Za-z\"\'\(])/gm, '$1. $2'); // Plain text
+
     // Step 12: Source deduplication
     const dedupedSources = deduplicateSources(sources);
 

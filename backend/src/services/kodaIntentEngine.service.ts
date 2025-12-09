@@ -27,7 +27,8 @@
  */
 
 // Removed NestJS dependency for compatibility
-import { detectLanguage as detectLanguageFromService } from './languageDetection.service';
+// ✅ CENTRALIZED LANGUAGE SERVICE - Single source of truth for language detection
+import { detectLanguageSimple, type SupportedLanguage } from './kodaLanguage.service';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -172,9 +173,9 @@ export class KodaIntentEngine {
   // LANGUAGE DETECTION
   // ==========================================================================
   
-  private detectLanguage(query: string): string {
-    // Use centralized language detection service for comprehensive detection
-    return detectLanguageFromService(query);
+  private detectLanguage(query: string): SupportedLanguage {
+    // ✅ Use centralized language detection service (kodaLanguage.service.ts)
+    return detectLanguageSimple(query);
   }
   
   // ==========================================================================

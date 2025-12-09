@@ -12,6 +12,15 @@ import {
 import fileActionsService from '../services/fileActions.service';
 import { generateConversationTitle } from '../services/openai.service';
 import cacheService from '../services/cache.service';
+// ✅ CENTRALIZED LANGUAGE SERVICE - Single source of truth for language detection
+import {
+  detectLanguage as detectLanguageCentralized,
+  detectLanguageSimple,
+  loadConversationLanguage,
+  getLanguageSystemPrompt,
+  type SupportedLanguage,
+} from '../services/kodaLanguage.service';
+// Legacy import for backward compatibility (will be deprecated)
 import * as languageDetectionService from '../services/languageDetection.service';
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 // ✅ FORMAT ENFORCEMENT: Import format enforcement services
@@ -1467,11 +1476,12 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // ========================================
     // ✅ FIX #1: INTENT CLASSIFICATION
     // ========================================
-    // 🌍 LANGUAGE DETECTION
+    // 🌍 CENTRALIZED LANGUAGE DETECTION (with conversation context)
     // ========================================
-    // Detect user's language from query
-    const detectedLanguage = languageDetectionService.detectLanguage(query);
-    console.log(`🌍 [LANGUAGE] Detected: ${detectedLanguage}`);
+    // Use centralized language service that tracks conversation language
+    const langResult = await detectLanguageCentralized(query, conversationId);
+    const detectedLanguage = langResult.language;
+    console.log(`🌍 [LANGUAGE] Detected: ${detectedLanguage} (source: ${langResult.source}, confidence: ${langResult.confidence.toFixed(2)})`);
 
     // ========================================
     // ✅ UNIFIED INTENT DETECTION - Fast-path + LLM when needed

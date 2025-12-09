@@ -305,6 +305,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
 
         // Remove trailing HR that might be left over
         result = result.replace(/\n*---\s*$/g, '');
+
+        // ✅ FIX: Merge numbered list items split across lines
+        // Pattern: "1.\n" or "1.\n\n" followed by text/link should become "1. text"
+        // Handle: plain text, bold text, markdown links, brackets
+        result = result.replace(/^(\d+)\.\s*[\n\r]+\s*(\[)/gm, '$1. $2');  // Links [text](url)
+        result = result.replace(/^(\d+)\.\s*[\n\r]+\s*(\*\*)/gm, '$1. $2'); // Bold **text**
+        result = result.replace(/^(\d+)\.\s*[\n\r]+\s*([A-Za-z\"\'\(])/gm, '$1. $2'); // Plain text
+
         return result.trim();
     };
 
@@ -327,8 +335,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                         });
                     }}
                     style={{
-                        color: '#1a1a1a', // ✅ BLACK - no blue
-                        textDecoration: 'none',
+                        color: '#1a1a1a',
+                        textDecoration: 'underline',
                         cursor: 'pointer',
                         fontWeight: '600',
                         borderBottom: 'none'

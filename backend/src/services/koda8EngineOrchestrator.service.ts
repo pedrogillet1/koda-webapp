@@ -27,6 +27,14 @@ import { generateAnswer, AnswerResult } from './kodaAnswerEngine.service';
 import { formatAnswer, formatDocumentList, formatGreeting, FormattedAnswer } from './kodaFormatEngine.service';
 import { checkQuality, QualityCheckResult } from './kodaQualityEngine.service';
 import { generateFallback, needsFallback, FallbackResult } from './kodaFallbackEngine.service';
+// ✅ CENTRALIZED LANGUAGE SERVICE - Single source of truth for language detection
+import {
+  detectLanguage,
+  loadConversationLanguage,
+  updateConversationLanguage,
+  getLanguageSystemPrompt,
+  type SupportedLanguage,
+} from './kodaLanguage.service';
 
 // Initialize Engines
 const intentEngine = new KodaIntentEngine();
@@ -148,9 +156,10 @@ async function handleFastPath(
 ): Promise<QueryResult> {
   const queryLower = query.toLowerCase();
 
-  // Detect language
-  const isPt = /[áéíóúàèìòùâêîôûãõç]|olá|oi|bom dia|como posso|documentos/.test(queryLower);
-  const language = isPt ? 'pt-BR' : 'en';
+  // ✅ Use centralized language detection with conversation context
+  const langResult = await detectLanguage(query, conversationId);
+  const language = langResult.language;
+  console.log(`🌍 [FAST-PATH] Language: ${language} (source: ${langResult.source}, confidence: ${langResult.confidence.toFixed(2)})`);
 
   let answer = '';
 
@@ -206,9 +215,16 @@ export async function processQuery(options: QueryOptions): Promise<QueryResult> 
       return await handleFastPath(query, conversationId, userId, documents || [], startTime);
     }
 
+    // STEP 0.5: Centralized Language Detection (with conversation context)
+    const langResult = await detectLanguage(query, conversationId);
+    const conversationLanguage = langResult.language;
+    console.log(`🌍 [ORCHESTRATOR] Language: ${conversationLanguage} (source: ${langResult.source}, confidence: ${langResult.confidence.toFixed(2)})`);
+
     // STEP 1: Intent Engine
     console.log(`🧠 [ORCHESTRATOR] Step 1: Analyzing intent...`);
     const intentAnalysis = await intentEngine.analyzeQuery(query, null, userId);
+    // Override intent language with centralized language detection
+    intentAnalysis.language = conversationLanguage;
 
     console.log(`   Intent: ${intentAnalysis.intent}, Skill: ${intentAnalysis.skill}, Complexity: ${intentAnalysis.complexity}`);
 

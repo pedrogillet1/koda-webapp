@@ -34,6 +34,13 @@ export function smartProcessSpacing(text: string): string {
   // Clean up excessive newlines (max 3 in a row)
   processed = processed.replace(/\n{4,}/g, '\n\n\n');
 
+  // ✅ FIX: Merge numbered list items that are split across lines
+  // Pattern: "1.\n" or "1.\n\n" followed by text/link should become "1. text"
+  // Handle: markdown links, bold text, plain text
+  processed = processed.replace(/^(\d+)\.\s*[\n\r]+\s*(\[)/gm, '$1. $2');  // Links [text](url)
+  processed = processed.replace(/^(\d+)\.\s*[\n\r]+\s*(\*\*)/gm, '$1. $2'); // Bold **text**
+  processed = processed.replace(/^(\d+)\.\s*[\n\r]+\s*([A-Za-z\"\'\(])/gm, '$1. $2'); // Plain text
+
   return processed;
 }
 
