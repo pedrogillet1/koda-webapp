@@ -26,6 +26,7 @@ import memoryRoutes from './routes/memory.routes';
 import devRoutes from './routes/dev.routes';
 import presentationRoutes from './routes/presentation.routes';
 import presignedUrlRoutes from './routes/presigned-url.routes';
+import multipartUploadRoutes from './routes/multipart-upload.routes';
 import storageRoutes from './routes/storage.routes';
 import agentRoutes from './routes/agent.routes';
 import creativityRoutes from './routes/creativity.routes';
@@ -215,6 +216,7 @@ app.use('/api/batch', batchRoutes); // Batch API endpoints for optimized data lo
 app.use('/api/search', searchRoutes); // Semantic search endpoints using vector embeddings
 app.use('/api/memories', memoryRoutes); // Cross-session memory management endpoints
 app.use('/api/presigned-urls', presignedUrlRoutes); // Presigned URL generation for direct-to-S3 uploads
+app.use('/api/multipart-upload', multipartUploadRoutes); // S3 multipart upload for large files (>20MB)
 app.use('/api/storage', storageRoutes); // Storage usage and limits (5GB beta)
 app.use('/api/presentations', presentationRoutes); // Manus-style presentation generation
 app.use('/api/agent', agentRoutes); // Problem-solving agent with ReAct reasoning

@@ -527,13 +527,24 @@ const CategoryDetail = () => {
   const handleCategorySelection = async () => {
     if (!selectedCategoryId) return;
 
+    // Capture state before closing modal
+    const categoryId = selectedCategoryId;
+    const docForCategory = selectedDocumentForCategory;
+    const docsToMove = isSelectMode ? Array.from(selectedDocuments) : null;
+    const docCount = selectedDocuments.size;
+
+    // Close modal IMMEDIATELY for snappy UX
+    setShowCategoryModal(false);
+    setSelectedDocumentForCategory(null);
+    setSelectedCategoryId(null);
+
     try {
       // Check if we're moving selected documents (from select mode)
-      if (isSelectMode && selectedDocuments.size > 0) {
+      if (isSelectMode && docsToMove && docsToMove.length > 0) {
         // Move all selected documents
-        await Promise.all(
-          Array.from(selectedDocuments).map(docId =>
-            moveToFolder(docId, selectedCategoryId)
+        Promise.all(
+          docsToMove.map(docId =>
+            moveToFolder(docId, categoryId)
           )
         );
 
@@ -542,31 +553,27 @@ const CategoryDetail = () => {
         toggleSelectMode();
 
         // Show success message
-        setSuccessCount(selectedDocuments.size);
-        setSuccessMessage(`${selectedDocuments.size} document${selectedDocuments.size > 1 ? 's have' : ' has'} been successfully moved.`);
+        setSuccessCount(docCount);
+        setSuccessMessage(`${docCount} document${docCount > 1 ? 's have' : ' has'} been successfully moved.`);
         setShowSuccessModal(true);
         setTimeout(() => setShowSuccessModal(false), 3000);
-      } else if (selectedDocumentForCategory) {
+      } else if (docForCategory) {
         // Move single item (folder or document)
-        if (selectedDocumentForCategory.type === 'folder') {
-          // Move folder to new parent
-          await api.patch(`/api/folders/${selectedDocumentForCategory.id}`, {
-            parentFolderId: selectedCategoryId
+        if (docForCategory.type === 'folder') {
+          // Move folder to new parent (folder moves need await for refresh)
+          await api.patch(`/api/folders/${docForCategory.id}`, {
+            parentFolderId: categoryId
           });
 
           // Refresh context to get updated folder structure (needed for folder moves)
           await refreshAll();
         } else {
-          // Move document
-          await moveToFolder(selectedDocumentForCategory.id, selectedCategoryId);
+          // Move document (optimistic, no await needed)
+          moveToFolder(docForCategory.id, categoryId);
         }
       }
-
-      setShowCategoryModal(false);
-      setSelectedDocumentForCategory(null);
-      setSelectedCategoryId(null);
     } catch (error) {
-      showError(t('alerts.failedToMoveToCategory', { type: selectedDocumentForCategory?.type || 'item' }));
+      showError(t('alerts.failedToMoveToCategory', { type: docForCategory?.type || 'item' }));
 
       // ✅ On error, refresh context to restore correct state
       await refreshAll();

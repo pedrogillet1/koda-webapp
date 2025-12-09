@@ -9,19 +9,22 @@
  * 3. Implements true parallel processing (no artificial delays)
  * 4. Uses Web Workers for non-blocking SHA-256 hashing
  * 5. Supports client-side encryption (zero-knowledge)
- * 6. Handles multipart uploads for large files (>100MB)
+ * 6. Handles multipart uploads for large files (>20MB) via resumableUploadService
  *
  * UPLOAD FLOW:
  * 1. Filter files (remove hidden/system files)
  * 2. Analyze folder structure (if folder upload)
  * 3. Create categories/subfolders (bulk API)
- * 4. Request presigned URLs for all files
- * 5. Upload files directly to S3 in parallel
- * 6. Notify backend of completion
+ * 4. Check file sizes - route large files to resumable upload
+ * 5. Request presigned URLs for small/medium files
+ * 6. Upload files directly to S3 in parallel
+ * 7. Notify backend of completion
  */
 
 import api from './api';
 import axios from 'axios';
+import { uploadLargeFile } from './resumableUploadService';
+import { UPLOAD_CONFIG, shouldUseResumableUpload } from '../config/upload.config';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -29,25 +32,22 @@ import axios from 'axios';
 
 const CONFIG = {
   // Maximum concurrent uploads (optimized for browser limits)
-  MAX_CONCURRENT_UPLOADS: 30,
+  MAX_CONCURRENT_UPLOADS: UPLOAD_CONFIG.MAX_CONCURRENT_UPLOADS || 6,
 
-  // Multipart upload threshold (100MB)
-  MULTIPART_THRESHOLD: 100 * 1024 * 1024,
-
-  // Multipart chunk size (10MB)
-  MULTIPART_CHUNK_SIZE: 10 * 1024 * 1024,
+  // Resumable upload threshold (20MB) - files larger use multipart
+  RESUMABLE_THRESHOLD: UPLOAD_CONFIG.RESUMABLE_UPLOAD_THRESHOLD_BYTES || 20 * 1024 * 1024,
 
   // Max retry attempts for failed uploads
-  MAX_RETRIES: 3,
+  MAX_RETRIES: UPLOAD_CONFIG.MAX_RETRIES || 3,
 
   // Initial retry delay (exponential backoff)
-  INITIAL_RETRY_DELAY: 1000,
+  INITIAL_RETRY_DELAY: UPLOAD_CONFIG.RETRY_DELAY_BASE || 1000,
 
   // Max retry attempts for completion notification
   MAX_CONFIRM_RETRIES: 5,
 
   // File filtering patterns
-  HIDDEN_FILE_PATTERNS: [
+  HIDDEN_FILE_PATTERNS: UPLOAD_CONFIG.HIDDEN_FILE_PATTERNS || [
     '.DS_Store',
     '.localized',
     '__MACOSX',
@@ -60,7 +60,7 @@ const CONFIG = {
   ],
 
   // Allowed file extensions (matches backend)
-  ALLOWED_EXTENSIONS: [
+  ALLOWED_EXTENSIONS: UPLOAD_CONFIG.ALLOWED_EXTENSIONS || [
     // Documents
     '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.html', '.htm', '.rtf', '.csv',
     // Images
@@ -451,73 +451,108 @@ async function uploadFiles(files, folderId, onProgress) {
     throw new Error('No valid files to upload');
   }
 
-  // Prepare file info
-  const fileInfos = validFiles.map(file => ({
-    file,
-    // Normalize filename to NFC to handle Unicode characters properly
-    fileName: file.name.normalize('NFC'),
-    folderId
-  }));
+  // Separate large files (>20MB) from small files
+  const largeFiles = validFiles.filter(f => shouldUseResumableUpload(f.size));
+  const smallFiles = validFiles.filter(f => !shouldUseResumableUpload(f.size));
+
+  console.log(`📤 [Upload] Processing ${validFiles.length} files: ${smallFiles.length} small, ${largeFiles.length} large`);
+
+  const results = [];
+  let completedCount = 0;
 
   try {
-    // Request presigned URLs
-    onProgress?.({ stage: 'preparing', message: 'Preparing upload...', percentage: 5 });
-    const { presignedUrls, documentIds, encryptedFilenames } = await requestPresignedUrls(fileInfos, folderId);
+    // Upload large files first using resumable upload (one at a time to avoid memory issues)
+    if (largeFiles.length > 0) {
+      onProgress?.({ stage: 'uploading', message: `Uploading large files (0/${largeFiles.length})...`, percentage: 5 });
 
-    // Upload all files in parallel batches
-    onProgress?.({ stage: 'uploading', message: 'Uploading files...', percentage: 10 });
-
-    let completedCount = 0;
-    const results = [];
-
-    // Process in batches
-    const batches = [];
-    for (let i = 0; i < validFiles.length; i += CONFIG.MAX_CONCURRENT_UPLOADS) {
-      batches.push({
-        files: validFiles.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS),
-        urls: presignedUrls.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS),
-        ids: documentIds.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS)
-      });
+      for (const file of largeFiles) {
+        try {
+          const result = await uploadLargeFile(file, folderId, (progress) => {
+            const largeFileProgress = (completedCount / validFiles.length) * 100;
+            const currentProgress = progress.percentage / 100 / validFiles.length * 100;
+            onProgress?.({
+              stage: 'uploading',
+              message: `Uploading large file: ${file.name}`,
+              percentage: 5 + (largeFileProgress + currentProgress) * 0.85
+            });
+          });
+          results.push(result);
+          completedCount++;
+        } catch (error) {
+          console.error(`❌ Failed to upload large file ${file.name}:`, error);
+          results.push({ success: false, fileName: file.name, error: error?.message || String(error) });
+          completedCount++;
+        }
+      }
     }
 
-    // Process all batches in parallel
-    const batchPromises = batches.map(async (batch) => {
-      const batchResults = await Promise.all(
-        batch.files.map(async (file, idx) => {
-          const result = await uploadFileToS3(
-            file,
-            batch.urls[idx],
-            batch.ids[idx],
-            (percent) => {
-              // Individual file progress (optional)
-            }
-          );
+    // Upload small files using presigned URLs
+    if (smallFiles.length > 0) {
+      // Prepare file info
+      const fileInfos = smallFiles.map(file => ({
+        file,
+        // Normalize filename to NFC to handle Unicode characters properly
+        fileName: file.name.normalize('NFC'),
+        folderId
+      }));
 
-          completedCount++;
-          const overallProgress = 10 + (completedCount / validFiles.length) * 80;
-          onProgress?.({
-            stage: 'uploading',
-            message: `Uploading (${completedCount}/${validFiles.length})`,
-            percentage: overallProgress
-          });
+      // Request presigned URLs
+      onProgress?.({ stage: 'preparing', message: 'Preparing upload...', percentage: 5 + (completedCount / validFiles.length) * 85 });
+      const { presignedUrls, documentIds } = await requestPresignedUrls(fileInfos, folderId);
 
-          return result;
-        })
-      );
-      return batchResults;
-    });
+      // Upload all files in parallel batches
+      onProgress?.({ stage: 'uploading', message: 'Uploading files...', percentage: 10 + (completedCount / validFiles.length) * 85 });
 
-    const allBatchResults = await Promise.all(batchPromises);
-    results.push(...allBatchResults.flat());
+      // Process in batches
+      const batches = [];
+      for (let i = 0; i < smallFiles.length; i += CONFIG.MAX_CONCURRENT_UPLOADS) {
+        batches.push({
+          files: smallFiles.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS),
+          urls: presignedUrls.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS),
+          ids: documentIds.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS)
+        });
+      }
 
-    // Notify backend of completion
-    const successfulUploads = results.filter(r => r.success);
-    if (successfulUploads.length > 0) {
-      onProgress?.({ stage: 'finalizing', message: 'Finalizing...', percentage: 95 });
-      await notifyCompletionWithRetry(successfulUploads.map(r => r.documentId));
+      // Process all batches in parallel
+      const batchPromises = batches.map(async (batch) => {
+        const batchResults = await Promise.all(
+          batch.files.map(async (file, idx) => {
+            const result = await uploadFileToS3(
+              file,
+              batch.urls[idx],
+              batch.ids[idx],
+              (percent) => {
+                // Individual file progress (optional)
+              }
+            );
+
+            completedCount++;
+            const overallProgress = 5 + (completedCount / validFiles.length) * 85;
+            onProgress?.({
+              stage: 'uploading',
+              message: `Uploading (${completedCount}/${validFiles.length})`,
+              percentage: overallProgress
+            });
+
+            return result;
+          })
+        );
+        return batchResults;
+      });
+
+      const allBatchResults = await Promise.all(batchPromises);
+      results.push(...allBatchResults.flat());
+
+      // Notify backend of completion for small files
+      const successfulSmallUploads = allBatchResults.flat().filter(r => r.success);
+      if (successfulSmallUploads.length > 0) {
+        onProgress?.({ stage: 'finalizing', message: 'Finalizing...', percentage: 95 });
+        await notifyCompletionWithRetry(successfulSmallUploads.map(r => r.documentId));
+      }
     }
 
     const duration = Date.now() - startTime;
+    const successfulUploads = results.filter(r => r.success);
     onProgress?.({ stage: 'complete', message: 'Upload complete!', percentage: 100 });
 
     return {
@@ -603,67 +638,104 @@ async function uploadFolder(files, onProgress, existingCategoryId = null) {
       };
     });
 
-    // Step 5: Request presigned URLs
-    onProgress?.({ stage: 'preparing', message: 'Requesting upload URLs...', percentage: 18 });
-    const { presignedUrls, documentIds, encryptedFilenames } = await requestPresignedUrls(fileInfos, categoryId);
+    // Separate large files (>20MB) from small files for folder uploads
+    const largeFileInfos = fileInfos.filter(fi => shouldUseResumableUpload(fi.file.size));
+    const smallFileInfos = fileInfos.filter(fi => !shouldUseResumableUpload(fi.file.size));
 
-    // Step 6: Upload all files in parallel
-    onProgress?.({ stage: 'uploading', message: 'Uploading files...', percentage: 20 });
+    console.log(`📤 [Folder Upload] Processing ${fileInfos.length} files: ${smallFileInfos.length} small, ${largeFileInfos.length} large`);
 
     let completedCount = 0;
     const results = [];
 
-    // Process in batches for concurrent limit
-    const batches = [];
-    for (let i = 0; i < fileInfos.length; i += CONFIG.MAX_CONCURRENT_UPLOADS) {
-      batches.push({
-        fileInfos: fileInfos.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS),
-        urls: presignedUrls.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS),
-        ids: documentIds.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS)
-      });
-    }
-    // Process ALL batches in parallel
-    const batchPromises = batches.map(async (batch) => {
-      const batchResults = await Promise.all(
-        batch.fileInfos.map(async (fileInfo, idx) => {
-          const result = await uploadFileToS3(
-            fileInfo.file,
-            batch.urls[idx],
-            batch.ids[idx],
-            null // No per-file progress for batch uploads
-          );
+    // Step 5a: Upload large files first using resumable upload
+    if (largeFileInfos.length > 0) {
+      onProgress?.({ stage: 'uploading', message: `Uploading large files (0/${largeFileInfos.length})...`, percentage: 18 });
 
-          completedCount++;
-          const overallProgress = 20 + (completedCount / fileInfos.length) * 70;
-          onProgress?.({
-            stage: 'uploading',
-            message: `Uploading (${completedCount}/${fileInfos.length})`,
-            percentage: overallProgress
+      for (const fileInfo of largeFileInfos) {
+        try {
+          const result = await uploadLargeFile(fileInfo.file, fileInfo.folderId, (progress) => {
+            const largeFileProgress = (completedCount / fileInfos.length) * 100;
+            onProgress?.({
+              stage: 'uploading',
+              message: `Uploading large file: ${fileInfo.fileName}`,
+              percentage: 18 + (largeFileProgress + progress.percentage / fileInfos.length) * 0.72
+            });
           });
-
-          return {
-            ...result,
-            fileName: fileInfo.fileName
-          };
-        })
-      );
-      return batchResults;
-    });
-
-    const allBatchResults = await Promise.all(batchPromises);
-    results.push(...allBatchResults.flat());
-
-    // Step 7: Notify backend of completion
-    const successfulUploads = results.filter(r => r.success);
-    if (successfulUploads.length > 0) {
-      onProgress?.({ stage: 'finalizing', message: 'Finalizing...', percentage: 95 });
-      try {
-        await notifyCompletionWithRetry(successfulUploads.map(r => r.documentId));
-      } catch (confirmError) {
+          results.push({ ...result, fileName: fileInfo.fileName });
+          completedCount++;
+        } catch (error) {
+          console.error(`❌ Failed to upload large file ${fileInfo.fileName}:`, error);
+          results.push({ success: false, fileName: fileInfo.fileName, error: error?.message || String(error) });
+          completedCount++;
+        }
       }
     }
 
+    // Step 5b: Upload small files using presigned URLs
+    if (smallFileInfos.length > 0) {
+      // Request presigned URLs for small files only
+      onProgress?.({ stage: 'preparing', message: 'Requesting upload URLs...', percentage: 18 + (completedCount / fileInfos.length) * 72 });
+      const { presignedUrls, documentIds } = await requestPresignedUrls(smallFileInfos, categoryId);
+
+      // Step 6: Upload all small files in parallel
+      onProgress?.({ stage: 'uploading', message: 'Uploading files...', percentage: 20 + (completedCount / fileInfos.length) * 70 });
+
+      // Process in batches for concurrent limit
+      const batches = [];
+      for (let i = 0; i < smallFileInfos.length; i += CONFIG.MAX_CONCURRENT_UPLOADS) {
+        batches.push({
+          fileInfos: smallFileInfos.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS),
+          urls: presignedUrls.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS),
+          ids: documentIds.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS)
+        });
+      }
+      // Process ALL batches in parallel
+      const batchPromises = batches.map(async (batch) => {
+        const batchResults = await Promise.all(
+          batch.fileInfos.map(async (fileInfo, idx) => {
+            const result = await uploadFileToS3(
+              fileInfo.file,
+              batch.urls[idx],
+              batch.ids[idx],
+              null // No per-file progress for batch uploads
+            );
+
+            completedCount++;
+            const overallProgress = 20 + (completedCount / fileInfos.length) * 70;
+            onProgress?.({
+              stage: 'uploading',
+              message: `Uploading (${completedCount}/${fileInfos.length})`,
+              percentage: overallProgress
+            });
+
+            return {
+              ...result,
+              fileName: fileInfo.fileName
+            };
+          })
+        );
+        return batchResults;
+      });
+
+      const allBatchResults = await Promise.all(batchPromises);
+      results.push(...allBatchResults.flat());
+
+      // Notify backend of completion for small files
+      const successfulSmallUploads = allBatchResults.flat().filter(r => r.success);
+      if (successfulSmallUploads.length > 0) {
+        try {
+          await notifyCompletionWithRetry(successfulSmallUploads.map(r => r.documentId));
+        } catch (confirmError) {
+          console.error('Failed to notify completion for small files:', confirmError);
+        }
+      }
+    }
+
+    // Step 7: Final summary
+    onProgress?.({ stage: 'finalizing', message: 'Finalizing...', percentage: 95 });
+
     const duration = Date.now() - startTime;
+    const successfulUploads = results.filter(r => r.success);
     const successCount = successfulUploads.length;
     const failureCount = fileInfos.length - successCount;
     onProgress?.({
@@ -709,6 +781,13 @@ async function uploadSingleFile(file, folderId, onProgress) {
   }
 
   try {
+    // Check if file should use resumable (multipart) upload
+    if (shouldUseResumableUpload(file.size)) {
+      console.log(`📤 [Upload] Using resumable upload for large file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+      return await uploadLargeFile(file, folderId, onProgress);
+    }
+
+    // Standard presigned URL upload for smaller files
     // Request presigned URL
     onProgress?.({ stage: 'preparing', message: 'Preparing...', percentage: 5 });
 
