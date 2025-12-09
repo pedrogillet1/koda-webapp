@@ -17,7 +17,7 @@ import { hybridRetrievalService } from "../retrieval/hybrid-retrieval.service";
 import { contextBuilderService } from "../generation/context-builder.service";
 import { promptBuilderService } from "../generation/prompt-builder.service";
 import { answerGeneratorService } from "../generation/answer-generator.service";
-import { embeddingService } from "../embedding.service";
+import embeddingService from "../../embedding.service";
 
 class RagOrchestratorService {
   public async generateAnswer(input: QueryInput): Promise<Answer> {
@@ -44,7 +44,8 @@ class RagOrchestratorService {
 
       // 2. Generate Embedding
       tracker.start("embedding");
-      const embedding = await embeddingService.generate(input.query);
+      const embeddingResult = await embeddingService.generateQueryEmbedding(input.query);
+      const embedding = embeddingResult.embedding;
       tracker.end("embedding");
 
       // 3. Retrieve Chunks

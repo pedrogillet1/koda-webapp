@@ -29,7 +29,7 @@ export { PerformanceTracker } from "./utils/performance-tracker.service";
 export { cacheManager } from "./utils/cache-manager.service";
 
 // Embedding Service
-export { embeddingService } from "./embedding.service";
+export { default as embeddingService } from "../embedding.service";
 
 // Legacy Adapter (drop-in replacement for rag.service.ts)
 export { default as ragServiceAdapter } from "./rag-service-adapter";
