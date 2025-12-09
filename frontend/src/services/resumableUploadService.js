@@ -71,7 +71,7 @@ async function uploadChunk(chunk, presignedUrl, partNumber, onProgress, signal) 
       }
 
       return {
-        ETag: etag.replace(/"/g, ''), // Remove quotes from ETag
+        ETag: etag, // Keep quotes - S3 CompleteMultipartUpload requires them
         PartNumber: partNumber,
       };
     } catch (error) {

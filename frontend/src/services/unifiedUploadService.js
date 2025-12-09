@@ -735,6 +735,7 @@ async function uploadFolder(files, onProgress, existingCategoryId = null) {
     onProgress?.({ stage: 'finalizing', message: 'Finalizing...', percentage: 95 });
 
     const duration = Date.now() - startTime;
+    const successfulUploads = results.filter(r => r.success);
     const successCount = successfulUploads.length;
     const failureCount = fileInfos.length - successCount;
     onProgress?.({
