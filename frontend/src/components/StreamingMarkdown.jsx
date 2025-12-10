@@ -14,8 +14,13 @@ import { ClickableDocumentName, isDocumentName } from './ClickableDocumentName';
  * Implements the frontend side of the Koda Markdown Contract:
  * - Chat-sized headings (not huge H1s)
  * - Tight lists (no gaps between bullets)
- * - Clickable document names
+ * - Clickable document names (matched by NAME, not ID)
  * - UTF-8 encoding fixes
+ *
+ * DOCUMENT NAME MATCHING:
+ * - Backend outputs **DocumentName.pdf** (bold only, NO IDs)
+ * - Frontend matches bold text to document IDs using documentMap
+ * - IDs are NEVER visible to users
  *
  * Features:
  * - Real-time markdown parsing during streaming
@@ -28,6 +33,8 @@ import { ClickableDocumentName, isDocumentName } from './ClickableDocumentName';
  * @param {boolean} isStreaming - Whether content is currently being streamed
  * @param {object} customComponents - Custom ReactMarkdown components
  * @param {string} className - Additional CSS classes
+ * @param {array} documents - Array of documents with {name, id} for name→ID matching
+ * @param {function} onOpenPreview - Callback to open document preview
  */
 const StreamingMarkdown = ({
   content,
@@ -55,19 +62,26 @@ const StreamingMarkdown = ({
 
   // Default custom components for better styling
   const defaultComponents = {
-    // Links
-    a: ({ node, ...props }) => (
-      <a
-        {...props}
-        style={{
-          color: '#10a37f',
-          textDecoration: 'underline',
-          cursor: 'pointer'
-        }}
-        target="_blank"
-        rel="noopener noreferrer"
-      />
-    ),
+    // Links - regular external links only (NO #doc-* pattern - we use bold name matching)
+    a: ({ node, children, href, ...props }) => {
+      // All links are external links - document names are matched via **bold** text
+      return (
+        <a
+          {...props}
+          href={href}
+          style={{
+            color: '#303030',
+            textDecoration: 'underline',
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {children}
+        </a>
+      );
+    },
 
     // Tables
     table: ({ node, ...props }) => (
@@ -153,13 +167,39 @@ const StreamingMarkdown = ({
       <li className="markdown-li" {...props} />
     ),
 
-    // Code - keep non-margin styles
-    code: ({ node, inline, ...props }) =>
-      inline ? (
-        <code className="markdown-inline-code" {...props} />
+    // Code - check if it contains a document name and render as clickable
+    code: ({ node, inline, children, ...props }) => {
+      // Get text content from children
+      const textContent = React.Children.toArray(children)
+        .filter(child => typeof child === 'string')
+        .join('');
+
+      // Check if the code contains a document filename pattern: **filename.ext** or filename.ext
+      const docPattern = /^\*?\*?([^*]+\.(pdf|docx?|xlsx?|pptx?|txt|csv|png|jpg|jpeg|gif))\*?\*?$/i;
+      const match = textContent.match(docPattern);
+
+      if (match && inline) {
+        // Extract the filename without the asterisks
+        const filename = match[1];
+        const normalizedName = filename.toLowerCase().replace(/[_-]/g, ' ');
+        const documentId = documentMap.get(normalizedName) || documentMap.get(filename.toLowerCase());
+
+        return (
+          <ClickableDocumentName
+            documentName={filename}
+            documentId={documentId}
+            onOpenPreview={onOpenPreview}
+          />
+        );
+      }
+
+      // Default code rendering
+      return inline ? (
+        <code className="markdown-inline-code" {...props}>{children}</code>
       ) : (
-        <code className="markdown-code-block" {...props} />
-      ),
+        <code className="markdown-code-block" {...props}>{children}</code>
+      );
+    },
 
     // Blockquotes
     blockquote: ({ node, ...props }) => (
@@ -208,6 +248,20 @@ const StreamingMarkdown = ({
       .replace(/Ã‚/g, 'Â')
       .replace(/Ã€/g, 'À')
       .replace(/Ã‰/g, 'É');
+
+    // ============================================================
+    // FIX: Convert backtick+bold document citations to just bold
+    // LLM sometimes outputs: `**filename.pdf**` instead of **filename.pdf**
+    // The backticks prevent markdown from rendering the bold as clickable
+    // Pattern: `**document.ext**` → **document.ext**
+    // ============================================================
+    cleaned = cleaned.replace(/`\*\*([^*]+\.(pdf|docx?|xlsx?|pptx?|txt|csv|png|jpg|jpeg|gif))\*\*`/gi, '**$1**');
+
+    // Also handle: (from `**filename**`) patterns
+    cleaned = cleaned.replace(/\(from\s+`\*\*([^*]+)\*\*`\)/gi, '(from **$1**)');
+
+    // Handle Source: `**filename**` patterns
+    cleaned = cleaned.replace(/Source:\s*`\*\*([^*]+)\*\*`/gi, 'Source: **$1**');
 
     // Normalize whitespace per Koda Markdown Contract
     cleaned = cleaned

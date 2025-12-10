@@ -1,5 +1,9 @@
 // FILE: frontend/src/components/ClickableDocumentName.jsx
 // PURPOSE: Make document names clickable to open preview modal
+//
+// IMPORTANT: Document IDs are NEVER displayed to users
+// - The ID is only used internally to open the correct preview
+// - User only sees the clean document name
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -7,10 +11,15 @@ import { useNavigate } from 'react-router-dom';
 /**
  * Clickable Document Name Component
  *
- * Renders a bold document name that:
+ * Renders a document name that:
  * 1. Opens preview modal when clicked (if documentId provided)
  * 2. Navigates to /documents if "See all" is clicked
- * 3. Shows hover effect
+ * 3. Shows hover effect with underline styling
+ *
+ * INLINE STYLE: Documents mentioned in text appear with underline (not as button)
+ * This distinguishes inline citations from document list items which use full buttons
+ *
+ * NOTE: The documentId is used internally ONLY - never displayed to user
  */
 export const ClickableDocumentName = ({
   documentName,
@@ -37,16 +46,34 @@ export const ClickableDocumentName = ({
 
   const isClickable = documentId || documentName.toLowerCase().includes('see all');
 
+  // Style: Underlined text (like a link) - not a button
+  // This is the expected inline citation style per user request
   return (
     <span
       onClick={isClickable ? handleClick : undefined}
       className={isClickable ? 'clickable-document-name' : ''}
       style={{
-        fontWeight: 'bold',
-        color: '#1a1a1a',
+        fontWeight: 600,
+        color: '#303030',
+        textDecoration: 'underline',
+        textDecorationColor: '#6B7280',
+        textUnderlineOffset: '2px',
         cursor: isClickable ? 'pointer' : 'inherit',
-        transition: 'color 0.2s ease'
+        transition: 'all 0.2s ease',
+        borderRadius: '2px',
+        padding: '0 2px',
       }}
+      onMouseEnter={(e) => {
+        if (isClickable) {
+          e.target.style.backgroundColor = '#F3F4F6';
+          e.target.style.textDecorationColor = '#303030';
+        }
+      }}
+      onMouseLeave={(e) => {
+        e.target.style.backgroundColor = 'transparent';
+        e.target.style.textDecorationColor = '#6B7280';
+      }}
+      title={isClickable ? `Click to preview: ${documentName}` : documentName}
     >
       {documentName}
     </span>
