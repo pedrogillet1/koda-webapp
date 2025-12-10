@@ -28,6 +28,12 @@ import crypto from 'crypto';
 import { withBudget, getBudgetForQueryType, getAdaptiveBudget } from '../utils/budgetEnforcer';
 import { recordMetric, recordCacheEvent, recordQueryType } from './performanceMonitor.service';
 
+// ✅ 4-LAYER ANSWER PIPELINE - Unified formatting system
+import { kodaAnswerPipeline, type PrimaryIntent, type AnswerMode, type Language } from '../koda-4-layer-pipeline';
+
+// ✅ CENTRALIZED PATTERN SYSTEM - Single source of truth for patterns
+import { centralizedPatternMatcher, QueryIntent as CentralizedIntent } from '../centralized';
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // L1 CACHE: In-Memory (fastest, ~1ms)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -594,7 +600,7 @@ async function executeRAG(
 
   if (validation.shouldRegenerate && !streamingCallback) {
     console.log(`[RAG] Regenerating due to validation issues (score: ${validation.score})`);
-    
+
     const regenerated = await generateAdaptiveAnswer({
       query,
       context: context.finalContext,
@@ -609,7 +615,7 @@ async function executeRAG(
     });
 
     finalAnswer = reformatted.text;
-    
+
     finalValidation = validateAnswer({
       answer: reformatted.text,
       query,
@@ -619,6 +625,16 @@ async function executeRAG(
       documentReferences: reformatted.documentReferences,
     });
   }
+
+  // Step 8: Apply 4-layer pipeline for final polish
+  const pipelineResult = await applyAnswerPipeline(
+    finalAnswer,
+    query,
+    intent.answerType,
+    language,
+    documentMap
+  );
+  finalAnswer = pipelineResult.text;
 
   const totalTime = Date.now() - startTime;
 
@@ -636,6 +652,160 @@ async function executeRAG(
       validationScore: finalValidation.score,
     },
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 4-LAYER PIPELINE HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Map AnswerType to PrimaryIntent for 4-layer pipeline
+ */
+function mapToPrimaryIntent(answerType: string): PrimaryIntent {
+  const mapping: Record<string, PrimaryIntent> = {
+    'ULTRA_FAST_GREETING': 'meta',
+    'DOC_COUNT': 'meta',
+    'DOC_LIST': 'meta',
+    'FILE_NAVIGATION': 'file_action',
+    'FOLDER_NAVIGATION': 'navigation',
+    'APP_HELP': 'onboarding',
+    'CALCULATION': 'calculation',
+    'SINGLE_DOC_RAG': 'single_doc_factual',
+    'CROSS_DOC_RAG': 'multi_doc_comparison',
+    'COMPLEX_ANALYSIS': 'multi_doc_comparison',
+    'MEMORY': 'single_doc_factual',
+    'STANDARD_QUERY': 'single_doc_factual',
+  };
+  return mapping[answerType] || 'single_doc_factual';
+}
+
+/**
+ * Determine AnswerMode based on PrimaryIntent
+ */
+function determineAnswerMode(primaryIntent: PrimaryIntent): AnswerMode {
+  const mapping: Record<PrimaryIntent, AnswerMode> = {
+    'meta': 'bullet_list',
+    'file_action': 'direct_short',
+    'doc_search': 'bullet_list',
+    'single_doc_factual': 'direct_short',
+    'multi_doc_comparison': 'structured_sections',
+    'calculation': 'structured_sections',
+    'navigation': 'direct_short',
+    'summary': 'explanatory',
+    'onboarding': 'steps',
+    'no_docs_help': 'steps',
+    'edge': 'direct_short',
+  };
+  return mapping[primaryIntent] || 'direct_short';
+}
+
+/**
+ * Map language code to pipeline Language type
+ */
+function mapToLanguage(langCode: string): Language {
+  const code = langCode.toLowerCase().substring(0, 2);
+  if (code === 'pt') return 'pt';
+  if (code === 'es') return 'es';
+  if (code === 'fr') return 'fr';
+  return 'en';
+}
+
+/**
+ * Convert document map to Source array for pipeline
+ */
+function mapToSources(documentMap: Map<string, any>): Array<{ documentId: string; filename?: string; documentName?: string; title?: string; mimeType?: string }> {
+  return Array.from(documentMap.values()).map(doc => ({
+    documentId: doc.id,
+    filename: doc.name,
+    documentName: doc.name,
+    title: doc.displayTitle,
+    mimeType: doc.mimeType,
+  }));
+}
+
+/**
+ * Map centralized QueryIntent to PrimaryIntent
+ */
+function mapCentralizedToPrimaryIntent(intent: CentralizedIntent): PrimaryIntent {
+  const mapping: Record<string, PrimaryIntent> = {
+    'GREETING': 'meta',
+    'COUNT_DOCUMENTS': 'meta',
+    'LIST_DOCUMENTS': 'meta',
+    'OPEN_DOCUMENT': 'file_action',
+    'DELETE_DOCUMENT': 'file_action',
+    'SEARCH_DOCUMENTS': 'doc_search',
+    'FACTUAL_QUESTION': 'single_doc_factual',
+    'COMPARISON_QUESTION': 'multi_doc_comparison',
+    'SYNTHESIS_QUESTION': 'multi_doc_comparison',
+    'ANALYTICAL_QUESTION': 'multi_doc_comparison',
+    'CALCULATION': 'calculation',
+    'FINANCIAL_ANALYSIS': 'calculation',
+    'DATA_ANALYSIS': 'calculation',
+    'NAVIGATE_TO_SECTION': 'navigation',
+    'FIND_IN_DOCUMENT': 'navigation',
+    'GENERATE_DOCUMENT': 'summary',
+    'GENERATE_SUMMARY': 'summary',
+    'GENERATE_REPORT': 'summary',
+    'HELP': 'onboarding',
+    'ONBOARDING': 'onboarding',
+    'UNKNOWN': 'edge',
+  };
+  return mapping[intent] || 'single_doc_factual';
+}
+
+/**
+ * Apply 4-layer pipeline to format answer
+ * Uses centralized pattern system for enhanced detection
+ */
+async function applyAnswerPipeline(
+  rawAnswer: string,
+  query: string,
+  answerType: string,
+  language: string,
+  documentMap: Map<string, any>
+): Promise<{ text: string; pipelineResult?: any }> {
+  try {
+    // Use centralized pattern matcher for enhanced detection
+    const centralizedLanguage = centralizedPatternMatcher.detectLanguage(query);
+    const centralizedIntent = centralizedPatternMatcher.detectIntent(query, centralizedLanguage);
+
+    // Prefer centralized detection if confidence is high, otherwise fall back to answerType mapping
+    let primaryIntent: PrimaryIntent;
+    if (centralizedIntent.confidence >= 0.7) {
+      primaryIntent = mapCentralizedToPrimaryIntent(centralizedIntent.intent);
+      console.log(`[Pipeline] Using centralized intent: ${centralizedIntent.intent} (confidence: ${centralizedIntent.confidence.toFixed(2)})`);
+    } else {
+      primaryIntent = mapToPrimaryIntent(answerType);
+      console.log(`[Pipeline] Using mapped intent: ${primaryIntent} (centralized confidence too low: ${centralizedIntent.confidence.toFixed(2)})`);
+    }
+
+    const answerMode = determineAnswerMode(primaryIntent);
+    const lang = mapToLanguage(centralizedLanguage || language);
+    const sources = mapToSources(documentMap);
+
+    const result = await kodaAnswerPipeline.processAnswer({
+      rawAnswer,
+      query,
+      primaryIntent,
+      answerMode,
+      language: lang,
+      sources,
+      options: {
+        addDocumentsUsedSection: false, // Already handled by existing formatter
+        skipValidation: primaryIntent === 'meta', // Skip validation for meta queries
+      },
+    });
+
+    console.log(`[Pipeline] Processed in ${result.totalTimeMs}ms (structure: ${result.structure.structureScore}, validation: ${result.validation?.score || 'skipped'})`);
+
+    return {
+      text: result.finalAnswer,
+      pipelineResult: result,
+    };
+  } catch (error) {
+    console.error('[Pipeline] Error, falling back to raw answer:', error);
+    return { text: rawAnswer };
+  }
 }
 
 /**

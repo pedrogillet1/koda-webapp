@@ -2,9 +2,11 @@
  * ============================================================================
  * KODA INTENT ENGINE - UNIFIED INTENT DETECTION & QUERY CLASSIFICATION
  * ============================================================================
- * 
+ *
  * This service consolidates ALL intent detection logic into a single engine.
- * 
+ *
+ * NOW POWERED BY: ../centralized/services/centralizedPatternMatcher.ts
+ *
  * CONSOLIDATES:
  * - llmIntentDetector.service.ts
  * - simpleIntentDetection.service.ts (✅ currently in use)
@@ -16,19 +18,22 @@
  * - documentGenerationDetection.service.ts
  * - synthesisQueryDetection.service.ts
  * - clarificationLogic.service.ts
- * 
+ *
  * INTEGRATION STRATEGY:
  * This engine integrates with the existing skill system and fast-path detection
  * that was recently added to rag.service.ts. It provides a clean API for all
  * intent detection needs.
- * 
- * @version 2.0.0
- * @date 2025-12-08
+ *
+ * @version 3.0.0
+ * @date 2025-12-10
  */
 
 // Removed NestJS dependency for compatibility
 // ✅ CENTRALIZED LANGUAGE SERVICE - Single source of truth for language detection
 import { detectLanguageSimple, type SupportedLanguage } from './kodaLanguage.service';
+
+// ✅ CENTRALIZED PATTERN MATCHING SYSTEM - Single source of truth for patterns
+import { centralizedPatternMatcher, QueryIntent as CentralizedIntent, LanguageCode } from '../centralized';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -641,6 +646,93 @@ export interface IntentDetectionResult {
   requiresRetrieval: boolean;
   requiresMemory: boolean;
   requiresCalculation: boolean;
+}
+
+// ============================================================================
+// CENTRALIZED PATTERN INTEGRATION
+// ============================================================================
+
+/**
+ * Map centralized intent to answer type
+ * Maps from centralized QueryIntent to our limited AnswerType set
+ */
+function mapCentralizedIntentToAnswerType(intent: CentralizedIntent): AnswerType {
+  switch (intent) {
+    case CentralizedIntent.GREETING:
+      return 'ULTRA_FAST_GREETING';
+    case CentralizedIntent.COUNT_DOCUMENTS:
+      return 'DOC_COUNT';
+    case CentralizedIntent.LIST_DOCUMENTS:
+      return 'SINGLE_DOC_RAG'; // List queries go to RAG
+    case CentralizedIntent.CALCULATION:
+    case CentralizedIntent.FINANCIAL_ANALYSIS:
+    case CentralizedIntent.DATA_ANALYSIS:
+      return 'CALCULATION';
+    case CentralizedIntent.OPEN_DOCUMENT:
+    case CentralizedIntent.SEARCH_DOCUMENTS:
+    case CentralizedIntent.FIND_IN_DOCUMENT:
+    case CentralizedIntent.DELETE_DOCUMENT:
+      return 'FILE_NAVIGATION';
+    case CentralizedIntent.NAVIGATE_TO_SECTION:
+      return 'FOLDER_NAVIGATION';
+    case CentralizedIntent.HELP:
+    case CentralizedIntent.ONBOARDING:
+      return 'APP_HELP';
+    case CentralizedIntent.FOLLOW_UP:
+    case CentralizedIntent.REFERENCE_RESOLUTION:
+    case CentralizedIntent.CLARIFICATION:
+    case CentralizedIntent.AMBIGUOUS:
+      return 'MEMORY'; // Follow-up/clarification uses memory
+    case CentralizedIntent.GENERATE_DOCUMENT:
+    case CentralizedIntent.GENERATE_SUMMARY:
+    case CentralizedIntent.GENERATE_REPORT:
+      return 'COMPLEX_ANALYSIS'; // Document generation is complex
+    case CentralizedIntent.COMPARISON_QUESTION:
+    case CentralizedIntent.SYNTHESIS_QUESTION:
+    case CentralizedIntent.ANALYTICAL_QUESTION:
+      return 'CROSS_DOC_RAG'; // Complex analysis across docs
+    case CentralizedIntent.FACTUAL_QUESTION:
+      return 'SINGLE_DOC_RAG';
+    case CentralizedIntent.UPLOAD_DOCUMENT:
+    case CentralizedIntent.UNKNOWN:
+    default:
+      return 'STANDARD_QUERY';
+  }
+}
+
+/**
+ * Enhanced intent detection using centralized pattern matcher
+ * This provides more comprehensive pattern detection with multilingual support
+ */
+export function detectIntentCentralized(query: string): {
+  intent: CentralizedIntent;
+  confidence: number;
+  language: LanguageCode;
+  entities: any[];
+  skill: any;
+  fileAction: any;
+  mode: any;
+} {
+  const language = centralizedPatternMatcher.detectLanguage(query);
+  const intentResult = centralizedPatternMatcher.detectIntent(query, language);
+  const entities = centralizedPatternMatcher.extractEntities(query, language);
+  const skill = centralizedPatternMatcher.detectSkill(query, language);
+  const fileAction = centralizedPatternMatcher.detectFileAction(query, language);
+  const mode = centralizedPatternMatcher.detectMode(query, language);
+
+  // Handle null intentResult with default values
+  const detectedIntent = intentResult?.intent ?? CentralizedIntent.FACTUAL_QUESTION;
+  const detectedConfidence = intentResult?.confidence ?? 0.5;
+
+  return {
+    intent: detectedIntent,
+    confidence: detectedConfidence,
+    language,
+    entities,
+    skill,
+    fileAction,
+    mode,
+  };
 }
 
 /**
