@@ -5,10 +5,13 @@
  * BASE: /api/admin/analytics
  */
 
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import analyticsController from '../controllers/analytics.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
 import { isAdmin, adminRateLimiter } from '../middleware/admin.middleware';
+import { performanceMonitor } from '../services/performanceMonitor.service';
+import { getCacheStats as getRagCacheStats } from '../services/ragOrchestrator.service';
+import { getAllPerformanceStats } from '../utils/budgetEnforcer';
 
 const router = Router();
 
@@ -207,5 +210,152 @@ router.get('/daily-aggregates', analyticsController.getDailyAnalyticsAggregates)
  * Body: { date?: string } - ISO date string, defaults to today
  */
 router.post('/aggregate-daily', analyticsController.runDailyAggregation);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REAL-TIME PERFORMANCE MONITORING (RAG Pipeline)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/admin/analytics/performance/report
+ * Get comprehensive performance report
+ */
+router.get('/performance/report', async (req: Request, res: Response) => {
+  try {
+    const report = performanceMonitor.getPerformanceReport();
+    const ragCache = getRagCacheStats();
+    const budgetStats = getAllPerformanceStats();
+
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      report: {
+        ...report,
+        ragCache,
+        budgetEnforcement: budgetStats,
+      },
+    });
+  } catch (error: any) {
+    console.error('[Performance Report] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to generate performance report',
+    });
+  }
+});
+
+/**
+ * GET /api/admin/analytics/performance/cache
+ * Get cache statistics
+ */
+router.get('/performance/cache', async (req: Request, res: Response) => {
+  try {
+    const performanceCache = performanceMonitor.getCacheStats();
+    const ragCache = getRagCacheStats();
+
+    res.json({
+      success: true,
+      cache: {
+        performanceMonitor: performanceCache,
+        ragOrchestrator: ragCache,
+      },
+    });
+  } catch (error: any) {
+    console.error('[Cache Stats] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get cache statistics',
+    });
+  }
+});
+
+/**
+ * GET /api/admin/analytics/performance/query-types
+ * Get query type distribution
+ */
+router.get('/performance/query-types', async (req: Request, res: Response) => {
+  try {
+    const distribution = performanceMonitor.getQueryTypeDistribution();
+
+    res.json({
+      success: true,
+      queryTypes: distribution,
+    });
+  } catch (error: any) {
+    console.error('[Query Types] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get query type distribution',
+    });
+  }
+});
+
+/**
+ * GET /api/admin/analytics/performance/latency
+ * Get latency percentiles
+ */
+router.get('/performance/latency', async (req: Request, res: Response) => {
+  try {
+    const percentiles = performanceMonitor.getLatencyPercentiles();
+
+    res.json({
+      success: true,
+      latency: percentiles,
+    });
+  } catch (error: any) {
+    console.error('[Latency Stats] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get latency percentiles',
+    });
+  }
+});
+
+/**
+ * GET /api/admin/analytics/performance/slow-queries
+ * Get recent slow queries
+ * Query params: threshold (ms), limit
+ */
+router.get('/performance/slow-queries', async (req: Request, res: Response) => {
+  try {
+    const threshold = parseInt(req.query.threshold as string) || 5000;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    const slowQueries = performanceMonitor.getSlowQueries(threshold, limit);
+
+    res.json({
+      success: true,
+      threshold,
+      limit,
+      slowQueries,
+    });
+  } catch (error: any) {
+    console.error('[Slow Queries] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get slow queries',
+    });
+  }
+});
+
+/**
+ * POST /api/admin/analytics/performance/reset
+ * Reset performance statistics
+ */
+router.post('/performance/reset', async (req: Request, res: Response) => {
+  try {
+    performanceMonitor.resetStats();
+
+    res.json({
+      success: true,
+      message: 'Performance statistics reset successfully',
+    });
+  } catch (error: any) {
+    console.error('[Reset Stats] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to reset statistics',
+    });
+  }
+});
 
 export default router;
