@@ -9,6 +9,8 @@ import cacheService from '../services/cache.service';
 import { conversationManager } from '../services/deletedServiceStubs';
 import { detectLanguage, buildCulturalSystemPrompt } from '../services/languageDetection.service';
 import { llmProvider } from '../services/llm.provider';
+import { requestContext, resetTraceLog, getTraceSummary } from '../infra/serviceTracer';
+import { v4 as uuid } from 'uuid';
 
 /**
  * Create a new conversation
@@ -108,67 +110,82 @@ export const getConversation = async (req: Request, res: Response) => {
  * Supports lazy chat creation: if conversationId is "new", creates conversation on first message
  */
 export const sendMessage = async (req: Request, res: Response) => {
-  try {
-    const userId = req.user!.id;
-    let { conversationId } = req.params;
-    const {
-      content,
-      attachedDocumentId,
-      answerLength,
-      // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Extract encryption metadata
-      contentEncrypted,
-      encryptionSalt,
-      encryptionIV,
-      encryptionAuthTag,
-      isEncrypted
-    } = req.body;
+  // Generate request ID for tracing (use header if provided, e.g., for tests)
+  const requestId = req.headers['x-request-id'] as string || uuid();
 
-    if (!content || typeof content !== 'string') {
-      res.status(400).json({ error: 'Message content is required' });
-      return;
-    }
+  // Run the handler within request context for service tracing
+  return requestContext.run({ requestId, userId: req.user?.id, startTime: Date.now() }, async () => {
+    try {
+      const userId = req.user!.id;
+      let { conversationId } = req.params;
+      const {
+        content,
+        attachedDocumentId,
+        answerLength,
+        // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Extract encryption metadata
+        contentEncrypted,
+        encryptionSalt,
+        encryptionIV,
+        encryptionAuthTag,
+        isEncrypted
+      } = req.body;
 
-    // Lazy chat creation: If conversationId is "new", create a new conversation
-    if (conversationId === 'new' || !conversationId) {
-      const newConversation = await chatService.createConversation({
+      if (!content || typeof content !== 'string') {
+        res.status(400).json({ error: 'Message content is required' });
+        return;
+      }
+
+      // Lazy chat creation: If conversationId is "new", create a new conversation
+      if (conversationId === 'new' || !conversationId) {
+        const newConversation = await chatService.createConversation({
+          userId,
+          title: 'New Chat', // Will be updated with AI-generated title after first message
+        });
+        conversationId = newConversation.id;
+        console.log('🆕 Created new conversation on first message:', conversationId);
+      }
+
+      const result = await chatService.sendMessage({
         userId,
-        title: 'New Chat', // Will be updated with AI-generated title after first message
+        conversationId,
+        content,
+        attachedDocumentId,
+        answerLength, // Phase 4D: Pass answer length to chat service
+        // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Pass encryption metadata
+        contentEncrypted,
+        encryptionSalt,
+        encryptionIV,
+        encryptionAuthTag,
+        isEncrypted: isEncrypted === true || isEncrypted === 'true',
       });
-      conversationId = newConversation.id;
-      console.log('🆕 Created new conversation on first message:', conversationId);
+
+      // Invalidate conversation cache (new message added)
+      const conversationCacheKey = cacheService.generateKey('conversation', conversationId, userId);
+      const conversationsListCacheKey = cacheService.generateKey('conversations_list', userId);
+      await Promise.all([
+        cacheService.set(conversationCacheKey, null, { ttl: 0 }),
+        cacheService.set(conversationsListCacheKey, null, { ttl: 0 })
+      ]);
+
+      // Get trace summary for debugging/monitoring
+      const traceSummary = getTraceSummary(requestId);
+
+      // Include conversation ID and trace info in response
+      res.json({
+        ...result,
+        conversationId,
+        _trace: {
+          requestId,
+          services: traceSummary.services,
+          totalDuration: traceSummary.totalDuration,
+          callCount: traceSummary.callCount,
+        },
+      });
+    } catch (error: any) {
+      console.error('Error sending message:', error);
+      res.status(500).json({ error: error.message });
     }
-
-    const result = await chatService.sendMessage({
-      userId,
-      conversationId,
-      content,
-      attachedDocumentId,
-      answerLength, // Phase 4D: Pass answer length to chat service
-      // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Pass encryption metadata
-      contentEncrypted,
-      encryptionSalt,
-      encryptionIV,
-      encryptionAuthTag,
-      isEncrypted: isEncrypted === true || isEncrypted === 'true',
-    });
-
-    // Invalidate conversation cache (new message added)
-    const conversationCacheKey = cacheService.generateKey('conversation', conversationId, userId);
-    const conversationsListCacheKey = cacheService.generateKey('conversations_list', userId);
-    await Promise.all([
-      cacheService.set(conversationCacheKey, null, { ttl: 0 }),
-      cacheService.set(conversationsListCacheKey, null, { ttl: 0 })
-    ]);
-
-    // Include conversation ID in response for frontend to track
-    res.json({
-      ...result,
-      conversationId,
-    });
-  } catch (error: any) {
-    console.error('Error sending message:', error);
-    res.status(500).json({ error: error.message });
-  }
+  });
 };
 
 /**

@@ -6,6 +6,8 @@
  *
  * This service intercepts queries before they reach the RAG pipeline
  * to provide instant responses for navigation and help requests.
+ *
+ * UPDATED: Now uses AnswerBlock system with DocumentListItem for proper folder paths
  */
 
 import {
@@ -19,6 +21,11 @@ import {
   type FileSearchResult,
   type FolderInfo,
 } from './fileNavigationEngine.service';
+
+import {
+  getDocumentsWithPath,
+  type DocumentWithPath,
+} from './folderPath.service';
 
 import {
   isHelpQuery,
@@ -38,9 +45,22 @@ import {
 
 import { detectLanguageSimple } from './languageEngine.service';
 
+import {
+  formatDocumentListingMarkdown,
+  type SupportedLanguage,
+} from './kodaMarkdownEngine.service';
+
+import type { DocumentListItem, AnswerBlock, StructuredAnswer } from '../types/rag.types';
+
 export interface NavigationResult {
   handled: boolean;
   response?: string;
+  /** Structured answer blocks for document listings with full paths */
+  structuredAnswer?: StructuredAnswer;
+  /** Document list for frontend to create name→ID map */
+  documentList?: DocumentListItem[];
+  /** Total count for "See all X" link */
+  totalCount?: number;
   intentType?: 'file_search' | 'folder_search' | 'file_list' | 'recent_files' | 'app_help' | 'not_handled';
   confidence?: number;
   language?: string;
@@ -65,6 +85,46 @@ function detectLanguage(query: string): string {
   // Map SupportedLanguage to legacy format
   if (detected === 'pt-BR') return 'pt';
   return detected;
+}
+
+/**
+ * Convert FileSearchResult to DocumentListItem for structured answers
+ */
+function fileSearchResultToDocListItem(file: FileSearchResult): DocumentListItem {
+  // Format path string from raw folderPath
+  let pathString = 'Root';
+  if (file.folderPath && file.folderPath !== '/') {
+    pathString = file.folderPath
+      .replace(/^\//, '')       // Remove leading slash
+      .replace(/\//g, ' / ');   // Replace / with " / "
+  }
+
+  return {
+    id: file.id,
+    filename: file.filename,
+    mimeType: file.mimeType,
+    fileSize: null,  // FileSearchResult doesn't have file size
+    createdAt: file.createdAt,
+    folderPath: {
+      pathString,
+      folderId: file.folderId,
+      folderName: null,  // Not available from FileSearchResult
+    },
+  };
+}
+
+/**
+ * Convert DocumentWithPath to DocumentListItem
+ */
+function docWithPathToDocListItem(doc: DocumentWithPath): DocumentListItem {
+  return {
+    id: doc.id,
+    filename: doc.filename,
+    mimeType: doc.mimeType,
+    fileSize: doc.fileSize,
+    createdAt: doc.createdAt,
+    folderPath: doc.folderPath,
+  };
 }
 
 /**
@@ -173,6 +233,7 @@ function detectFileNavigationIntent(query: string): {
 
 /**
  * Handle file search query
+ * UPDATED: Uses AnswerBlock system with full folder paths
  */
 async function handleFileSearch(
   userId: string,
@@ -180,8 +241,9 @@ async function handleFileSearch(
   language: string
 ): Promise<NavigationResult> {
   const isPortuguese = language === 'pt';
+  const lang: SupportedLanguage = isPortuguese ? 'pt' : 'en';
 
-  const files = await searchFilesByNameOrContent(userId, searchTerm, { limit: 5 });
+  const files = await searchFilesByNameOrContent(userId, searchTerm, { limit: 10 });
 
   if (files.length === 0) {
     return {
@@ -193,41 +255,44 @@ async function handleFileSearch(
         ? `Não encontrei nenhum arquivo chamado "${searchTerm}". Tente verificar o nome ou use termos diferentes.`
         : `I couldn't find any file named "${searchTerm}". Try checking the name or using different terms.`,
       files: [],
+      documentList: [],
     };
   }
 
-  if (files.length === 1) {
-    const file = files[0];
-    const docMarker = `{{DOC:::${file.id}:::${file.filename}:::${file.folderPath}:::open}}`;
+  // Convert to DocumentListItem format with full paths
+  const documentList: DocumentListItem[] = files.map(fileSearchResultToDocListItem);
 
-    return {
-      handled: true,
-      intentType: 'file_search',
-      confidence: 0.95,
-      language,
-      response: isPortuguese
-        ? `Encontrei o arquivo **${file.filename}**:\n\n${docMarker}`
-        : `I found the file **${file.filename}**:\n\n${docMarker}`,
-      files,
-    };
-  }
+  // Generate markdown using the new formatter
+  const headerText = isPortuguese
+    ? (files.length === 1
+        ? `Encontrei o arquivo:`
+        : `Encontrei ${files.length} arquivos relacionados a "${searchTerm}":`)
+    : (files.length === 1
+        ? `I found the file:`
+        : `I found ${files.length} files related to "${searchTerm}":`);
 
-  // Multiple results
-  let response = isPortuguese
-    ? `Encontrei ${files.length} arquivos relacionados a "${searchTerm}":\n\n`
-    : `I found ${files.length} files related to "${searchTerm}":\n\n`;
+  const response = formatDocumentListingMarkdown(documentList, {
+    language: lang,
+    headerText,
+  });
 
-  for (const file of files) {
-    const docMarker = `{{DOC:::${file.id}:::${file.filename}:::${file.folderPath}:::open}}`;
-    response += `- ${docMarker}\n`;
-  }
+  // Build structured answer
+  const structuredAnswer: StructuredAnswer = [
+    {
+      type: 'document_list',
+      docs: documentList,
+      headerText,
+    },
+  ];
 
   return {
     handled: true,
     intentType: 'file_search',
-    confidence: 0.9,
+    confidence: files.length === 1 && files[0].matchType === 'exact' ? 0.95 : 0.9,
     language,
     response,
+    structuredAnswer,
+    documentList,
     files,
   };
 }
@@ -272,6 +337,7 @@ async function handleFolderSearch(
 
 /**
  * Handle list files in folder query
+ * UPDATED: Uses AnswerBlock system with full folder paths
  */
 async function handleListFiles(
   userId: string,
@@ -279,8 +345,9 @@ async function handleListFiles(
   language: string
 ): Promise<NavigationResult> {
   const isPortuguese = language === 'pt';
+  const lang: SupportedLanguage = isPortuguese ? 'pt' : 'en';
 
-  const files = await listFilesInFolderPath(userId, folderPath, { limit: 20 });
+  const files = await listFilesInFolderPath(userId, folderPath, { limit: 50 });
 
   if (files.length === 0) {
     return {
@@ -292,23 +359,39 @@ async function handleListFiles(
         ? `Não há arquivos nesta pasta.`
         : `There are no files in this folder.`,
       files: [],
+      documentList: [],
     };
   }
 
-  let response = isPortuguese
-    ? `Arquivos em **${folderPath || '/'}** (${files.length}):\n\n`
-    : `Files in **${folderPath || '/'}** (${files.length}):\n\n`;
+  // Convert to DocumentListItem format with full paths
+  const allDocuments: DocumentListItem[] = files.map(fileSearchResultToDocListItem);
 
-  for (const file of files.slice(0, 15)) {
-    const docMarker = `{{DOC:::${file.id}:::${file.filename}:::${file.folderPath}:::open}}`;
-    response += `- ${docMarker}\n`;
-  }
+  // Show first 15, indicate more available
+  const displayedDocs = allDocuments.slice(0, 15);
+  const totalCount = files.length;
 
-  if (files.length > 15) {
-    response += isPortuguese
-      ? `\n...e mais ${files.length - 15} arquivos`
-      : `\n...and ${files.length - 15} more files`;
-  }
+  // Generate header
+  const folderDisplay = folderPath === '/' ? 'Root' : folderPath.replace(/^\//, '').replace(/\//g, ' / ');
+  const headerText = isPortuguese
+    ? `Arquivos em **${folderDisplay}** (${totalCount}):`
+    : `Files in **${folderDisplay}** (${totalCount}):`;
+
+  // Generate markdown with proper format
+  const response = formatDocumentListingMarkdown(displayedDocs, {
+    language: lang,
+    headerText,
+    showTotalCount: totalCount > 15 ? totalCount : undefined,
+  });
+
+  // Build structured answer
+  const structuredAnswer: StructuredAnswer = [
+    {
+      type: 'document_list',
+      docs: displayedDocs,
+      totalCount: totalCount > 15 ? totalCount : undefined,
+      headerText,
+    },
+  ];
 
   return {
     handled: true,
@@ -316,20 +399,25 @@ async function handleListFiles(
     confidence: 0.95,
     language,
     response,
+    structuredAnswer,
+    documentList: displayedDocs,
+    totalCount,
     files,
   };
 }
 
 /**
  * Handle recent files query
+ * UPDATED: Uses AnswerBlock system with full folder paths
  */
 async function handleRecentFiles(
   userId: string,
   language: string
 ): Promise<NavigationResult> {
   const isPortuguese = language === 'pt';
+  const lang: SupportedLanguage = isPortuguese ? 'pt' : 'en';
 
-  const files = await getRecentFiles(userId, { limit: 10, days: 7 });
+  const files = await getRecentFiles(userId, { limit: 15, days: 7 });
 
   if (files.length === 0) {
     return {
@@ -341,18 +429,32 @@ async function handleRecentFiles(
         ? `Você não enviou nenhum arquivo nos últimos 7 dias.`
         : `You haven't uploaded any files in the last 7 days.`,
       files: [],
+      documentList: [],
     };
   }
 
-  let response = isPortuguese
-    ? `Seus arquivos recentes (últimos 7 dias):\n\n`
-    : `Your recent files (last 7 days):\n\n`;
+  // Convert to DocumentListItem format with full paths
+  const documentList: DocumentListItem[] = files.map(fileSearchResultToDocListItem);
 
-  for (const file of files) {
-    const docMarker = `{{DOC:::${file.id}:::${file.filename}:::${file.folderPath}:::open}}`;
-    const date = file.updatedAt.toLocaleDateString(isPortuguese ? 'pt-BR' : 'en-US');
-    response += `- ${docMarker} (${date})\n`;
-  }
+  // Generate header
+  const headerText = isPortuguese
+    ? `Seus arquivos recentes (últimos 7 dias):`
+    : `Your recent files (last 7 days):`;
+
+  // Generate markdown with proper format
+  const response = formatDocumentListingMarkdown(documentList, {
+    language: lang,
+    headerText,
+  });
+
+  // Build structured answer
+  const structuredAnswer: StructuredAnswer = [
+    {
+      type: 'document_list',
+      docs: documentList,
+      headerText,
+    },
+  ];
 
   return {
     handled: true,
@@ -360,6 +462,8 @@ async function handleRecentFiles(
     confidence: 0.95,
     language,
     response,
+    structuredAnswer,
+    documentList,
     files,
   };
 }

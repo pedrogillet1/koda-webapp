@@ -55,7 +55,12 @@ import {
   parseLoadMoreMarkers,
   parseSeeAllMarkers,
   hasSimpleMarkers,
-  stripSimpleMarkers
+  stripSimpleMarkers,
+  // NEW: Document listing format (from kodaMarkdownEngine)
+  hasDocumentListingFormat,
+  parseDocumentListingFormat,
+  parseLoadMoreComment,
+  stripLoadMoreComment
 } from '../utils/inlineDocumentParser';
 
 // Module-level variable to prevent duplicate socket initialization across all instances
@@ -313,48 +318,31 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
         result = result.replace(/^(\d+)\.\s*[\n\r]+\s*(\*\*)/gm, '$1. $2'); // Bold **text**
         result = result.replace(/^(\d+)\.\s*[\n\r]+\s*([A-Za-z\"\'\(])/gm, '$1. $2'); // Plain text
 
+        // NOTE: #doc-* links are NO LONGER USED
+        // Document names are matched by **bold text** in StreamingMarkdown component
+
         return result.trim();
     };
 
-    // Custom link component for document navigation
+    // Custom link component - all links are now external only
+    // Document names are matched via bold text, not links
     const DocumentLink = ({ href, children }) => {
-        // Check if this is a document link (starts with #doc-)
-        if (href && href.startsWith('#doc-')) {
-            const documentId = href.replace('#doc-', '');
-
-            return (
-                <a
-                    href="#"
-                    onClick={(e) => {
-                        e.preventDefault();
-                        console.log('[DocumentLink] Opening preview for document:', documentId);
-                        // Open preview modal instead of navigating
-                        setPreviewDocument({
-                            id: documentId,
-                            documentId: documentId,
-                        });
-                    }}
-                    style={{
-                        color: '#1a1a1a',
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                        borderBottom: 'none'
-                    }}
-                    onMouseEnter={(e) => {
-                        e.target.style.color = '#000000'; // ✅ BLACK on hover
-                    }}
-                    onMouseLeave={(e) => {
-                        e.target.style.color = '#1a1a1a'; // ✅ BLACK
-                    }}
-                >
-                    {children}
-                </a>
-            );
-        }
-
-        // Regular link
-        return <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>;
+        // All links are external - document names use bold text matching
+        return (
+            <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                    color: '#303030',
+                    textDecoration: 'underline',
+                    cursor: 'pointer',
+                    fontWeight: 600
+                }}
+            >
+                {children}
+            </a>
+        );
     };
 
     // Scroll to bottom function
@@ -2780,7 +2768,120 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                         img: ({node, ...props}) => <img className="markdown-image" {...props} alt={props.alt || ''} />,
                                                                     };
 
-                                                                    // Check if content has any inline markers (documents, folders, loadmore)
+                                                                    // ═══════════════════════════════════════════════════════════════
+                                                                    // NEW: Handle document listing format from kodaMarkdownEngine
+                                                                    // Format: "1. **DocName.pdf**    Pasta: Folder / Subfolder"
+                                                                    // ═══════════════════════════════════════════════════════════════
+                                                                    if (hasDocumentListingFormat(content)) {
+                                                                        // Parse the document listing
+                                                                        const { documents: parsedDocs, loadMoreCount } = parseDocumentListingFormat(content);
+
+                                                                        // Build document map: name → item (for opening preview)
+                                                                        // Note: Backend also sends documentList in response metadata
+                                                                        // that contains IDs. For now, we'll look up from msg metadata.
+                                                                        const getDocId = (docName) => {
+                                                                            // Try to find ID from message's documentList metadata
+                                                                            if (msg.documentList) {
+                                                                                const found = msg.documentList.find(d =>
+                                                                                    d.filename === docName || d.documentName === docName
+                                                                                );
+                                                                                if (found) return found.id || found.documentId;
+                                                                            }
+                                                                            // Fallback: generate a pseudo-ID for lookup
+                                                                            return null;
+                                                                        };
+
+                                                                        // Extract header text (lines before the numbered list)
+                                                                        const lines = content.split('\n');
+                                                                        const headerLines = [];
+                                                                        let listStarted = false;
+                                                                        for (const line of lines) {
+                                                                            if (/^\d+\.\s+\*\*/.test(line)) {
+                                                                                listStarted = true;
+                                                                                break;
+                                                                            }
+                                                                            if (line.trim() && !line.includes('<!-- LOAD_MORE:')) {
+                                                                                headerLines.push(line);
+                                                                            }
+                                                                        }
+                                                                        const headerText = headerLines.join('\n');
+
+                                                                        return (
+                                                                            <div className="document-listing-answer">
+                                                                                {/* Header text (e.g., "Encontrei 5 arquivos:") */}
+                                                                                {headerText && (
+                                                                                    <ReactMarkdown
+                                                                                        remarkPlugins={[remarkGfm]}
+                                                                                        rehypePlugins={[rehypeRaw]}
+                                                                                        components={markdownComponents}
+                                                                                    >
+                                                                                        {headerText}
+                                                                                    </ReactMarkdown>
+                                                                                )}
+
+                                                                                {/* Document list */}
+                                                                                <ol style={{
+                                                                                    margin: '8px 0',
+                                                                                    paddingLeft: '20px',
+                                                                                    listStyleType: 'decimal'
+                                                                                }}>
+                                                                                    {parsedDocs.map((doc, idx) => {
+                                                                                        const docId = getDocId(doc.documentName);
+                                                                                        return (
+                                                                                            <li key={`doclist-${idx}`} style={{ marginBottom: '4px' }}>
+                                                                                                <span
+                                                                                                    onClick={() => {
+                                                                                                        if (docId) {
+                                                                                                            console.log('[DOC LIST] Opening preview:', doc);
+                                                                                                            setPreviewDocument({
+                                                                                                                id: docId,
+                                                                                                                documentId: docId,
+                                                                                                                filename: doc.documentName,
+                                                                                                            });
+                                                                                                        } else {
+                                                                                                            console.log('[DOC LIST] No ID found for:', doc.documentName);
+                                                                                                        }
+                                                                                                    }}
+                                                                                                    style={{
+                                                                                                        color: '#303030',
+                                                                                                        textDecoration: 'none',
+                                                                                                        cursor: docId ? 'pointer' : 'default',
+                                                                                                        fontWeight: 600
+                                                                                                    }}
+                                                                                                >
+                                                                                                    {doc.documentName}
+                                                                                                </span>
+                                                                                                <span style={{ color: '#555', fontSize: '0.9em' }}>
+                                                                                                    &nbsp;&nbsp;&nbsp;&nbsp;Pasta: {doc.folderPath}
+                                                                                                </span>
+                                                                                            </li>
+                                                                                        );
+                                                                                    })}
+                                                                                </ol>
+
+                                                                                {/* "See all X" link - aligned with list item text (after numbers) */}
+                                                                                {loadMoreCount && loadMoreCount > parsedDocs.length && (
+                                                                                    <div
+                                                                                        onClick={() => navigate('/documents')}
+                                                                                        style={{
+                                                                                            marginLeft: '40px',  // 20px (ol padding) + ~20px (number width) = aligns with text after "1."
+                                                                                            marginTop: '4px',
+                                                                                            color: '#303030',
+                                                                                            fontWeight: 600,
+                                                                                            cursor: 'pointer',
+                                                                                            fontSize: 'inherit',
+                                                                                        }}
+                                                                                    >
+                                                                                        See all {loadMoreCount}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    }
+
+                                                                    // ═══════════════════════════════════════════════════════════════
+                                                                    // LEGACY: Check if content has any inline markers (documents, folders, loadmore)
+                                                                    // ═══════════════════════════════════════════════════════════════
                                                                     if (hasMarkers(content)) {
                                                                         // Split content into segments (text, document, folder, loadmore)
                                                                         const segments = splitContentWithMarkers(content);
@@ -2799,12 +2900,76 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                             // Could fetch additional files from backend
                                                                         };
 
-                                                                        return (
-                                                                            <>
-                                                                                {/* Render all segments in order */}
-                                                                                {segments.map((segment, idx) => {
+                                                                        // Group consecutive document segments to render as a list
+                                                                        const renderSegments = () => {
+                                                                            const elements = [];
+                                                                            let docBuffer = [];
+                                                                            let docStartIdx = -1;
+
+                                                                            const flushDocBuffer = () => {
+                                                                                if (docBuffer.length > 0) {
+                                                                                    // Render document group as numbered list
+                                                                                    elements.push(
+                                                                                        <ol key={`doc-list-${docStartIdx}`} style={{
+                                                                                            margin: '8px 0',
+                                                                                            paddingLeft: '20px',
+                                                                                            listStyleType: 'decimal'
+                                                                                        }}>
+                                                                                            {docBuffer.map((doc, i) => {
+                                                                                                const docName = doc.documentName || doc.filename || 'Document';
+                                                                                                const docId = doc.documentId || doc.id;
+                                                                                                // Format folder path: "folder/subfolder" → "Pasta: folder / subfolder"
+                                                                                                const formatFolderPath = (path) => {
+                                                                                                    if (!path || path === '/' || path === '') return null;
+                                                                                                    // Replace / with " / " for readability
+                                                                                                    const cleanPath = path.replace(/^\//, '').replace(/\//g, ' / ');
+                                                                                                    return `Pasta: ${cleanPath}`;
+                                                                                                };
+                                                                                                const folderDisplay = formatFolderPath(doc.folderPath);
+                                                                                                return (
+                                                                                                    <li key={`doc-item-${docStartIdx}-${i}`} style={{ marginBottom: '4px' }}>
+                                                                                                        <span
+                                                                                                            onClick={() => {
+                                                                                                                console.log('[DOC LINK] Opening preview:', doc);
+                                                                                                                setPreviewDocument({
+                                                                                                                    id: docId,
+                                                                                                                    documentId: docId,
+                                                                                                                    filename: docName,
+                                                                                                                    mimeType: doc.mimeType
+                                                                                                                });
+                                                                                                            }}
+                                                                                                            style={{
+                                                                                                                color: '#303030',
+                                                                                                                textDecoration: 'none',
+                                                                                                                cursor: 'pointer',
+                                                                                                                fontWeight: 600
+                                                                                                            }}
+                                                                                                        >
+                                                                                                            {docName}
+                                                                                                        </span>
+                                                                                                        {folderDisplay && (
+                                                                                                            <span style={{ color: '#555', fontSize: '0.9em' }}>
+                                                                                                                &nbsp;&nbsp;&nbsp;&nbsp;({folderDisplay})
+                                                                                                            </span>
+                                                                                                        )}
+                                                                                                    </li>
+                                                                                                );
+                                                                                            })}
+                                                                                        </ol>
+                                                                                    );
+                                                                                    docBuffer = [];
+                                                                                    docStartIdx = -1;
+                                                                                }
+                                                                            };
+
+                                                                            segments.forEach((segment, idx) => {
+                                                                                if (segment.type === 'document') {
+                                                                                    if (docStartIdx === -1) docStartIdx = idx;
+                                                                                    docBuffer.push(segment.content);
+                                                                                } else {
+                                                                                    flushDocBuffer();
                                                                                     if (segment.type === 'text') {
-                                                                                        return (
+                                                                                        elements.push(
                                                                                             <ReactMarkdown
                                                                                                 key={`text-${idx}`}
                                                                                                 remarkPlugins={[remarkGfm]}
@@ -2814,20 +2979,8 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                                 {segment.content}
                                                                                             </ReactMarkdown>
                                                                                         );
-                                                                                    } else if (segment.type === 'document') {
-                                                                                        return (
-                                                                                            <InlineDocumentButton
-                                                                                                key={`doc-${idx}`}
-                                                                                                document={segment.content}
-                                                                                                variant="inline"
-                                                                                                onClick={(doc) => {
-                                                                                                    console.log('[INLINE DOC] Opening preview:', doc);
-                                                                                                    setPreviewDocument(doc);
-                                                                                                }}
-                                                                                            />
-                                                                                        );
                                                                                     } else if (segment.type === 'folder') {
-                                                                                        return (
+                                                                                        elements.push(
                                                                                             <InlineFolderButton
                                                                                                 key={`folder-${idx}`}
                                                                                                 folder={segment.content}
@@ -2836,16 +2989,17 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                             />
                                                                                         );
                                                                                     } else if (segment.type === 'loadmore') {
-                                                                                        return (
+                                                                                        elements.push(
                                                                                             <LoadMoreButton
                                                                                                 key={`loadmore-${idx}`}
                                                                                                 loadMoreData={segment.content}
                                                                                                 onClick={handleLoadMoreClick}
+                                                                                                style={{ marginLeft: '40px' }}
                                                                                             />
                                                                                         );
                                                                                     } else if (segment.type === 'seeall') {
                                                                                         // "See All" link - navigates to /files screen
-                                                                                        return (
+                                                                                        elements.push(
                                                                                             <button
                                                                                                 key={`seeall-${idx}`}
                                                                                                 onClick={() => navigate('/files')}
@@ -2866,10 +3020,14 @@ const ChatInterface = ({ currentConversation, onConversationUpdate, onConversati
                                                                                             </button>
                                                                                         );
                                                                                     }
-                                                                                    return null;
-                                                                                })}
-                                                                            </>
-                                                                        );
+                                                                                }
+                                                                            });
+                                                                            // Flush any remaining documents
+                                                                            flushDocBuffer();
+                                                                            return elements;
+                                                                        };
+
+                                                                        return <>{renderSegments()}</>;
                                                                     }
 
                                                                     // No inline documents - strip any markers and render as before

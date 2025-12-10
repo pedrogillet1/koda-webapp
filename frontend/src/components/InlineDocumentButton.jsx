@@ -99,7 +99,7 @@ const InlineDocumentButton = ({ document, onClick, variant = 'listing', style = 
   const textStyles = {
     fontSize: isInline ? '13px' : '15px',
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: '#303030',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',

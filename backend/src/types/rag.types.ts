@@ -218,3 +218,96 @@ export interface EnhancedSearchOptions {
   documentIds?: string[]; // For conversation context
   minSimilarity?: number;
 }
+
+// ==========================================
+// ANSWER BLOCK TYPES - Structured Answer Output
+// ==========================================
+
+/**
+ * DocumentWithPath - Used for document listings with full folder paths
+ * Only used when explicitly listing documents (not inline mentions)
+ */
+export interface DocumentListItem {
+  id: string;
+  filename: string;
+  mimeType: string | null;
+  fileSize: number | null;
+  createdAt?: Date;
+  folderPath: {
+    pathString: string;  // Human-readable: "Work / Projects / 2024"
+    folderId: string | null;
+    folderName: string | null;
+  };
+}
+
+/**
+ * AnswerBlock - Discriminated union for structured answer content
+ *
+ * USE CASES:
+ * - type: 'text' → Standard RAG answer with markdown (inline mentions use bold names)
+ * - type: 'document_list' → Explicit file listing (shows full folder paths)
+ *
+ * IMPORTANT:
+ * - document_list blocks render with full path: "Pasta: Folder / Subfolder"
+ * - text blocks render inline mentions as **bold** (no paths)
+ */
+export type AnswerBlock =
+  | {
+      type: 'text';
+      markdown: string;
+    }
+  | {
+      type: 'document_list';
+      docs: DocumentListItem[];
+      totalCount?: number;  // For "See all X" link
+      headerText?: string;  // Optional custom header, e.g., "Encontrei 5 arquivos:"
+    };
+
+/**
+ * StructuredAnswer - Array of answer blocks
+ * Allows mixing document lists with explanatory text
+ *
+ * Example:
+ * [
+ *   { type: 'text', markdown: 'Encontrei os seguintes arquivos na pasta Finance:' },
+ *   { type: 'document_list', docs: [...], totalCount: 15 },
+ *   { type: 'text', markdown: 'Posso ajudar com mais alguma coisa?' }
+ * ]
+ */
+export type StructuredAnswer = AnswerBlock[];
+
+/**
+ * Check if an answer block is a document list
+ */
+export function isDocumentListBlock(block: AnswerBlock): block is Extract<AnswerBlock, { type: 'document_list' }> {
+  return block.type === 'document_list';
+}
+
+/**
+ * Check if an answer block is text
+ */
+export function isTextBlock(block: AnswerBlock): block is Extract<AnswerBlock, { type: 'text' }> {
+  return block.type === 'text';
+}
+
+/**
+ * Create a text answer block
+ */
+export function createTextBlock(markdown: string): AnswerBlock {
+  return { type: 'text', markdown };
+}
+
+/**
+ * Create a document list answer block
+ */
+export function createDocumentListBlock(
+  docs: DocumentListItem[],
+  options?: { totalCount?: number; headerText?: string }
+): AnswerBlock {
+  return {
+    type: 'document_list',
+    docs,
+    totalCount: options?.totalCount,
+    headerText: options?.headerText,
+  };
+}

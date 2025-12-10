@@ -1551,7 +1551,7 @@ async function processDocumentWithTimeout(
     // This allows frontend to update document status in state
     const completedDocument = await prisma.document.findUnique({
       where: { id: documentId },
-      include: { folder: { select: { id: true, name: true, emoji: true } } }
+      include: { folder: { select: { id: true, name: true, path: true, emoji: true } } }
     });
     if (completedDocument) {
       emitToUser(userId, 'processing-complete', completedDocument);

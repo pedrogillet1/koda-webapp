@@ -10,7 +10,7 @@ import crypto from 'crypto';
 class CacheService {
   private cache: NodeCache;
   private readonly DEFAULT_TTL = 300; // 5 minutes
-  private readonly EMBEDDING_TTL = 3600; // 1 hour (reduced from 7 days for memory)
+  private readonly EMBEDDING_TTL = 1800; // 30 minutes (optimized per proposed architecture)
   private readonly SEARCH_TTL = 300; // 5 minutes
   private readonly ANSWER_TTL = 300; // 5 minutes
   private readonly DOCUMENT_LIST_TTL = 60; // 1 minute

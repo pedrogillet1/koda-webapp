@@ -689,12 +689,13 @@ export function formatFileListingResponse(
   header += ':';
 
   // Convert documents to InlineDocument format
+  // Use folder.path (full hierarchy) instead of folder.name (just folder name)
   const inlineDocs: InlineDocument[] = documents.map(doc => ({
     documentId: doc.id,
     filename: doc.filename,
     mimeType: doc.mimeType || 'application/octet-stream',
     fileSize: includeMetadata ? doc.fileSize : undefined,
-    folderPath: includeMetadata ? (doc.folder?.name || doc.folderPath) : undefined
+    folderPath: includeMetadata ? (doc.folder?.path || doc.folderPath || doc.folder?.name) : undefined
   }));
 
   // Inject inline documents

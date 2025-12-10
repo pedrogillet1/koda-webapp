@@ -14,7 +14,97 @@
  * - [[DOC:documentId:documentName]] - Document link (from RAG answers)
  * - [[FOLDER:folderId:folderName]] - Folder link
  * - [[SEE_ALL:linkText]] - "See all" navigation link
+ *
+ * NEW DOCUMENT LISTING FORMAT (from kodaMarkdownEngine):
+ * - Numbered list with **bold** document names and "Pasta:" folder path
+ * - Format: "1. **DocumentName.pdf**    Pasta: Folder / Subfolder"
+ * - Also handles: "<!-- LOAD_MORE:totalCount -->" for "See all X" link
  */
+
+/**
+ * ============================================================================
+ * DOCUMENT LISTING FORMAT (from kodaMarkdownEngine.formatDocumentListingMarkdown)
+ * ============================================================================
+ *
+ * Format: "1. **DocumentName.pdf**    Pasta: Folder / Subfolder"
+ * - Bold document names are clickable
+ * - Folder path shown after "Pasta:" or "Folder:"
+ * - LOAD_MORE comment: "<!-- LOAD_MORE:totalCount -->" for "See all X"
+ */
+
+/**
+ * Check if content contains document listing format (numbered list with bold names + Pasta:)
+ */
+export const hasDocumentListingFormat = (content) => {
+  if (!content || typeof content !== 'string') return false;
+  // Match: "1. **SomeName**" followed by "Pasta:" or "Folder:"
+  return /^\d+\.\s+\*\*[^*]+\*\*.*(?:Pasta|Folder):/m.test(content);
+};
+
+/**
+ * Parse document listing format
+ * Returns array of { documentName, folderPath, lineNumber }
+ *
+ * Input format (from backend):
+ * "1. **Report.pdf**    Pasta: Finance / Reports"
+ * "2. **Contract.docx**    Pasta: Legal"
+ */
+export const parseDocumentListingFormat = (content) => {
+  if (!content || typeof content !== 'string') return { documents: [], loadMoreCount: null };
+
+  const documents = [];
+  let loadMoreCount = null;
+
+  // Parse each line
+  const lines = content.split('\n');
+
+  for (const line of lines) {
+    // Match document listing line: "1. **Name**    Pasta: Path"
+    // Also handles: "1. **Name** (metadata)    Pasta: Path"
+    const docMatch = line.match(/^\d+\.\s+\*\*([^*]+)\*\*(?:\s*\([^)]*\))?\s+(?:Pasta|Folder):\s*(.*)$/);
+    if (docMatch) {
+      const [, documentName, folderPath] = docMatch;
+      documents.push({
+        documentName: documentName.trim(),
+        folderPath: folderPath.trim() || 'Root',
+        fullLine: line
+      });
+    }
+
+    // Match LOAD_MORE comment: "<!-- LOAD_MORE:25 -->"
+    const loadMoreMatch = line.match(/<!--\s*LOAD_MORE:(\d+)\s*-->/);
+    if (loadMoreMatch) {
+      loadMoreCount = parseInt(loadMoreMatch[1], 10);
+    }
+  }
+
+  return { documents, loadMoreCount };
+};
+
+/**
+ * Check if content has LOAD_MORE marker
+ */
+export const hasLoadMoreComment = (content) => {
+  if (!content || typeof content !== 'string') return false;
+  return /<!--\s*LOAD_MORE:\d+\s*-->/.test(content);
+};
+
+/**
+ * Parse LOAD_MORE comment and return the total count
+ */
+export const parseLoadMoreComment = (content) => {
+  if (!content || typeof content !== 'string') return null;
+  const match = content.match(/<!--\s*LOAD_MORE:(\d+)\s*-->/);
+  return match ? parseInt(match[1], 10) : null;
+};
+
+/**
+ * Strip LOAD_MORE comment from content
+ */
+export const stripLoadMoreComment = (content) => {
+  if (!content || typeof content !== 'string') return content;
+  return content.replace(/<!--\s*LOAD_MORE:\d+\s*-->/g, '').trim();
+};
 
 /**
  * ============================================================================
@@ -119,6 +209,49 @@ export const stripSimpleMarkers = (content) => {
  */
 
 /**
+ * Clean up filename - fix encoding issues and duplicates
+ */
+const cleanFilename = (raw) => {
+  if (!raw) return 'Document';
+
+  let cleaned = raw;
+
+  // Fix common UTF-8 encoding issues (double-encoded Portuguese characters)
+  const encodingFixes = {
+    'Ã¡': 'á', 'Ã ': 'à', 'Ã£': 'ã', 'Ã¢': 'â',
+    'Ã©': 'é', 'Ã¨': 'è', 'Ãª': 'ê',
+    'Ã­': 'í', 'Ã¬': 'ì',
+    'Ã³': 'ó', 'Ã²': 'ò', 'Ãµ': 'õ', 'Ã´': 'ô',
+    'Ãº': 'ú', 'Ã¹': 'ù',
+    'Ã§': 'ç',
+    'Ã': 'Á', 'Ã€': 'À', 'Ãƒ': 'Ã', 'Ã‚': 'Â',
+    'Ã‰': 'É', 'Ãˆ': 'È', 'ÃŠ': 'Ê',
+    'ÃŒ': 'Ì', 'Ãš': 'Ú', 'Ã™': 'Ù', 'Ã‡': 'Ç',
+    'CapiÌ': 'Capí', // Common issue with "Capítulo"
+    'iÌ': 'í',
+    'aÌ': 'á',
+    'eÌ': 'é',
+    'oÌ': 'ó',
+    'uÌ': 'ú',
+  };
+
+  for (const [wrong, correct] of Object.entries(encodingFixes)) {
+    cleaned = cleaned.split(wrong).join(correct);
+  }
+
+  // Remove duplicate extensions (e.g., ".pdf.pdf" → ".pdf")
+  cleaned = cleaned.replace(/(\.pdf)+$/i, '.pdf');
+  cleaned = cleaned.replace(/(\.docx)+$/i, '.docx');
+  cleaned = cleaned.replace(/(\.xlsx)+$/i, '.xlsx');
+  cleaned = cleaned.replace(/(\.pptx)+$/i, '.pptx');
+  cleaned = cleaned.replace(/(\.png)+$/i, '.png');
+  cleaned = cleaned.replace(/(\.jpg)+$/i, '.jpg');
+  cleaned = cleaned.replace(/(\.jpeg)+$/i, '.jpeg');
+
+  return cleaned.trim();
+};
+
+/**
  * Check if content contains inline document markers (legacy format)
  */
 export const hasInlineDocuments = (content) => {
@@ -143,7 +276,8 @@ export const parseInlineDocuments = (content) => {
     const fields = innerContent.split(':::');
 
     const documentId = fields[0] || '';
-    const filename = fields[1] ? decodeURIComponent(fields[1]) : 'Document';
+    const rawFilename = fields[1] ? decodeURIComponent(fields[1]) : 'Document';
+    const filename = cleanFilename(rawFilename);  // ✅ Clean up filename
     const mimeType = fields[2] || 'application/octet-stream';
     const sizeStr = fields[3] || '';
     const folderPath = fields[4] ? decodeURIComponent(fields[4]) : '';
@@ -154,6 +288,7 @@ export const parseInlineDocuments = (content) => {
     documents.push({
       documentId,
       filename,
+      documentName: filename,  // ✅ Add documentName for consistency
       mimeType,
       size,
       fileSize: size,
@@ -594,6 +729,13 @@ export const formatFileSize = (bytes) => {
  */
 
 export default {
+  // Document listing format (NEW - from kodaMarkdownEngine)
+  hasDocumentListingFormat,
+  parseDocumentListingFormat,
+  hasLoadMoreComment,
+  parseLoadMoreComment,
+  stripLoadMoreComment,
+
   // Simple markers (NEW - [[DOC:]], [[FOLDER:]], [[SEE_ALL:]])
   hasSimpleMarkers,
   parseSimpleDocMarkers,

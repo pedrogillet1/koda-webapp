@@ -242,17 +242,19 @@
    8. LINKS
    ============================================ */
 
-.markdown-link {
-  color: #1a1a1a !important; /* ✅ BLACK - no blue */
-  text-decoration: none !important;
+.markdown-link,
+.markdown-preview-container a {
+  color: #303030 !important;
+  text-decoration: underline !important;
   border-bottom: none !important;
   transition: all 0.2s ease !important;
   font-weight: 600 !important;
 }
 
-.markdown-link:hover {
-  color: #000000 !important; /* ✅ BLACK on hover */
-  text-decoration: none !important; /* ✅ NO underline */
+.markdown-link:hover,
+.markdown-preview-container a:hover {
+  color: #303030 !important;
+  text-decoration: underline !important;
 }
 
 /* ============================================
@@ -497,15 +499,15 @@
 
 .clickable-document-name {
   font-weight: 600 !important;
-  color: #1a1a1a !important; /* ✅ BLACK */
+  color: #303030 !important;
   cursor: pointer !important;
   transition: all 0.2s ease !important;
-  text-decoration: none !important;
+  text-decoration: underline !important;
 }
 
 .clickable-document-name:hover {
-  color: #000000 !important; /* ✅ BLACK on hover */
-  text-decoration: none !important; /* ✅ NO underline */
+  color: #303030 !important;
+  text-decoration: underline !important;
 }
 
 /* Document name in chat messages */
@@ -518,13 +520,42 @@
 /* Ensure clickable document names work within markdown */
 .markdown-preview-container .clickable-document-name {
   font-weight: 600 !important;
-  color: #1a1a1a !important;
+  color: #303030 !important;
   cursor: pointer !important;
+  text-decoration: underline !important;
 }
 
 .markdown-preview-container .clickable-document-name:hover {
-  text-decoration: none !important; /* ✅ NO underline */
-  color: #000000 !important;
+  text-decoration: underline !important;
+  color: #303030 !important;
+}
+
+/* ============================================
+   GLOBAL DOCUMENT LINK COLOR OVERRIDE
+   ============================================ */
+
+/* Ensure ALL links in markdown have #303030 color WITH underline */
+.markdown-preview-container a,
+.markdown-preview-container a:link,
+.markdown-preview-container a:visited,
+.markdown-preview-container a:hover,
+.markdown-preview-container a:active {
+  color: #303030 !important;
+  text-decoration: underline !important;
+  border-bottom: none !important;
+}
+
+/* NOTE: #doc-* links are NO LONGER USED
+   Document names are matched by **bold text** pattern
+   Bold document names become clickable via ClickableDocumentName component */
+
+/* Force all <a> tags inside markdown to be #303030 WITH underline */
+.markdown-preview-container p a,
+.markdown-preview-container li a,
+.markdown-preview-container div a {
+  color: #303030 !important;
+  text-decoration: underline !important;
+  border-bottom: none !important;
 }
 
 /* ============================================

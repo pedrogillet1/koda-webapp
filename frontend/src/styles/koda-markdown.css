@@ -256,13 +256,19 @@
    8. LINKS
    ============================================================================ */
 
-.koda-markdown a {
-  color: #1a1a1a !important;
+/* NOTE: #doc-* links are NO LONGER USED
+   Document names are matched by **bold text** pattern
+   Bold document names become clickable via ClickableDocumentName component */
+
+.koda-markdown a,
+.markdown-preview-container a {
+  color: #303030 !important;
   text-decoration: underline !important;
   font-weight: 600 !important;
 }
 
-.koda-markdown a:hover {
+.koda-markdown a:hover,
+.markdown-preview-container a:hover {
   color: #000000 !important;
   text-decoration: underline !important;
 }
@@ -304,18 +310,18 @@
    11. DOCUMENT NAMES (CLICKABLE)
    ============================================================================ */
 
-/* Document names should be inline, no extra spacing */
+/* Document names should be inline with underline styling */
 .koda-markdown .document-name {
   display: inline;
   font-weight: 600;
-  color: #1a1a1a !important; /* ✅ BLACK - no blue */
+  color: #303030 !important;
   cursor: pointer;
-  text-decoration: none !important;
+  text-decoration: underline !important;
 }
 
 .koda-markdown .document-name:hover {
-  color: #000000 !important; /* ✅ BLACK on hover */
-  text-decoration: none !important; /* ✅ NO underline */
+  color: #000000 !important;
+  text-decoration: underline !important;
 }
 
 /* ============================================================================

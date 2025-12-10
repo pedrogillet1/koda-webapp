@@ -5,6 +5,11 @@
  *
  * This service consolidates ALL formatting logic into ONE engine.
  *
+ * CRITICAL RULE: NO DOCUMENT IDs IN OUTPUT
+ * - Document names appear as **bold text** only
+ * - Frontend matches bold names to document IDs using a name→ID map
+ * - IDs are NEVER visible to users in any form
+ *
  * CONSOLIDATES (10 services):
  * - masterAnswerFormatter.service.ts
  * - kodaUnifiedPostProcessor.service.ts
@@ -22,14 +27,14 @@
  * 2. Bold/italic rules (selective bolding, not aggressive)
  * 3. Spacing rules (ChatGPT style - max 2 newlines)
  * 4. Section structuring
- * 5. Citation formatting
+ * 5. Citation formatting (bold names only, NO IDs)
  * 6. Pagination for long lists
  * 7. Persona tone consistency
  *
  * NOTE: This service integrates with kodaMarkdownContract.service.ts
  * for consistent ChatGPT-like formatting across all answer types.
  *
- * @version 2.1.0 - Updated for Koda Markdown Contract
+ * @version 2.2.0 - Removed all document IDs from output
  * @date 2025-12-09
  */
 
@@ -126,25 +131,22 @@ function addCitations(content: string, sources: any[]): { formattedContent: stri
   let citationCount = 0;
   let formattedContent = content;
 
-  // Add hyperlinks to document names in the content
-  const uniqueSourcesMap = new Map<string, { id: string; name: string }>();
+  // Get unique document names from sources
+  const uniqueNames = new Set<string>();
   sources.forEach(s => {
-    const name = s.documentName || s.fileName || 'Document';
-    const id = s.documentId || s.id || 'doc';
-    if (!uniqueSourcesMap.has(name)) {
-      uniqueSourcesMap.set(name, { id, name });
-    }
+    const name = s.documentName || s.fileName || '';
+    if (name) uniqueNames.add(name);
   });
 
-  // Replace document names with hyperlinks in content
-  uniqueSourcesMap.forEach(({ id, name }) => {
+  // Make document names bold (NOT links - NO IDs in output)
+  // Frontend will match **bold names** to document IDs
+  uniqueNames.forEach(name => {
     const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`\\b(${escapedName})\\b`, 'g');
-    formattedContent = formattedContent.replace(regex, `[**$1**](#doc-${id})`);
+    // Only bold if not already bold
+    const regex = new RegExp(`(?<!\\*\\*)\\b(${escapedName})\\b(?!\\*\\*)`, 'g');
+    formattedContent = formattedContent.replace(regex, '**$1**');
+    citationCount++;
   });
-
-  // ✅ REMOVED: "Fontes:" section - document names are now inline hyperlinks only
-  // No separate sources list at the end of answers
 
   return { formattedContent, count: citationCount };
 }
@@ -162,6 +164,8 @@ function finalCleanup(content: string): string {
 
 /**
  * Format a list of documents for display
+ * NOTE: NO document IDs in output - only bold names
+ * Frontend matches bold names to document IDs
  */
 export function formatDocumentList(documents: any[], language: string): string {
   if (documents.length === 0) {
@@ -176,6 +180,7 @@ export function formatDocumentList(documents: any[], language: string): string {
 
   const list = documents.map((doc, i) => {
     const name = doc.name || doc.fileName || doc.originalName || 'Unnamed';
+    // Bold name only - NO IDs in output
     return `${i + 1}. **${name}**`;
   }).join('\n');
 

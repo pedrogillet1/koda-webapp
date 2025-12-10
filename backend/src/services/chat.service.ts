@@ -7,6 +7,7 @@
  * - AI response generation with Gemini
  * - Conversation title generation
  */
+import * as crypto from 'crypto';
 
 import prisma from '../config/database';
 import { sendMessageToGemini, sendMessageToGeminiStreaming, generateConversationTitle } from './openai.service';
@@ -66,6 +67,409 @@ const openai = new OpenAI({
   apiKey: config.OPENAI_API_KEY,
 });
 import kodaMemoryEngine from './kodaMemoryEngine.service';
+// ============================================================================
+// ULTRA-FAST PATH: No LLM for greetings & file navigation
+// ============================================================================
+import { classifyFastPathIntent, type FastPathClassification } from './kodaFastPathIntent.service';
+
+// ============================================================================
+// GREETING TEMPLATES (NO LLM CALL - instant response)
+// ============================================================================
+const GREETING_TEMPLATES = {
+  en: [
+    "Hello! How can I help you today? 👋",
+    "Hi there! What would you like to know? 👋",
+    "Hey! I'm ready to assist you. What do you need? 👋",
+  ],
+  pt: [
+    "Olá! Como posso ajudá-lo hoje? 👋",
+    "Oi! O que você gostaria de saber? 👋",
+    "E aí! Estou pronto para ajudar. O que precisa? 👋",
+  ],
+  es: [
+    "¡Hola! ¿Cómo puedo ayudarte hoy? 👋",
+    "¡Hola! ¿Qué te gustaría saber? 👋",
+    "¡Hey! Estoy listo para ayudarte. ¿Qué necesitas? 👋",
+  ],
+};
+
+function getGreetingResponse(language: 'en' | 'pt' | 'es'): string {
+  const templates = GREETING_TEMPLATES[language] || GREETING_TEMPLATES.en;
+  return templates[Math.floor(Math.random() * templates.length)];
+}
+
+// ============================================================================
+// APP HELP TEMPLATES (NO LLM CALL - instant response)
+// ============================================================================
+const APP_HELP_TEMPLATES = {
+  en: {
+    general: `**What I can help you with:**
+
+📄 **Document Management**
+• Upload, organize, and search your documents
+• Ask "list my files" or "show my PDFs"
+• Create folders: "create folder Reports"
+
+🔍 **Document Q&A**
+• Ask questions about your uploaded documents
+• "What does my contract say about..."
+• "Summarize the main points of..."
+
+📊 **Calculations**
+• Basic math: "calculate 15% of 250"
+• Financial: "What's my total revenue?"
+
+💬 **Conversation**
+• I remember our previous discussions
+• "What did we talk about?"
+
+Type your question or try one of these commands!`,
+
+    upload: `**How to upload documents:**
+
+1. Click the **📎 attachment** button in the chat
+2. Select your file(s) from your device
+3. Supported formats: PDF, Word, Excel, PowerPoint, images, text files
+
+**Tips:**
+• You can upload multiple files at once
+• Files are processed automatically for search
+• Say "create folder X" to organize your uploads`,
+
+    search: `**How to search your documents:**
+
+• **List all files:** "show my documents" or "list my files"
+• **Filter by type:** "show my PDFs" or "list all Excel files"
+• **Search content:** Just ask! "What does my contract say about payment terms?"
+
+**Pro tips:**
+• Be specific in your questions
+• Mention the document name if you know it
+• I can search across all your documents at once`,
+  },
+  pt: {
+    general: `**Como posso ajudar:**
+
+📄 **Gestão de Documentos**
+• Enviar, organizar e buscar seus documentos
+• Pergunte "listar meus arquivos" ou "mostrar meus PDFs"
+• Criar pastas: "criar pasta Relatórios"
+
+🔍 **Perguntas sobre Documentos**
+• Faça perguntas sobre seus documentos
+• "O que meu contrato diz sobre..."
+• "Resuma os pontos principais de..."
+
+📊 **Cálculos**
+• Matemática básica: "calcule 15% de 250"
+• Financeiro: "Qual minha receita total?"
+
+💬 **Conversa**
+• Lembro nossas discussões anteriores
+• "Sobre o que conversamos?"
+
+Digite sua pergunta ou experimente um desses comandos!`,
+
+    upload: `**Como enviar documentos:**
+
+1. Clique no botão **📎 anexo** no chat
+2. Selecione seu(s) arquivo(s) do dispositivo
+3. Formatos suportados: PDF, Word, Excel, PowerPoint, imagens, texto
+
+**Dicas:**
+• Você pode enviar vários arquivos de uma vez
+• Arquivos são processados automaticamente
+• Diga "criar pasta X" para organizar seus uploads`,
+
+    search: `**Como buscar seus documentos:**
+
+• **Listar todos:** "mostrar meus documentos" ou "listar arquivos"
+• **Filtrar por tipo:** "mostrar meus PDFs" ou "listar planilhas"
+• **Buscar conteúdo:** Apenas pergunte! "O que meu contrato diz sobre pagamento?"
+
+**Dicas:**
+• Seja específico nas perguntas
+• Mencione o nome do documento se souber
+• Posso buscar em todos os documentos de uma vez`,
+  },
+  es: {
+    general: `**Cómo puedo ayudarte:**
+
+📄 **Gestión de Documentos**
+• Subir, organizar y buscar tus documentos
+• Pregunta "listar mis archivos" o "mostrar mis PDFs"
+• Crear carpetas: "crear carpeta Informes"
+
+🔍 **Preguntas sobre Documentos**
+• Haz preguntas sobre tus documentos
+• "¿Qué dice mi contrato sobre..."
+• "Resume los puntos principales de..."
+
+📊 **Cálculos**
+• Matemáticas básicas: "calcula 15% de 250"
+• Financiero: "¿Cuál es mi ingreso total?"
+
+💬 **Conversación**
+• Recuerdo nuestras discusiones anteriores
+• "¿De qué hablamos?"
+
+¡Escribe tu pregunta o prueba uno de estos comandos!`,
+
+    upload: `**Cómo subir documentos:**
+
+1. Haz clic en el botón **📎 adjuntar** en el chat
+2. Selecciona tu(s) archivo(s) del dispositivo
+3. Formatos soportados: PDF, Word, Excel, PowerPoint, imágenes, texto
+
+**Consejos:**
+• Puedes subir varios archivos a la vez
+• Los archivos se procesan automáticamente
+• Di "crear carpeta X" para organizar`,
+
+    search: `**Cómo buscar tus documentos:**
+
+• **Listar todos:** "mostrar mis documentos" o "listar archivos"
+• **Filtrar por tipo:** "mostrar mis PDFs" o "listar hojas de cálculo"
+• **Buscar contenido:** ¡Solo pregunta! "¿Qué dice mi contrato sobre pagos?"
+
+**Consejos:**
+• Sé específico en tus preguntas
+• Menciona el nombre del documento si lo sabes
+• Puedo buscar en todos tus documentos a la vez`,
+  },
+};
+
+function getAppHelpResponse(language: 'en' | 'pt' | 'es', query: string): string {
+  const templates = APP_HELP_TEMPLATES[language] || APP_HELP_TEMPLATES.en;
+  const lowerQuery = query.toLowerCase();
+
+  // Detect specific help topic
+  if (lowerQuery.includes('upload') || lowerQuery.includes('enviar') || lowerQuery.includes('subir')) {
+    return templates.upload;
+  }
+  if (lowerQuery.includes('search') || lowerQuery.includes('find') || lowerQuery.includes('buscar') || lowerQuery.includes('procurar')) {
+    return templates.search;
+  }
+
+  // Default to general help
+  return templates.general;
+}
+
+// ============================================================================
+// CALCULATION HELPER (NO LLM CALL - pure JavaScript math)
+// ============================================================================
+function computeCalculation(query: string, language: 'en' | 'pt' | 'es'): string {
+  try {
+    // Normalize the query
+    let expression = query.toLowerCase()
+      // Remove common prefixes
+      .replace(/^(calculate|compute|calcul[ae]|cuanto\s+es|quanto\s+e|what\s+is|how\s+much\s+is)\s*/i, '')
+      // Replace word operators with symbols
+      .replace(/\s*(plus|mais|mas)\s*/gi, '+')
+      .replace(/\s*(minus|menos)\s*/gi, '-')
+      .replace(/\s*(times|vezes|por(?!\s*cento))\s*/gi, '*')
+      .replace(/\s*(divided\s+by|dividido\s+(por|entre))\s*/gi, '/')
+      .replace(/\s*(multiplied\s+by|multiplicado\s+por)\s*/gi, '*')
+      // Replace x and × with *
+      .replace(/\s*[x×]\s*/gi, '*')
+      .replace(/\s*÷\s*/gi, '/')
+      // Remove trailing = or ?
+      .replace(/[=?]\s*$/, '')
+      .trim();
+
+    // Handle percentage: "X percent of Y" or "X% of Y"
+    const percentMatch = expression.match(/(\d+\.?\d*)\s*(%|percent|por\s*cento)\s*(of|de)\s*(\d+\.?\d*)/i);
+    if (percentMatch) {
+      const percent = parseFloat(percentMatch[1]);
+      const value = parseFloat(percentMatch[4]);
+      const result = (percent / 100) * value;
+      return formatCalculationResult(result, `${percent}% of ${value}`, language);
+    }
+
+    // Handle squared/cubed
+    const powerMatch = expression.match(/(\d+\.?\d*)\s*(squared|ao\s+quadrado|al\s+cuadrado)/i);
+    if (powerMatch) {
+      const base = parseFloat(powerMatch[1]);
+      const result = Math.pow(base, 2);
+      return formatCalculationResult(result, `${base}²`, language);
+    }
+
+    const cubedMatch = expression.match(/(\d+\.?\d*)\s*(cubed|ao\s+cubo|al\s+cubo)/i);
+    if (cubedMatch) {
+      const base = parseFloat(cubedMatch[1]);
+      const result = Math.pow(base, 3);
+      return formatCalculationResult(result, `${base}³`, language);
+    }
+
+    // Handle square root
+    const sqrtMatch = expression.match(/(sqrt|square\s+root|raiz\s+quadrada|raiz\s+cuadrada)\s*(of|de)?\s*(\d+\.?\d*)/i);
+    if (sqrtMatch) {
+      const value = parseFloat(sqrtMatch[3]);
+      const result = Math.sqrt(value);
+      return formatCalculationResult(result, `√${value}`, language);
+    }
+
+    // ============================================================================
+    // FINANCIAL CALCULATIONS (NO LLM - pure JavaScript)
+    // ============================================================================
+
+    // Growth rate: "growth from X to Y" or "crescimento de X para Y"
+    const growthMatch = expression.match(/(?:growth|crescimento|crecimiento)\s*(?:from|de)\s*(\d+\.?\d*)\s*(?:to|para|a)\s*(\d+\.?\d*)/i);
+    if (growthMatch) {
+      const initial = parseFloat(growthMatch[1]);
+      const final = parseFloat(growthMatch[2]);
+      if (initial !== 0) {
+        const growthRate = ((final - initial) / initial) * 100;
+        const label = language === 'pt' ? 'Taxa de crescimento' : language === 'es' ? 'Tasa de crecimiento' : 'Growth rate';
+        return `**${label}:** ${growthRate >= 0 ? '+' : ''}${growthRate.toFixed(2)}%`;
+      }
+    }
+
+    // Margin: "margin of X on Y" or "margem de X sobre Y"
+    const marginMatch = expression.match(/(?:margin|margem|margen)\s*(?:of|de)\s*(\d+\.?\d*)\s*(?:on|sobre|en)\s*(\d+\.?\d*)/i);
+    if (marginMatch) {
+      const profit = parseFloat(marginMatch[1]);
+      const revenue = parseFloat(marginMatch[2]);
+      if (revenue !== 0) {
+        const margin = (profit / revenue) * 100;
+        const label = language === 'pt' ? 'Margem' : language === 'es' ? 'Margen' : 'Margin';
+        return `**${label}:** ${margin.toFixed(2)}%`;
+      }
+    }
+
+    // ROI: "roi of X on Y" or "roi de X sobre Y" or "return on investment X Y"
+    const roiMatch = expression.match(/(?:roi|return\s+on\s+investment|retorno)\s*(?:of|de)?\s*(\d+\.?\d*)\s*(?:on|sobre|en|with|com|con)?\s*(?:investment\s+(?:of\s+)?)?(\d+\.?\d*)/i);
+    if (roiMatch) {
+      const profit = parseFloat(roiMatch[1]);
+      const investment = parseFloat(roiMatch[2]);
+      if (investment !== 0) {
+        const roi = (profit / investment) * 100;
+        return `**ROI:** ${roi.toFixed(2)}%`;
+      }
+    }
+
+    // MOIC (Multiple on Invested Capital): "moic X / Y" or "moic of X on Y"
+    const moicMatch = expression.match(/(?:moic|multiple)\s*(?:of|de)?\s*(\d+\.?\d*)\s*(?:\/|on|sobre|en)?\s*(\d+\.?\d*)/i);
+    if (moicMatch) {
+      const returnValue = parseFloat(moicMatch[1]);
+      const investment = parseFloat(moicMatch[2]);
+      if (investment !== 0) {
+        const moic = returnValue / investment;
+        return `**MOIC:** ${moic.toFixed(2)}x`;
+      }
+    }
+
+    // Payback: "payback X / Y" or "payback period X investment Y"
+    const paybackMatch = expression.match(/(?:payback|retorno)\s*(?:period|periodo)?\s*(?:of|de)?\s*(\d+\.?\d*)\s*(?:\/|with|com|con|investment|investimento)?\s*(\d+\.?\d*)/i);
+    if (paybackMatch) {
+      const annualReturn = parseFloat(paybackMatch[2]);
+      const investment = parseFloat(paybackMatch[1]);
+      if (annualReturn !== 0) {
+        const payback = investment / annualReturn;
+        const label = language === 'pt' ? 'Período de payback' : language === 'es' ? 'Período de recuperación' : 'Payback period';
+        if (payback < 1) {
+          const months = Math.round(payback * 12);
+          const unit = language === 'pt' ? (months === 1 ? 'mês' : 'meses') : language === 'es' ? (months === 1 ? 'mes' : 'meses') : (months === 1 ? 'month' : 'months');
+          return `**${label}:** ${months} ${unit}`;
+        }
+        const unit = language === 'pt' ? (payback === 1 ? 'ano' : 'anos') : language === 'es' ? (payback === 1 ? 'año' : 'años') : (payback === 1 ? 'year' : 'years');
+        return `**${label}:** ${payback.toFixed(2)} ${unit}`;
+      }
+    }
+
+    // Compound interest: "compound X at Y% for Z years"
+    const compoundMatch = expression.match(/(?:compound|juros\s+compostos?|interés\s+compuesto)\s*(\d+\.?\d*)\s*(?:at|a)\s*(\d+\.?\d*)%?\s*(?:for|por|durante)\s*(\d+)\s*(?:years?|anos?|años?)/i);
+    if (compoundMatch) {
+      const principal = parseFloat(compoundMatch[1]);
+      const rate = parseFloat(compoundMatch[2]) / 100;
+      const years = parseInt(compoundMatch[3]);
+      const futureValue = principal * Math.pow(1 + rate, years);
+      const label = language === 'pt' ? 'Valor futuro' : language === 'es' ? 'Valor futuro' : 'Future value';
+      return formatCalculationResult(futureValue, `${label} (${years} ${language === 'pt' || language === 'es' ? 'anos' : 'years'} @ ${compoundMatch[2]}%)`, language);
+    }
+
+    // Basic arithmetic - use Function for safe evaluation
+    // Only allow numbers and basic operators
+    const safeExpression = expression.replace(/[^\d+\-*/.()%\s]/g, '');
+    if (safeExpression && /^[\d+\-*/.()%\s]+$/.test(safeExpression)) {
+      // Use Function constructor for evaluation (safer than eval)
+      const result = new Function(`return ${safeExpression}`)();
+      if (typeof result === 'number' && !isNaN(result) && isFinite(result)) {
+        return formatCalculationResult(result, safeExpression, language);
+      }
+    }
+
+    // Fallback - couldn't compute
+    const errorMsg = language === 'pt' ? 'Não consegui calcular essa expressão. Tente algo como "5 + 3" ou "15% de 200".'
+                   : language === 'es' ? 'No pude calcular esa expresión. Intenta algo como "5 + 3" o "15% de 200".'
+                   : 'I couldn\'t calculate that expression. Try something like "5 + 3" or "15% of 200".';
+    return errorMsg;
+
+  } catch (error) {
+    console.error('❌ [CALCULATION] Error:', error);
+    const errorMsg = language === 'pt' ? 'Erro ao calcular. Tente uma expressão mais simples.'
+                   : language === 'es' ? 'Error al calcular. Intenta una expresión más simple.'
+                   : 'Error calculating. Try a simpler expression.';
+    return errorMsg;
+  }
+}
+
+function formatCalculationResult(result: number, expression: string, language: 'en' | 'pt' | 'es'): string {
+  // Format the number nicely
+  const formatted = Number.isInteger(result)
+    ? result.toLocaleString(language === 'pt' ? 'pt-BR' : language === 'es' ? 'es-ES' : 'en-US')
+    : result.toLocaleString(language === 'pt' ? 'pt-BR' : language === 'es' ? 'es-ES' : 'en-US', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 4
+      });
+
+  return `**${expression}** = **${formatted}**`;
+}
+
+// ============================================================================
+// MEMORY RESPONSE FORMATTER (for conversation recall)
+// ============================================================================
+function formatMemoryResponse(memory: any, language: 'en' | 'pt' | 'es'): string {
+  if (!memory || !memory.recentMessages || memory.recentMessages.length === 0) {
+    const noMemory = language === 'pt' ? 'Esta é uma conversa nova. Ainda não discutimos nada.'
+                   : language === 'es' ? 'Esta es una conversación nueva. Aún no hemos discutido nada.'
+                   : 'This is a new conversation. We haven\'t discussed anything yet.';
+    return noMemory;
+  }
+
+  const header = language === 'pt' ? '**O que discutimos até agora:**\n\n'
+               : language === 'es' ? '**Lo que hemos discutido:**\n\n'
+               : '**What we\'ve discussed:**\n\n';
+
+  // Get recent topics from messages
+  const userMessages = memory.recentMessages
+    .filter((m: any) => m.role === 'user')
+    .slice(-5)
+    .map((m: any) => m.content.substring(0, 100));
+
+  if (userMessages.length === 0) {
+    const noTopics = language === 'pt' ? 'Você ainda não fez nenhuma pergunta nesta conversa.'
+                   : language === 'es' ? 'Aún no has hecho ninguna pregunta en esta conversación.'
+                   : 'You haven\'t asked any questions in this conversation yet.';
+    return noTopics;
+  }
+
+  let response = header;
+  userMessages.forEach((msg: string, idx: number) => {
+    const truncated = msg.length > 80 ? msg.substring(0, 80) + '...' : msg;
+    response += `${idx + 1}. "${truncated}"\n`;
+  });
+
+  // Add summary if available
+  if (memory.rollingSummary) {
+    const summaryLabel = language === 'pt' ? '\n**Resumo da conversa:**\n'
+                       : language === 'es' ? '\n**Resumen de la conversación:**\n'
+                       : '\n**Conversation summary:**\n';
+    response += summaryLabel + memory.rollingSummary;
+  }
+
+  return response;
+}
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -99,6 +503,20 @@ interface SendMessageParams {
 interface MessageResult {
   userMessage: any;
   assistantMessage: any;
+  /** Document list for navigation answers (name→ID mapping for frontend) */
+  documentList?: Array<{
+    id: string;
+    filename: string;
+    mimeType: string | null;
+    fileSize: number | null;
+    folderPath: {
+      pathString: string;
+      folderId: string | null;
+      folderName: string | null;
+    };
+  }>;
+  /** Total count for "See all X" link */
+  totalCount?: number;
 }
 
 // ============================================================================
@@ -359,6 +777,215 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
     console.log('🔐 Zero-knowledge encryption enabled for message');
   }
 
+  // ==========================================================================
+  // ULTRA-FAST PATH: Check for greetings/navigation FIRST (NO LLM CALL!)
+  // Target: <200ms response time for greetings
+  // ==========================================================================
+  const fastPathStart = Date.now();
+  const fastPathResult = classifyFastPathIntent(content);
+  console.log(`⚡ [FAST-PATH] Classification: ${fastPathResult.intent} (${fastPathResult.confidence}) [${fastPathResult.processingTimeMs}ms]`);
+
+  // GREETING: Return template response instantly (NO LLM!)
+  if (fastPathResult.intent === 'GREETING' && fastPathResult.isFastPath) {
+    console.log(`🚀 [ULTRA-FAST] Greeting detected - returning template (NO LLM)`);
+
+    const greetingResponse = getGreetingResponse(fastPathResult.language);
+    const now = new Date();
+    const userMsgId = crypto.randomUUID();
+    const assistantMsgId = crypto.randomUUID();
+
+    // FIRE-AND-FORGET: Write to DB asynchronously - don't wait!
+    // This makes the response instant (<50ms) instead of waiting for DB (~1500ms)
+    prisma.$transaction([
+      prisma.conversation.findFirstOrThrow({
+        where: { id: conversationId, userId },
+        select: { id: true }
+      }),
+      prisma.message.create({
+        data: { id: userMsgId, conversationId, role: 'user', content, createdAt: now },
+      }),
+      prisma.message.create({
+        data: { id: assistantMsgId, conversationId, role: 'assistant', content: greetingResponse, createdAt: now },
+      }),
+      prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: now },
+      }),
+    ]).catch(err => console.error('❌ [ULTRA-FAST] DB write error:', err));
+
+    console.log(`✅ [ULTRA-FAST] Greeting response in ${Date.now() - fastPathStart}ms (DB write async)`);
+
+    // Return immediately with placeholder message objects
+    return {
+      userMessage: { id: userMsgId, conversationId, role: 'user', content, createdAt: now } as any,
+      assistantMessage: { id: assistantMsgId, conversationId, role: 'assistant', content: greetingResponse, createdAt: now } as any,
+    };
+  }
+
+  // ==========================================================================
+  // FILE_COUNT: Return database count instantly (NO LLM!)
+  // ==========================================================================
+  if (fastPathResult.intent === 'FILE_COUNT' && fastPathResult.isFastPath) {
+    console.log(`🚀 [ULTRA-FAST] File count query - returning DB count (NO LLM)`);
+
+    // Quick conversation check
+    const conversationExists = await prisma.conversation.findFirst({
+      where: { id: conversationId, userId },
+      select: { id: true }
+    });
+    if (!conversationExists) {
+      throw new Error('Conversation not found or access denied');
+    }
+
+    const docCount = await prisma.document.count({
+      where: { userId, status: { not: 'deleted' } }
+    });
+
+    const countResponse = fastPathResult.language === 'pt'
+      ? `Você tem **${docCount} documentos** no total.`
+      : fastPathResult.language === 'es'
+      ? `Tienes **${docCount} documentos** en total.`
+      : `You have **${docCount} documents** in total.`;
+
+    const [userMessage, assistantMessage] = await Promise.all([
+      prisma.message.create({
+        data: { conversationId, role: 'user', content, createdAt: new Date() },
+      }),
+      prisma.message.create({
+        data: { conversationId, role: 'assistant', content: countResponse, createdAt: new Date() },
+      }),
+    ]);
+
+    prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    }).catch(err => console.error('❌ Error updating timestamp:', err));
+
+    console.log(`✅ [ULTRA-FAST] File count response sent in ${Date.now() - fastPathStart}ms`);
+    return { userMessage, assistantMessage };
+  }
+
+  // ==========================================================================
+  // APP_HELP: Return template help response (NO LLM - instant!)
+  // Target: <500ms (was 10.3s)
+  // ==========================================================================
+  if (fastPathResult.intent === 'APP_HELP' && fastPathResult.isFastPath) {
+    console.log(`🚀 [ULTRA-FAST] App help query - returning template (NO LLM)`);
+
+    const helpResponse = getAppHelpResponse(fastPathResult.language, content);
+    const now = new Date();
+    const userMsgId = crypto.randomUUID();
+    const assistantMsgId = crypto.randomUUID();
+
+    // FIRE-AND-FORGET: Write to DB asynchronously
+    prisma.$transaction([
+      prisma.conversation.findFirstOrThrow({
+        where: { id: conversationId, userId },
+        select: { id: true }
+      }),
+      prisma.message.create({
+        data: { id: userMsgId, conversationId, role: 'user', content, createdAt: now },
+      }),
+      prisma.message.create({
+        data: { id: assistantMsgId, conversationId, role: 'assistant', content: helpResponse, createdAt: now },
+      }),
+      prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: now },
+      }),
+    ]).catch(err => console.error('❌ [ULTRA-FAST] DB write error:', err));
+
+    console.log(`✅ [ULTRA-FAST] App help response in ${Date.now() - fastPathStart}ms (DB write async)`);
+
+    return {
+      userMessage: { id: userMsgId, conversationId, role: 'user', content, createdAt: now } as any,
+      assistantMessage: { id: assistantMsgId, conversationId, role: 'assistant', content: helpResponse, createdAt: now } as any,
+    };
+  }
+
+  // ==========================================================================
+  // CALCULATION: Pure math - compute directly (NO LLM!)
+  // Target: <100ms (was 10.7s)
+  // ==========================================================================
+  if (fastPathResult.intent === 'CALCULATION' && fastPathResult.isFastPath) {
+    console.log(`🚀 [ULTRA-FAST] Calculation query - computing directly (NO LLM)`);
+
+    const calcResponse = computeCalculation(content, fastPathResult.language);
+    const now = new Date();
+    const userMsgId = crypto.randomUUID();
+    const assistantMsgId = crypto.randomUUID();
+
+    // FIRE-AND-FORGET: Write to DB asynchronously
+    prisma.$transaction([
+      prisma.conversation.findFirstOrThrow({
+        where: { id: conversationId, userId },
+        select: { id: true }
+      }),
+      prisma.message.create({
+        data: { id: userMsgId, conversationId, role: 'user', content, createdAt: now },
+      }),
+      prisma.message.create({
+        data: { id: assistantMsgId, conversationId, role: 'assistant', content: calcResponse, createdAt: now },
+      }),
+      prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: now },
+      }),
+    ]).catch(err => console.error('❌ [ULTRA-FAST] DB write error:', err));
+
+    console.log(`✅ [ULTRA-FAST] Calculation response in ${Date.now() - fastPathStart}ms (DB write async)`);
+
+    return {
+      userMessage: { id: userMsgId, conversationId, role: 'user', content, createdAt: now } as any,
+      assistantMessage: { id: assistantMsgId, conversationId, role: 'assistant', content: calcResponse, createdAt: now } as any,
+    };
+  }
+
+  // ==========================================================================
+  // MEMORY_CHECK: Fast conversation memory lookup (minimal LLM or template)
+  // Target: <1.5s (was 7.4s)
+  // ==========================================================================
+  if (fastPathResult.intent === 'MEMORY_CHECK' && fastPathResult.isFastPath) {
+    console.log(`🚀 [FAST-PATH] Memory check - using conversation memory`);
+
+    // Get conversation memory from KodaMemoryEngine
+    const kodaMemory = await kodaMemoryEngine.getConversationMemory(conversationId, userId);
+    const memoryResponse = formatMemoryResponse(kodaMemory, fastPathResult.language);
+
+    const now = new Date();
+    const userMsgId = crypto.randomUUID();
+    const assistantMsgId = crypto.randomUUID();
+
+    // FIRE-AND-FORGET: Write to DB asynchronously
+    prisma.$transaction([
+      prisma.conversation.findFirstOrThrow({
+        where: { id: conversationId, userId },
+        select: { id: true }
+      }),
+      prisma.message.create({
+        data: { id: userMsgId, conversationId, role: 'user', content, createdAt: now },
+      }),
+      prisma.message.create({
+        data: { id: assistantMsgId, conversationId, role: 'assistant', content: memoryResponse, createdAt: now },
+      }),
+      prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: now },
+      }),
+    ]).catch(err => console.error('❌ [FAST-PATH] DB write error:', err));
+
+    console.log(`✅ [FAST-PATH] Memory check response in ${Date.now() - fastPathStart}ms (DB write async)`);
+
+    return {
+      userMessage: { id: userMsgId, conversationId, role: 'user', content, createdAt: now } as any,
+      assistantMessage: { id: assistantMsgId, conversationId, role: 'assistant', content: memoryResponse, createdAt: now } as any,
+    };
+  }
+
+  // ==========================================================================
+  // NORMAL FLOW: Continue with full processing
+  // ==========================================================================
+
   // Verify conversation ownership
   const conversation = await prisma.conversation.findFirst({
     where: {
@@ -501,6 +1128,9 @@ export const sendMessage = async (params: SendMessageParams): Promise<MessageRes
   return {
     userMessage,
     assistantMessage,
+    // Include documentList from RAG result (for navigation answers with clickable docs)
+    documentList: ragResult.documentList,
+    totalCount: ragResult.totalCount,
   };
 };
 
@@ -523,8 +1153,217 @@ export const sendMessageStreaming = async (
   console.log('💬 Sending streaming message in conversation:', conversationId);
 
   // ==========================================================================
-  // ALL GREETING DETECTION IS NOW HANDLED BY rag.service.ts ULTRA-FAST PATH
-  // This ensures consistent behavior and single source of truth for greetings
+  // ULTRA-FAST PATH: Check for greetings/navigation FIRST (NO LLM CALL!)
+  // Target: <200ms response time for greetings
+  // ==========================================================================
+  const fastPathStart = Date.now();
+  const fastPathResult = classifyFastPathIntent(content);
+  console.log(`⚡ [FAST-PATH] Classification: ${fastPathResult.intent} (${fastPathResult.confidence}) [${fastPathResult.processingTimeMs}ms]`);
+
+  // GREETING: Return template response instantly (NO LLM!)
+  if (fastPathResult.intent === 'GREETING' && fastPathResult.isFastPath) {
+    console.log(`🚀 [ULTRA-FAST] Greeting detected - returning template (NO LLM)`);
+
+    // Quick conversation check (lightweight - just verify it exists)
+    const conversationExists = await prisma.conversation.findFirst({
+      where: { id: conversationId, userId },
+      select: { id: true }
+    });
+    if (!conversationExists) {
+      throw new Error('Conversation not found or access denied');
+    }
+
+    const greetingResponse = getGreetingResponse(fastPathResult.language);
+    onChunk(greetingResponse);
+
+    // Create messages in parallel (don't block response)
+    const [userMessage, assistantMessage] = await Promise.all([
+      prisma.message.create({
+        data: {
+          conversationId,
+          role: 'user',
+          content,
+          createdAt: new Date(),
+        },
+      }),
+      prisma.message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: greetingResponse,
+          createdAt: new Date(),
+        },
+      }),
+    ]);
+
+    // Update conversation timestamp (fire-and-forget)
+    prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    }).catch(err => console.error('❌ Error updating conversation timestamp:', err));
+
+    console.log(`✅ [ULTRA-FAST] Greeting response sent in ${Date.now() - fastPathStart}ms`);
+
+    return { userMessage, assistantMessage };
+  }
+
+  // ==========================================================================
+  // FILE_COUNT: Return database count instantly (NO LLM!)
+  // ==========================================================================
+  if (fastPathResult.intent === 'FILE_COUNT' && fastPathResult.isFastPath) {
+    console.log(`🚀 [ULTRA-FAST] File count query - returning DB count (NO LLM)`);
+
+    // Quick conversation check
+    const conversationExists = await prisma.conversation.findFirst({
+      where: { id: conversationId, userId },
+      select: { id: true }
+    });
+    if (!conversationExists) {
+      throw new Error('Conversation not found or access denied');
+    }
+
+    const docCount = await prisma.document.count({
+      where: { userId, status: { not: 'deleted' } }
+    });
+
+    const countResponse = fastPathResult.language === 'pt'
+      ? `Você tem **${docCount} documentos** no total.`
+      : fastPathResult.language === 'es'
+      ? `Tienes **${docCount} documentos** en total.`
+      : `You have **${docCount} documents** in total.`;
+
+    onChunk(countResponse);
+
+    const [userMessage, assistantMessage] = await Promise.all([
+      prisma.message.create({
+        data: { conversationId, role: 'user', content, createdAt: new Date() },
+      }),
+      prisma.message.create({
+        data: { conversationId, role: 'assistant', content: countResponse, createdAt: new Date() },
+      }),
+    ]);
+
+    prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    }).catch(err => console.error('❌ Error updating timestamp:', err));
+
+    console.log(`✅ [ULTRA-FAST] File count response sent in ${Date.now() - fastPathStart}ms`);
+    return { userMessage, assistantMessage };
+  }
+
+  // ==========================================================================
+  // APP_HELP: Return template help response (NO LLM - instant!)
+  // Target: <500ms (was 10.3s)
+  // ==========================================================================
+  if (fastPathResult.intent === 'APP_HELP' && fastPathResult.isFastPath) {
+    console.log(`🚀 [ULTRA-FAST] App help query - returning template (NO LLM)`);
+
+    const conversationExists = await prisma.conversation.findFirst({
+      where: { id: conversationId, userId },
+      select: { id: true }
+    });
+    if (!conversationExists) {
+      throw new Error('Conversation not found or access denied');
+    }
+
+    const helpResponse = getAppHelpResponse(fastPathResult.language, content);
+    onChunk(helpResponse);
+
+    const [userMessage, assistantMessage] = await Promise.all([
+      prisma.message.create({
+        data: { conversationId, role: 'user', content, createdAt: new Date() },
+      }),
+      prisma.message.create({
+        data: { conversationId, role: 'assistant', content: helpResponse, createdAt: new Date() },
+      }),
+    ]);
+
+    prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    }).catch(err => console.error('❌ Error updating timestamp:', err));
+
+    console.log(`✅ [ULTRA-FAST] App help response sent in ${Date.now() - fastPathStart}ms`);
+    return { userMessage, assistantMessage };
+  }
+
+  // ==========================================================================
+  // CALCULATION: Pure math - compute directly (NO LLM!)
+  // Target: <100ms (was 10.7s)
+  // ==========================================================================
+  if (fastPathResult.intent === 'CALCULATION' && fastPathResult.isFastPath) {
+    console.log(`🚀 [ULTRA-FAST] Calculation query - computing directly (NO LLM)`);
+
+    const conversationExists = await prisma.conversation.findFirst({
+      where: { id: conversationId, userId },
+      select: { id: true }
+    });
+    if (!conversationExists) {
+      throw new Error('Conversation not found or access denied');
+    }
+
+    const calcResponse = computeCalculation(content, fastPathResult.language);
+    onChunk(calcResponse);
+
+    const [userMessage, assistantMessage] = await Promise.all([
+      prisma.message.create({
+        data: { conversationId, role: 'user', content, createdAt: new Date() },
+      }),
+      prisma.message.create({
+        data: { conversationId, role: 'assistant', content: calcResponse, createdAt: new Date() },
+      }),
+    ]);
+
+    prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    }).catch(err => console.error('❌ Error updating timestamp:', err));
+
+    console.log(`✅ [ULTRA-FAST] Calculation response sent in ${Date.now() - fastPathStart}ms`);
+    return { userMessage, assistantMessage };
+  }
+
+  // ==========================================================================
+  // MEMORY_CHECK: Fast conversation memory lookup (NO heavy LLM!)
+  // Target: <1.5s (was 7.4s)
+  // ==========================================================================
+  if (fastPathResult.intent === 'MEMORY_CHECK' && fastPathResult.isFastPath) {
+    console.log(`🚀 [FAST-PATH] Memory check - using conversation memory`);
+
+    const conversationExists = await prisma.conversation.findFirst({
+      where: { id: conversationId, userId },
+      select: { id: true }
+    });
+    if (!conversationExists) {
+      throw new Error('Conversation not found or access denied');
+    }
+
+    // Get conversation memory from KodaMemoryEngine
+    const kodaMemory = await kodaMemoryEngine.getConversationMemory(conversationId, userId);
+    const memoryResponse = formatMemoryResponse(kodaMemory, fastPathResult.language);
+    onChunk(memoryResponse);
+
+    const [userMessage, assistantMessage] = await Promise.all([
+      prisma.message.create({
+        data: { conversationId, role: 'user', content, createdAt: new Date() },
+      }),
+      prisma.message.create({
+        data: { conversationId, role: 'assistant', content: memoryResponse, createdAt: new Date() },
+      }),
+    ]);
+
+    prisma.conversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    }).catch(err => console.error('❌ Error updating timestamp:', err));
+
+    console.log(`✅ [FAST-PATH] Memory check response sent in ${Date.now() - fastPathStart}ms`);
+    return { userMessage, assistantMessage };
+  }
+
+  // ==========================================================================
+  // NORMAL FLOW: Continue with full RAG pipeline
   // ==========================================================================
 
   // ⚡ PERFORMANCE: Start DB writes async - don't block streaming
@@ -1919,7 +2758,7 @@ export const handleFileActionsIfNeeded = async (
         status: { not: 'deleted' },
         filename: { contains: searchTerm, mode: 'insensitive' }
       },
-      include: { folder: { select: { name: true } } },
+      include: { folder: { select: { name: true, path: true } } },
       take: 5
     });
 
@@ -1938,7 +2777,7 @@ export const handleFileActionsIfNeeded = async (
         filename: doc.filename,
         mimeType: doc.mimeType || 'application/octet-stream',
         fileSize: doc.fileSize || undefined,
-        folderPath: doc.folder?.name
+        folderPath: doc.folder?.path || doc.folder?.name  // Use full path hierarchy
       };
 
       const response = generateShowMeResponse(inlineDoc, {

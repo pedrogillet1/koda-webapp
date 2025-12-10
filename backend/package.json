@@ -51,7 +51,12 @@
     "test:conversation:quick": "npx ts-node --transpile-only test-suite/16-conversation-flow-test.ts --quick",
     "test:rag-precision": "npx ts-node --transpile-only src/tests/rag-precision-test.ts",
     "visualize-reasoning": "npx ts-node --transpile-only src/tests/rag-reasoning-visualizer.ts",
-    "prepare": "husky"
+    "prepare": "husky",
+    "koda:audit": "npx ts-node tools/architectureAudit.ts",
+    "test:flows": "jest tests/architectureFlows.test.ts --testTimeout=30000",
+    "koda:test-all": "npm run koda:audit && npm run test:flows",
+    "test:comprehensive": "npx ts-node --transpile-only tests/runComprehensiveTest.ts",
+    "test:comprehensive:quick": "QUICK_MODE=true npx ts-node --transpile-only tests/runComprehensiveTest.ts"
   },
   "lint-staged": {
     "src/**/*.ts": [
@@ -196,6 +201,7 @@
     "sqlite3": "^5.1.7",
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.5",
+    "ts-morph": "^27.0.2",
     "ts-node": "^10.9.2",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"

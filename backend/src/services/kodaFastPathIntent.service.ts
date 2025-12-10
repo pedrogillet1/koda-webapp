@@ -28,6 +28,10 @@ export type FastPathIntentType =
   | 'SIMPLE_FACT'         // Single-fact lookups from documents
   | 'METADATA_QUERY'      // "what's the size of file X", "when was X uploaded"
   | 'GREETING'            // "hello", "hi koda", "good morning"
+  | 'APP_HELP'            // "how do I upload", "what can you do", "help"
+  | 'CALCULATION'         // "calculate X", "what is X + Y", math expressions
+  | 'MEMORY_CHECK'        // "what did we discuss", "remember when I said"
+  | 'ERROR_EXPLANATION'   // Handles error scenarios with template responses (NO LLM)
   | 'NONE';               // Not a fast-path query - use full RAG
 
 export type DocumentTypeFilter =
@@ -304,6 +308,143 @@ const METADATA_QUERY_PATTERNS = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
+// APP_HELP Patterns (how to use the app, what can you do)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const APP_HELP_PATTERNS = {
+  en: [
+    /^help[!?.]*$/i,
+    /^what\s+can\s+you\s+do\??$/i,
+    /^what\s+are\s+you(r)?\s+(capabilities|features|functions)\??$/i,
+    /^how\s+do\s+i\s+(use|upload|download|search|find|delete|rename|move|organize|create)\b/i,
+    /^how\s+(to|can\s+i)\s+(use|upload|download|search|find|delete|rename|move|organize|create)\b/i,
+    /^can\s+you\s+(help|assist)\s+(me\s+)?(with|to)\s+(upload|download|search|find)\b/i,
+    /^(show|tell)\s+me\s+(how\s+to|your\s+(features|capabilities))/i,
+    /^(what|which)\s+(features|functions|capabilities)\s+(do\s+you\s+have|are\s+available)/i,
+    /^(guide|tutorial|instructions?)[!?.]*$/i,
+    /^how\s+does\s+(this|it|koda)\s+work\??$/i,
+  ],
+  pt: [
+    /^ajuda[!?.]*$/i,
+    /^o\s+que\s+voce?\s+(pode|consegue)\s+fazer\??$/i,
+    /^quais?\s+(sao\s+)?(suas?|as)\s+(funcoes|funcionalidades|capacidades)\??$/i,
+    /^como\s+(eu\s+)?(faco|posso|uso|envio|baixo|busco|procuro|deleto|renomeio|movo|organizo|crio)\b/i,
+    /^como\s+(fazer|usar|enviar|baixar|buscar|procurar|deletar|renomear|mover|organizar|criar)\b/i,
+    /^(voce\s+)?pode\s+(me\s+)?(ajudar|auxiliar)\s+(a|com)\s+(enviar|baixar|buscar|procurar)\b/i,
+    /^(mostre|diga)\s+me\s+(como|suas?\s+(funcoes|capacidades))/i,
+    /^(guia|tutorial|instrucoes?)[!?.]*$/i,
+    /^como\s+(isso|koda)\s+funciona\??$/i,
+  ],
+  es: [
+    /^ayuda[!?.]*$/i,
+    /^que\s+puedes\s+hacer\??$/i,
+    /^cuales?\s+son\s+tus\s+(funciones|capacidades|caracteristicas)\??$/i,
+    /^como\s+(puedo|hago|uso|subo|bajo|busco|encuentro|borro|renombro|muevo|organizo|creo)\b/i,
+    /^(puedes|podrias)\s+(ayudarme|asistirme)\s+(a|con)\s+(subir|bajar|buscar|encontrar)\b/i,
+    /^(muestrame|dime)\s+(como|tus\s+(funciones|capacidades))/i,
+    /^(guia|tutorial|instrucciones?)[!?.]*$/i,
+    /^como\s+funciona\s+(esto|koda)\??$/i,
+  ],
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CALCULATION Patterns (math expressions, calculate X)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const CALCULATION_PATTERNS = {
+  en: [
+    /^calculate\s+/i,
+    /^compute\s+/i,
+    /^what\s+is\s+\d+[\s+\-*\/x×÷%^]+\d+/i,  // "what is 5 + 3"
+    /^how\s+much\s+is\s+\d+[\s+\-*\/x×÷%^]+\d+/i,
+    /^\d+[\s]*[+\-*\/x×÷%^][\s]*\d+[\s]*[=?]?$/,  // "5 + 3" or "5+3="
+    /^(\d+\.?\d*)\s*(plus|minus|times|divided\s+by|multiplied\s+by)\s*(\d+\.?\d*)/i,
+    /^(sum|total|average|mean|add|subtract|multiply|divide)\s+(of\s+)?\d+/i,
+    /^what\s+is\s+(\d+\.?\d*)\s*(%|percent)\s+of\s+(\d+\.?\d*)/i,
+    /^(\d+\.?\d*)\s*(squared|cubed|to\s+the\s+power\s+of)/i,
+    /^(sqrt|square\s+root)\s+(of\s+)?(\d+\.?\d*)/i,
+    // Financial calculations
+    /^(roi|return\s+on\s+investment)\s+(of\s+)?\d+/i,
+    /^(moic|multiple)\s+(of\s+)?\d+/i,
+    /^(payback|payback\s+period)\s+\d+/i,
+    /^(growth)\s+(from\s+)?\d+\s+(to\s+)?\d+/i,
+    /^(margin)\s+(of\s+)?\d+\s+(on\s+)?\d+/i,
+    /^(compound|interest)\s+\d+/i,
+  ],
+  pt: [
+    /^calcul[ae]\s+/i,
+    /^quanto\s+e\s+\d+[\s+\-*\/x×÷%^]+\d+/i,  // "quanto é 5 + 3"
+    /^qual\s+(e\s+)?(o\s+)?(resultado|valor)\s+de\s+\d+/i,
+    /^\d+[\s]*[+\-*\/x×÷%^][\s]*\d+[\s]*[=?]?$/,  // "5 + 3" or "5+3="
+    /^(\d+\.?\d*)\s*(mais|menos|vezes|dividido\s+por|multiplicado\s+por)\s*(\d+\.?\d*)/i,
+    /^(soma|total|media|adicionar|subtrair|multiplicar|dividir)\s+(de\s+)?\d+/i,
+    /^quanto\s+e\s+(\d+\.?\d*)\s*(por\s*cento|%)\s+de\s+(\d+\.?\d*)/i,
+    /^(\d+\.?\d*)\s*(ao\s+quadrado|ao\s+cubo|elevado\s+a)/i,
+    /^(raiz\s+quadrada)\s+(de\s+)?(\d+\.?\d*)/i,
+    // Financial calculations
+    /^(roi|retorno)\s+(de\s+)?\d+/i,
+    /^(moic|multiplo)\s+(de\s+)?\d+/i,
+    /^(payback|retorno)\s+\d+/i,
+    /^(crescimento)\s+(de\s+)?\d+\s+(para\s+)?\d+/i,
+    /^(margem)\s+(de\s+)?\d+\s+(sobre\s+)?\d+/i,
+    /^(juros\s+compostos?)\s+\d+/i,
+  ],
+  es: [
+    /^calcula\s+/i,
+    /^cuanto\s+es\s+\d+[\s+\-*\/x×÷%^]+\d+/i,  // "cuánto es 5 + 3"
+    /^cual\s+(es\s+)?(el\s+)?(resultado|valor)\s+de\s+\d+/i,
+    /^\d+[\s]*[+\-*\/x×÷%^][\s]*\d+[\s]*[=?]?$/,  // "5 + 3" or "5+3="
+    /^(\d+\.?\d*)\s*(mas|menos|por|dividido\s+entre|multiplicado\s+por)\s*(\d+\.?\d*)/i,
+    /^(suma|total|promedio|media|sumar|restar|multiplicar|dividir)\s+(de\s+)?\d+/i,
+    /^cuanto\s+es\s+el?\s+(\d+\.?\d*)\s*(por\s*ciento|%)\s+de\s+(\d+\.?\d*)/i,
+    /^(\d+\.?\d*)\s*(al\s+cuadrado|al\s+cubo|elevado\s+a)/i,
+    /^(raiz\s+cuadrada)\s+(de\s+)?(\d+\.?\d*)/i,
+    // Financial calculations
+    /^(roi|retorno)\s+(de\s+)?\d+/i,
+    /^(moic|multiplo)\s+(de\s+)?\d+/i,
+    /^(payback|recuperacion)\s+\d+/i,
+    /^(crecimiento)\s+(de\s+)?\d+\s+(a\s+)?\d+/i,
+    /^(margen)\s+(de\s+)?\d+\s+(sobre\s+)?\d+/i,
+    /^(interes\s+compuesto)\s+\d+/i,
+  ],
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MEMORY_CHECK Patterns (what did we discuss, conversation recall)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const MEMORY_CHECK_PATTERNS = {
+  en: [
+    /^what\s+did\s+(we|i)\s+(discuss|talk\s+about|say|mention)/i,
+    /^(do\s+you\s+)?remember\s+(when|what|that)\s+(i|we)\s+(said|mentioned|discussed|talked)/i,
+    /^what\s+(have\s+)?(we|i)\s+(been\s+)?(talking|chatting|discussing)\s+about/i,
+    /^(summarize|recap|summary)\s+(our\s+)?(conversation|chat|discussion)/i,
+    /^what\s+(was|were)\s+(we|the)\s+(topic|subject|theme)/i,
+    /^what\s+did\s+i\s+(ask|tell)\s+you\s+(about|earlier|before)/i,
+    /^earlier\s+(i|we)\s+(mentioned|said|discussed)/i,
+    /^(can\s+you\s+)?recall\s+(what|our)/i,
+  ],
+  pt: [
+    /^o\s+que\s+(nos|eu)\s+(discutimos|conversamos|falamos|mencionamos)/i,
+    /^(voce\s+)?(lembra|se\s+lembra)\s+(de\s+)?(quando|o\s+que|que)\s+(eu|nos)\s+(disse|mencionei|discutimos|falamos)/i,
+    /^(sobre\s+)?o\s+que\s+(nos|a\s+gente)\s+(estava|estamos)\s+(falando|conversando|discutindo)/i,
+    /^(resumir|resumo|recap)\s+(nossa\s+)?(conversa|chat|discussao)/i,
+    /^qual\s+(era|foi)\s+(o\s+)?(tema|assunto|topico)/i,
+    /^o\s+que\s+eu\s+(perguntei|disse)\s+(sobre|antes|anteriormente)/i,
+    /^antes\s+(eu|nos)\s+(mencionei|disse|discutimos)/i,
+  ],
+  es: [
+    /^que\s+(hemos|he)\s+(discutido|hablado|mencionado|dicho)/i,
+    /^(te\s+)?acuerdas\s+(de\s+)?(cuando|que|lo\s+que)\s+(yo|nosotros)\s+(dije|mencione|hablamos)/i,
+    /^(sobre\s+)?que\s+(estamos|estabamos)\s+(hablando|conversando|discutiendo)/i,
+    /^(resumir|resumen|recap)\s+(nuestra\s+)?(conversacion|chat|discusion)/i,
+    /^cual\s+(era|fue)\s+(el\s+)?(tema|asunto|topico)/i,
+    /^que\s+(te\s+)?(pregunte|dije)\s+(sobre|antes|anteriormente)/i,
+    /^antes\s+(yo|nosotros)\s+(mencione|dije|hablamos)/i,
+  ],
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Document Type Detection
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -473,6 +614,36 @@ function isMetadataQuery(normalizedQuery: string, lang: 'en' | 'pt' | 'es'): boo
   return allPatterns.some(re => re.test(normalizedQuery));
 }
 
+function isAppHelp(normalizedQuery: string, lang: 'en' | 'pt' | 'es'): boolean {
+  const patterns = APP_HELP_PATTERNS[lang];
+  if (patterns.some(re => re.test(normalizedQuery))) {
+    return true;
+  }
+
+  const allPatterns = [...APP_HELP_PATTERNS.en, ...APP_HELP_PATTERNS.pt, ...APP_HELP_PATTERNS.es];
+  return allPatterns.some(re => re.test(normalizedQuery));
+}
+
+function isCalculation(normalizedQuery: string, lang: 'en' | 'pt' | 'es'): boolean {
+  const patterns = CALCULATION_PATTERNS[lang];
+  if (patterns.some(re => re.test(normalizedQuery))) {
+    return true;
+  }
+
+  const allPatterns = [...CALCULATION_PATTERNS.en, ...CALCULATION_PATTERNS.pt, ...CALCULATION_PATTERNS.es];
+  return allPatterns.some(re => re.test(normalizedQuery));
+}
+
+function isMemoryCheck(normalizedQuery: string, lang: 'en' | 'pt' | 'es'): boolean {
+  const patterns = MEMORY_CHECK_PATTERNS[lang];
+  if (patterns.some(re => re.test(normalizedQuery))) {
+    return true;
+  }
+
+  const allPatterns = [...MEMORY_CHECK_PATTERNS.en, ...MEMORY_CHECK_PATTERNS.pt, ...MEMORY_CHECK_PATTERNS.es];
+  return allPatterns.some(re => re.test(normalizedQuery));
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Entity Extraction
 // ═══════════════════════════════════════════════════════════════════════════
@@ -571,6 +742,21 @@ export function classifyFastPathIntent(query: string): FastPathClassification {
     intent = 'GREETING';
     confidence = 0.95;
   }
+  // CALCULATION (pure math - no LLM needed)
+  else if (isCalculation(normalizedQuery, language)) {
+    intent = 'CALCULATION';
+    confidence = 0.95;
+  }
+  // APP_HELP (how to use the app - template responses)
+  else if (isAppHelp(normalizedQuery, language)) {
+    intent = 'APP_HELP';
+    confidence = 0.9;
+  }
+  // MEMORY_CHECK (conversation recall - fast memory lookup)
+  else if (isMemoryCheck(normalizedQuery, language)) {
+    intent = 'MEMORY_CHECK';
+    confidence = 0.85;
+  }
   // RECENT_ACTIVITY before FILE_LIST (more specific)
   else if (isRecentActivity(normalizedQuery, language)) {
     intent = 'RECENT_ACTIVITY';
@@ -646,6 +832,16 @@ export function mightBeFastPath(query: string): boolean {
     /\b(files?|documents?|arquivos?|documentos?|archivos?|pdfs?)\s*$/,
     // Document types
     /\b(contracts?|invoices?|receipts?|reports?|contratos?|faturas?|recibos?|relatorios?)\b/,
+    // APP_HELP patterns
+    /^(help|ajuda|ayuda)[!?.]*$/i,
+    /\b(how\s+do\s+i|como\s+(faco|posso)|como\s+(puedo|hago))\b/i,
+    /\b(what\s+can\s+you\s+do|o\s+que\s+voce\s+pode|que\s+puedes\s+hacer)\b/i,
+    // CALCULATION patterns
+    /^\d+[\s]*[+\-*\/x×÷%^][\s]*\d+/,  // Basic math: "5 + 3"
+    /^(calculate|calcul[ae]|cuanto\s+es|quanto\s+e)\s+/i,
+    // MEMORY_CHECK patterns
+    /\b(remember|recall|lembra|se\s+lembra|acuerdas)\b/i,
+    /\b(what\s+did\s+(we|i)\s+(discuss|talk)|o\s+que\s+(nos|eu)\s+(discutimos|conversamos))\b/i,
   ];
 
   return quickPatterns.some(p => p.test(normalizedQuery));

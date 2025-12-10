@@ -65,6 +65,10 @@ const INTENT_TTL: Record<FastPathIntentType, number> = {
   METADATA_QUERY: 5 * 60 * 1000,  // 5 min
   SIMPLE_FACT: 5 * 60 * 1000,     // 5 min
   GREETING: 60 * 60 * 1000,       // 1 hour - greetings don't change
+  CALCULATION: 60 * 60 * 1000,    // 1 hour - calculations are deterministic
+  APP_HELP: 60 * 60 * 1000,       // 1 hour - app help doesn't change
+  MEMORY_CHECK: 1 * 60 * 1000,    // 1 min - memory is time-sensitive
+  ERROR_EXPLANATION: 5 * 60 * 1000, // 5 min - errors may be context-dependent
   NONE: 0,                        // Don't cache
 };
 

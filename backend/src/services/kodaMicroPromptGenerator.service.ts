@@ -244,27 +244,41 @@ function formatDate(date: Date, language: 'en' | 'pt' | 'es'): string {
 
 /**
  * Generate response for FILE_LIST intent
+ * UPDATED: Uses numbered list format with "Pasta:" for folder path
+ * Format: "1. **Filename.pdf**    Pasta: Folder / Subfolder"
+ * This format is parsed by frontend's parseDocumentListingFormat()
  */
 function generateFileListResponse(
   data: FileListData,
   language: 'en' | 'pt' | 'es'
 ): string {
   const t = RESPONSE_TEMPLATES.FILE_LIST[language];
+  const folderLabel = language === 'pt' ? 'Pasta' : language === 'es' ? 'Carpeta' : 'Folder';
 
   if (data.files.length === 0) {
     return t.empty;
   }
 
   const lines: string[] = [t.intro(data.files.length, data.hasMore)];
+  lines.push(''); // Empty line after intro
 
-  for (const file of data.files) {
-    // Extract friendly type from mimeType (e.g., "application/pdf" -> "PDF")
-    const friendlyType = file.mimeType.split('/').pop()?.toUpperCase() || file.mimeType;
-    lines.push(t.fileItem(file.filename, friendlyType, file.folderPath));
-  }
+  // Use numbered list format with "Pasta:" for frontend parsing
+  data.files.forEach((file, idx) => {
+    // Format folder path: "/Work/Projects" → "Work / Projects"
+    let folderPath = file.folderPath || 'Root';
+    if (folderPath.startsWith('/')) {
+      folderPath = folderPath.substring(1);
+    }
+    folderPath = folderPath.replace(/\//g, ' / ') || 'Root';
 
+    // Format: "1. **Name**    Pasta: Path"
+    lines.push(`${idx + 1}. **${file.filename}**    ${folderLabel}: ${folderPath}`);
+  });
+
+  // Add LOAD_MORE comment for frontend to render "See all X" link
   if (data.hasMore && data.totalCount > data.files.length) {
-    lines.push(t.moreFiles(data.totalCount - data.files.length));
+    lines.push('');
+    lines.push(`<!-- LOAD_MORE:${data.totalCount} -->`);
   }
 
   return lines.join('\n');

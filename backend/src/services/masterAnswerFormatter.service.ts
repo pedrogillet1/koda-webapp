@@ -408,7 +408,8 @@ export function formatAnswer(
     }
 
     // Step 7: Format document names for frontend (clickable links)
-    if (formatDocs && finalSources.length > 0) {
+    // ✅ DISABLED: Inline document markers - documents appear as regular markdown links only
+    if (false && formatDocs && finalSources.length > 0) {
       // Convert sources to DocSource format for the formatter
       const docSources: DocSource[] = finalSources.map(s => ({
         documentId: s.documentId,

@@ -202,6 +202,95 @@ export async function getFolderPath(folderId: string): Promise<string> {
   return computeFolderPath(folderId);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Document With Path - For File Listings
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Document with full folder path information
+ * Used for file listing answers where we show the complete path hierarchy
+ */
+export interface DocumentWithPath {
+  id: string;
+  filename: string;
+  mimeType: string | null;
+  fileSize: number | null;
+  createdAt: Date;
+  folderPath: {
+    pathString: string;  // e.g., "Work / Projects / 2024"
+    folderId: string | null;
+    folderName: string | null;
+  };
+}
+
+/**
+ * Format a raw path like "/Work/Projects/2024" into "Work / Projects / 2024"
+ */
+function formatPathString(rawPath: string | null | undefined): string {
+  if (!rawPath || rawPath === '/' || rawPath === '') {
+    return 'Root';  // Or 'Raiz' for Portuguese - handled by caller
+  }
+  // Remove leading slash and replace / with " / "
+  return rawPath.replace(/^\//, '').replace(/\//g, ' / ');
+}
+
+/**
+ * Get documents with their full folder path
+ * This is used ONLY for document listing answers, not for inline mentions
+ */
+export async function getDocumentsWithPath(
+  where: {
+    userId: string;
+    folderId?: string;
+    filename?: { contains: string; mode: 'insensitive' };
+    mimeType?: { contains: string };
+    status?: { not: string };
+  },
+  options: {
+    take?: number;
+    orderBy?: { [key: string]: 'asc' | 'desc' };
+  } = {}
+): Promise<DocumentWithPath[]> {
+  const { take = 50, orderBy = { createdAt: 'desc' } } = options;
+
+  const documents = await prisma.document.findMany({
+    where: {
+      ...where,
+      status: where.status || { not: 'deleted' },
+    },
+    select: {
+      id: true,
+      filename: true,
+      mimeType: true,
+      fileSize: true,
+      createdAt: true,
+      folderId: true,
+      folder: {
+        select: {
+          id: true,
+          name: true,
+          path: true,
+        },
+      },
+    },
+    take,
+    orderBy,
+  });
+
+  return documents.map(doc => ({
+    id: doc.id,
+    filename: doc.filename,
+    mimeType: doc.mimeType,
+    fileSize: doc.fileSize,
+    createdAt: doc.createdAt,
+    folderPath: {
+      pathString: formatPathString(doc.folder?.path),
+      folderId: doc.folder?.id || null,
+      folderName: doc.folder?.name || null,
+    },
+  }));
+}
+
 export default {
   onFolderCreated,
   onFolderRenamed,
@@ -209,4 +298,6 @@ export default {
   initializeAllFolderPaths,
   initializeUserFolderPaths,
   getFolderPath,
+  getDocumentsWithPath,
+  formatPathString,
 };

@@ -4,10 +4,18 @@
  * Provides intelligent file and folder search capabilities.
  * Searches by filename, displayTitle, and folder paths.
  * Integrates with folderPath.service.ts for path resolution.
+ *
+ * UPDATED: Now uses KodaMarkdownEngine for consistent markdown formatting
  */
 
 import { PrismaClient } from '@prisma/client';
 import { getFolderPath } from './folderPath.service';
+import {
+  KodaMarkdownEngine,
+  KodaFile,
+  KodaFolder,
+  SupportedLanguage
+} from './kodaMarkdownEngine.service';
 
 const prisma = new PrismaClient();
 
@@ -598,24 +606,33 @@ export async function navigateToTarget(
 
 /**
  * Format file search result for display in chat
+ * NOTE: Uses KodaMarkdownEngine - NO document IDs in output
  */
 export function formatFileForChat(file: FileSearchResult): string {
-  // Document marker format: {{DOC:::id:::filename:::folderPath:::action}}
-  return `{{DOC:::${file.id}:::${file.filename}:::${file.folderPath}:::open}}`;
+  // Use KodaMarkdownEngine for consistent formatting
+  // Bold name only - frontend matches by name to ID
+  return KodaMarkdownEngine.formatDocumentReference(file.filename);
 }
 
 /**
  * Format folder for display in chat
+ * NOTE: Uses KodaMarkdownEngine - NO folder IDs in output
  */
 export function formatFolderForChat(folder: FolderInfo): string {
-  return `**${folder.name}** (${folder.documentCount} files)\n   Path: \`${folder.path}\``;
+  // Bold name with file count and path
+  return `**${folder.name}** (${folder.documentCount} files) - \`${folder.path}\``;
 }
 
 /**
  * Format navigation result for natural language response
+ * NOTE: Uses KodaMarkdownEngine for consistent formatting - NO IDs in output
  */
 export function formatNavigationResult(result: NavigationResult, language: string = 'en'): string {
-  const isPortuguese = language.toLowerCase().startsWith('pt');
+  // Determine language for KodaMarkdownEngine
+  const lang: SupportedLanguage = language.toLowerCase().startsWith('pt') ? 'pt'
+    : language.toLowerCase().startsWith('es') ? 'es'
+    : 'en';
+  const isPortuguese = lang === 'pt';
 
   if (!result.found) {
     return isPortuguese
@@ -623,41 +640,83 @@ export function formatNavigationResult(result: NavigationResult, language: strin
       : `I couldn't find any files or folders with that name.`;
   }
 
-  const parts: string[] = [];
-
+  // Single file result
   if (result.type === 'file' && result.files.length === 1) {
     const file = result.files[0];
-    parts.push(isPortuguese
-      ? `Encontrei o arquivo **${file.filename}**:`
-      : `I found the file **${file.filename}**:`);
-    parts.push(formatFileForChat(file));
-  } else if (result.type === 'folder' && result.folders.length === 1) {
+    const prefix = isPortuguese
+      ? `Encontrei o arquivo:`
+      : `I found the file:`;
+
+    // Convert to KodaFile format and use engine
+    const kodaFiles: KodaFile[] = [{
+      id: file.id,
+      name: file.filename,
+      folderPath: file.folderPath,
+      mimeType: file.mimeType
+    }];
+
+    return `${prefix}\n\n${KodaMarkdownEngine.formatFileListing(kodaFiles, lang).split('\n').slice(2).join('\n')}`;
+  }
+
+  // Single folder result
+  if (result.type === 'folder' && result.folders.length === 1) {
     const folder = result.folders[0];
-    parts.push(isPortuguese
-      ? `Encontrei a pasta **${folder.name}**:`
-      : `I found the folder **${folder.name}**:`);
-    parts.push(formatFolderForChat(folder));
-  } else if (result.type === 'multiple_files') {
+    const prefix = isPortuguese
+      ? `Encontrei a pasta:`
+      : `I found the folder:`;
+
+    // Convert to KodaFolder format and use engine
+    const kodaFolders: KodaFolder[] = [{
+      id: folder.id,
+      name: folder.name,
+      path: folder.path,
+      fileCount: folder.documentCount
+    }];
+
+    return `${prefix}\n\n${KodaMarkdownEngine.formatFolderListing(kodaFolders, lang).split('\n').slice(2).join('\n')}`;
+  }
+
+  // Multiple results
+  if (result.type === 'multiple_files') {
+    const parts: string[] = [];
+
+    // Header
     parts.push(isPortuguese
       ? `Encontrei ${result.files.length} arquivo(s) e ${result.folders.length} pasta(s):`
       : `I found ${result.files.length} file(s) and ${result.folders.length} folder(s):`);
 
+    // Files section - use KodaMarkdownEngine
     if (result.files.length > 0) {
       parts.push(isPortuguese ? '\n**Arquivos:**' : '\n**Files:**');
-      for (const file of result.files.slice(0, 5)) {
-        parts.push(`- ${formatFileForChat(file)}`);
-      }
+      const kodaFiles: KodaFile[] = result.files.slice(0, 5).map(f => ({
+        id: f.id,
+        name: f.filename,
+        folderPath: f.folderPath,
+        mimeType: f.mimeType
+      }));
+      // Get just the list items (skip the header from formatFileListing)
+      const fileListLines = KodaMarkdownEngine.formatFileListing(kodaFiles, lang).split('\n').slice(2);
+      parts.push(fileListLines.join('\n'));
     }
 
+    // Folders section - use KodaMarkdownEngine
     if (result.folders.length > 0) {
       parts.push(isPortuguese ? '\n**Pastas:**' : '\n**Folders:**');
-      for (const folder of result.folders.slice(0, 3)) {
-        parts.push(`- ${formatFolderForChat(folder)}`);
-      }
+      const kodaFolders: KodaFolder[] = result.folders.slice(0, 3).map(f => ({
+        id: f.id,
+        name: f.name,
+        path: f.path,
+        fileCount: f.documentCount
+      }));
+      // Get just the list items (skip the header from formatFolderListing)
+      const folderListLines = KodaMarkdownEngine.formatFolderListing(kodaFolders, lang).split('\n').slice(2);
+      parts.push(folderListLines.join('\n'));
     }
+
+    return parts.join('\n');
   }
 
-  return parts.join('\n');
+  return '';
 }
 
 export default {
