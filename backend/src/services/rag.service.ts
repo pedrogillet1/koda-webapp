@@ -43,6 +43,13 @@ import calculationRouter from './calculation/calculationRouter.service';
 import { userHasDocuments, getUserDocumentState } from './userDocumentContext.service';
 import { generateNoDocsResponse, queryRequiresDocuments } from './noDocumentsMode.service';
 
+// ============================================================================
+// CENTRALIZATION SERVICES (NEW - December 2025)
+// ============================================================================
+import { routeQuery, isMetaRoute, isDocSearchRoute, isCalculationRoute, getPerformanceBudget, type KodaRoutePlan } from './kodaCentralRouter.service';
+import { retrieveForRoute, type RetrievalResult } from './kodaRetrievalOrchestrator.service';
+import { generateCountResponse, generateTypeBreakdownResponse, generateDocumentListResponse, getDocumentCount } from './kodaMetadataService.service';
+
 import { formatValidationService } from './formatValidation.service';
 
 import * as confidenceScoring from './archived/confidence-scoring.service';
@@ -3275,7 +3282,108 @@ export async function generateAnswerStream(
   }
 
   // ============================================================================
-  // ENHANCED ROUTER LOGGING
+  // CENTRAL ROUTER (SINGLE DECISION POINT - December 2025)
+  // ============================================================================
+  // This is the NEW centralized routing system that consolidates:
+  // - greeting detection
+  // - doc count detection
+  // - navigation orchestrator
+  // - fast path detection
+  // - context-aware intent detection
+  // - skill routing
+  // - hierarchical intent classification
+  // into ONE decision point with ONE route plan.
+  //
+  // MODE: ACTIVE (handles ultra_fast routes directly)
+  // For non-ultra-fast routes, continues with existing logic for gradual migration.
+  // ============================================================================
+
+  let centralRoutePlan: KodaRoutePlan | null = null;
+  const centralRouterStart = Date.now();
+
+  try {
+    const userDocCount = await getDocumentCount(userId);
+    centralRoutePlan = await routeQuery({
+      query,
+      userId,
+      conversationId,
+      conversationHistory: conversationHistory?.map(h => ({
+        role: h.role as 'user' | 'assistant',
+        content: h.content
+      })),
+      documentCount: userDocCount,
+      hasDocuments: userDocCount > 0,
+      detectedLanguage
+    });
+
+    const routerTime = Date.now() - centralRouterStart;
+    console.log('┌─────────────────────────────────────────────────────────────────────────────');
+    console.log('│ 🧠 [CENTRAL ROUTER] Route Plan Generated');
+    console.log(`│    Intent: ${centralRoutePlan.primaryIntent} (${centralRoutePlan.complexity})`);
+    console.log(`│    Requires Docs: ${centralRoutePlan.requiresDocs}, TopK: ${centralRoutePlan.topK}`);
+    console.log(`│    Answer Mode: ${centralRoutePlan.answerMode}, Max Tokens: ${centralRoutePlan.maxTokens}`);
+    console.log(`│    Confidence: ${(centralRoutePlan.confidence * 100).toFixed(0)}%, Method: ${centralRoutePlan.routingMethod}`);
+    console.log(`│    Time: ${routerTime}ms (budget: ${getPerformanceBudget(centralRoutePlan.complexity)}ms)`);
+    console.log('└─────────────────────────────────────────────────────────────────────────────');
+
+    // ========================================================================
+    // HANDLE ULTRA-FAST ROUTES VIA CENTRAL ROUTER
+    // Greetings, meta queries, and simple doc counts can be handled instantly
+    // ========================================================================
+    if (centralRoutePlan.complexity === 'ultra_fast') {
+      // Handle greeting
+      if (centralRoutePlan.primaryIntent === 'greeting') {
+        console.log('⚡ [CENTRAL ROUTER] ULTRA-FAST GREETING - bypassing ALL heavy operations');
+        const greetingResponse = getInstantGreeting(query, centralRoutePlan.detectedLanguage);
+        if (onChunk) onChunk(greetingResponse);
+        if (onStage) onStage('complete', 'Complete');
+        return { sources: [] };
+      }
+
+      // Handle meta queries (doc count, type breakdown, doc list)
+      if (centralRoutePlan.primaryIntent === 'meta') {
+        console.log('⚡ [CENTRAL ROUTER] ULTRA-FAST META - using kodaMetadataService');
+        const lang = centralRoutePlan.detectedLanguage;
+
+        // Detect meta query type
+        const queryLower = query.toLowerCase();
+        let metaResponse: { text: string; data?: any };
+
+        if (/quantos|how many|cuantos|count/i.test(queryLower)) {
+          // Count query - check for folder or type filter
+          const folderMatch = query.match(/(?:na pasta|in folder|en carpeta)\s*[""]?([^""]+)[""]?/i);
+          const typeMatch = query.match(/(?:pdf|docx?|xlsx?|pptx?|txt|csv)/i);
+
+          metaResponse = await generateCountResponse(
+            userId,
+            lang,
+            folderMatch?.[1],
+            typeMatch?.[0]
+          );
+        } else if (/(?:tipos|types|formatos|formats)/i.test(queryLower)) {
+          // Type breakdown query
+          metaResponse = await generateTypeBreakdownResponse(userId, lang);
+        } else {
+          // Default: document listing
+          metaResponse = await generateDocumentListResponse(userId, lang, 15);
+        }
+
+        if (onChunk) onChunk(metaResponse.text);
+        if (onStage) onStage('complete', 'Complete');
+        return { sources: [] };
+      }
+    }
+
+    // For non-ultra-fast routes, continue with existing logic
+    // The central router decision is available in centralRoutePlan for comparison
+
+  } catch (centralRouterError) {
+    console.error('[CENTRAL ROUTER] Error, continuing with legacy routing:', centralRouterError);
+    // Continue with existing scattered detection on error
+  }
+
+  // ============================================================================
+  // ENHANCED ROUTER LOGGING (Legacy - for comparison during migration)
   // ============================================================================
   console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
   console.log('ðŸ” [ROUTER] Analyzing query...');
