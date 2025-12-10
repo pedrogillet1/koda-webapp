@@ -1,352 +1,497 @@
 /**
  * Navigation Orchestrator Service
- * 
- * The brain for navigation & app help questions.
- * 
- * Handles:
- * 1. File navigation - "Where is the mezzanine file?"
- * 2. Folder navigation - "How many folders do I have?"
- * 3. App help - "Where do I upload?"
- * 
- * Returns natural, adaptive answers with exact file paths and UI guidance.
+ *
+ * Orchestrates navigation and help queries by routing them to
+ * the appropriate engine (file navigation or app help).
+ *
+ * This service intercepts queries before they reach the RAG pipeline
+ * to provide instant responses for navigation and help requests.
  */
 
-import { generateAdaptiveAnswer as generateAnswer, type GeneratedAnswer } from './answerGenerator.service';
-import { searchFilesByNameOrContent, listFilesInFolderPath, FileRecord } from './fileNavigationEngine.service';
-import { answerAppHelpQuestion } from './appHelpEngine.service';
+import {
+  searchFilesByNameOrContent,
+  navigateToTarget,
+  formatNavigationResult,
+  getRecentFiles,
+  getFolderStructure,
+  listFilesInFolderPath,
+  type NavigationResult as FileNavResult,
+  type FileSearchResult,
+  type FolderInfo,
+} from './fileNavigationEngine.service';
 
-/**
- * Wrapper for backward compatibility with old generateAdaptiveAnswer interface
- */
-async function generateAdaptiveAnswer(params: {
-  query: string;
-  context: string;
-  language: string;
-  responseType?: string;
-}): Promise<{ answer: string }> {
-  const result = await generateAnswer({
-    query: params.query,
-    context: params.context,
-    languageCode: params.language,
-    answerType: params.responseType || 'simple',
-  });
-  return { answer: result.text };
+import {
+  isHelpQuery,
+  getHelpResponse,
+  searchHelpTopics,
+} from './appHelpEngine.service';
+
+import {
+  detectNavigationIntent,
+  type NavigationIntent,
+} from './navigationIntent.service';
+
+import {
+  detectAppHelpIntent,
+  type AppHelpIntent,
+} from './appHelpIntent.service';
+
+import { detectLanguageSimple } from './languageEngine.service';
+
+export interface NavigationResult {
+  handled: boolean;
+  response?: string;
+  intentType?: 'file_search' | 'folder_search' | 'file_list' | 'recent_files' | 'app_help' | 'not_handled';
+  confidence?: number;
+  language?: string;
+  files?: FileSearchResult[];
+  folders?: FolderInfo[];
+  metadata?: Record<string, any>;
 }
 
-export interface NavigationRequest {
-  query: string;
+export interface OrchestratorContext {
   userId: string;
   conversationId?: string;
-  detectedLanguage: string; // 'pt-BR', 'en', etc.
-}
-
-export interface NavigationResponse {
-  handled: boolean;              // false → let RAG handle
-  answer?: string;               // markdown answer ready to format
-  answerType?: 'file_navigation' | 'folder_navigation' | 'app_help';
-  relatedFiles?: Array<{
-    id: string;
-    filename: string;
-    folderPath: string;          // "Root / Projects / Mezzanine"
-    mimeType: string;
-    sizeBytes: number;
-    uploadedAt?: Date;
-    movedAt?: Date | null;
-  }>;
-  diagnostics?: Record<string, any>;
-}
-
-type NavIntent = 'file_navigation' | 'folder_navigation' | 'app_help' | 'none';
-
-/**
- * Detect if query is about navigation or app help
- */
-function detectNavigationIntent(query: string): NavIntent {
-  const q = query.toLowerCase();
-
-  // File/folder navigation keywords (Portuguese + English)
-  const fileKeywords = [
-    // Portuguese
-    'onde está', 'onde fica', 'em qual pasta', 'em que pasta',
-    'qual pasta', 'quais arquivos', 'listar arquivos', 'listar documentos',
-    'em que categoria', 'mostrar documentos', 'mostrar arquivos',
-    'quantos arquivos', 'quantas pastas', 'quantos documentos',
-    'arquivo do', 'documento do', 'pasta do',
-    // English
-    'where is', 'where are', 'which folder', 'what folder',
-    'list files', 'list documents', 'show files', 'show documents',
-    'how many files', 'how many folders', 'how many documents',
-    'folder', 'directory', 'path', 'location'
-  ];
-
-  for (const keyword of fileKeywords) {
-    if (q.includes(keyword)) {
-      return 'file_navigation';
-    }
-  }
-
-  // App help keywords (Portuguese + English)
-  const appHelpKeywords = [
-    // Portuguese
-    'onde eu faço upload', 'como faço upload', 'como subir arquivo',
-    'como enviar documento', 'onde vejo meus documentos',
-    'como crio uma categoria', 'como criar uma pasta',
-    'onde está o botão', 'como usar', 'como funciona',
-    'onde encontro', 'como acesso', 'onde fica o menu',
-    // English
-    'how do i upload', 'where do i upload', 'how to upload',
-    'how do i create a folder', 'how to create a category',
-    'where can i see my documents', 'where is the button',
-    'how do i use', 'how does it work', 'where do i find',
-    'how do i access', 'where is the menu'
-  ];
-
-  for (const keyword of appHelpKeywords) {
-    if (q.includes(keyword)) {
-      return 'app_help';
-    }
-  }
-
-  return 'none';
+  language?: string;
+  currentFolderId?: string;
 }
 
 /**
- * Main entry point: handle navigation or app help questions
+ * Detect the language from query - uses centralized language engine
+ * @deprecated Use detectLanguageSimple directly from languageEngine.service.ts
  */
-export async function handleNavigationOrAppHelp(
-  req: NavigationRequest
-): Promise<NavigationResponse> {
-  const startTime = Date.now();
-  
-  // Step 1: Detect intent
-  const intent = detectNavigationIntent(req.query);
+function detectLanguage(query: string): string {
+  const detected = detectLanguageSimple(query, 'pt-BR');
+  // Map SupportedLanguage to legacy format
+  if (detected === 'pt-BR') return 'pt';
+  return detected;
+}
 
-  console.log(`[NavOrchestrator] Intent: ${intent} (${Date.now() - startTime}ms)`);
+/**
+ * Detect if query is a file/folder navigation request
+ */
+function detectFileNavigationIntent(query: string): {
+  isNavigation: boolean;
+  targetType: 'file' | 'folder' | 'list' | 'recent' | null;
+  searchTerm: string | null;
+  folderPath: string | null;
+} {
+  const queryLower = query.toLowerCase();
 
-  if (intent === 'none') {
-    return { handled: false };
-  }
+  // File search patterns
+  const fileSearchPatterns = [
+    /(?:find|search|where is|open|show me|locate)\s+(?:the\s+)?(?:file|document)\s+(?:called\s+|named\s+)?["']?([^"'?]+)["']?/i,
+    /(?:encontr|busc|procur|abr|mostrar?|localiz)[aei]r?\s+(?:o\s+)?(?:arquivo|documento)\s+(?:chamado\s+)?["']?([^"'?]+)["']?/i,
+    /(?:where|onde)\s+(?:is|está|fica)\s+(?:the\s+|o\s+)?(?:file|documento|arquivo)\s+["']?([^"'?]+)["']?/i,
+  ];
 
-  // Step 2: Route to app help
-  if (intent === 'app_help') {
-    console.log(`[NavOrchestrator] Routing to app help engine...`);
-    
-    const answer = await answerAppHelpQuestion({
-      query: req.query,
-      language: req.detectedLanguage,
-    });
+  // Folder search patterns
+  const folderSearchPatterns = [
+    /(?:find|search|where is|open|show me|go to)\s+(?:the\s+)?folder\s+(?:called\s+|named\s+)?["']?([^"'?]+)["']?/i,
+    /(?:encontr|busc|abr|ir para)\s+(?:a\s+)?pasta\s+(?:chamada\s+)?["']?([^"'?]+)["']?/i,
+    /(?:where|onde)\s+(?:is|está|fica)\s+(?:the\s+|a\s+)?(?:folder|pasta)\s+["']?([^"'?]+)["']?/i,
+  ];
 
-    console.log(`[NavOrchestrator] App help answer generated (${Date.now() - startTime}ms)`);
+  // List files patterns - MUST require explicit folder reference
+  // Patterns like "quais documentos eu tenho" should NOT match here (handled by document listing)
+  const listFilesPatterns = [
+    // English: REQUIRE "in" or "folder" to be present
+    /(?:list|show|what)\s+(?:all\s+)?(?:files|documents)\s+in\s+(?:the\s+)?(?:folder\s+)?["']?([^"'?]+)["']?/i,
+    /(?:list|show)\s+(?:all\s+)?(?:files|documents)\s+(?:in\s+)?(?:the\s+)?folder\s+["']?([^"'?]+)["']?/i,
+    // Portuguese: REQUIRE "na pasta" or "da pasta" to be present
+    /(?:listar?|mostrar?|quais)\s+(?:os\s+)?(?:arquivos|documentos)\s+(?:na|da)\s+pasta\s+["']?([^"'?]+)["']?/i,
+  ];
 
-    return {
-      handled: true,
-      answerType: 'app_help',
-      answer,
-      diagnostics: {
-        intent,
-        latencyMs: Date.now() - startTime
-      }
-    };
-  }
+  // Recent files patterns
+  const recentFilesPatterns = [
+    /(?:recent|latest|last|new)\s+(?:uploaded\s+)?(?:files|documents)/i,
+    /(?:files|documents)\s+(?:i\s+)?(?:recently|just)\s+(?:uploaded|added)/i,
+    /(?:arquivos|documentos)\s+(?:recentes|últimos|novos)/i,
+    /(?:últimos|recentes)\s+(?:arquivos|documentos)/i,
+    /what did i (?:upload|add) (?:recently|today|this week)/i,
+    /o que (?:eu )?(?:enviei|carreguei) (?:recentemente|hoje)/i,
+  ];
 
-  // Step 3: Handle file/folder navigation
-  if (intent === 'file_navigation' || intent === 'folder_navigation') {
-    console.log(`[NavOrchestrator] Searching files for user ${req.userId}...`);
-    
-    // Search by filename, microSummary, displayTitle
-    const files = await searchFilesByNameOrContent({
-      userId: req.userId,
-      query: req.query,
-      limit: 10,
-    });
-
-    console.log(`[NavOrchestrator] Found ${files.length} files (${Date.now() - startTime}ms)`);
-
-    // Step 4: No files found
-    if (!files || files.length === 0) {
-      const context = buildNoFilesFoundContext(req);
-      
-      const llm = await generateAdaptiveAnswer({
-        query: req.query,
-        context,
-        language: req.detectedLanguage,
-        responseType: 'simple',
-      });
-
+  // Check file search
+  for (const pattern of fileSearchPatterns) {
+    const match = query.match(pattern);
+    if (match) {
       return {
-        handled: true,
-        answerType: 'file_navigation',
-        answer: llm.answer,
-        relatedFiles: [],
-        diagnostics: {
-          intent,
-          fileCount: 0,
-          latencyMs: Date.now() - startTime
-        }
+        isNavigation: true,
+        targetType: 'file',
+        searchTerm: match[1]?.trim() || null,
+        folderPath: null,
       };
     }
+  }
 
-    // Step 5: Files found - build structured context
-    const context = buildFileNavigationContext(req, files);
-    
-    console.log(`[NavOrchestrator] Generating adaptive answer...`);
-    
-    const llm = await generateAdaptiveAnswer({
-      query: req.query,
-      context,
-      language: req.detectedLanguage,
-      responseType: 'simple',
-    });
+  // Check folder search
+  for (const pattern of folderSearchPatterns) {
+    const match = query.match(pattern);
+    if (match) {
+      return {
+        isNavigation: true,
+        targetType: 'folder',
+        searchTerm: match[1]?.trim() || null,
+        folderPath: null,
+      };
+    }
+  }
 
-    console.log(`[NavOrchestrator] Answer generated (${Date.now() - startTime}ms)`);
+  // Check list files
+  for (const pattern of listFilesPatterns) {
+    const match = query.match(pattern);
+    if (match) {
+      return {
+        isNavigation: true,
+        targetType: 'list',
+        searchTerm: null,
+        folderPath: match[1]?.trim() || '/',
+      };
+    }
+  }
 
+  // Check recent files
+  for (const pattern of recentFilesPatterns) {
+    if (pattern.test(query)) {
+      return {
+        isNavigation: true,
+        targetType: 'recent',
+        searchTerm: null,
+        folderPath: null,
+      };
+    }
+  }
+
+  return {
+    isNavigation: false,
+    targetType: null,
+    searchTerm: null,
+    folderPath: null,
+  };
+}
+
+/**
+ * Handle file search query
+ */
+async function handleFileSearch(
+  userId: string,
+  searchTerm: string,
+  language: string
+): Promise<NavigationResult> {
+  const isPortuguese = language === 'pt';
+
+  const files = await searchFilesByNameOrContent(userId, searchTerm, { limit: 5 });
+
+  if (files.length === 0) {
     return {
       handled: true,
-      answerType: 'file_navigation',
-      answer: llm.answer,
-      relatedFiles: files.map(f => ({
-        id: f.id,
-        filename: f.filename,
-        folderPath: f.folderPath,
-        mimeType: f.mimeType,
-        sizeBytes: f.sizeBytes,
-        uploadedAt: f.uploadedAt,
-        movedAt: f.movedAt,
-      })),
-      diagnostics: {
-        intent,
-        fileCount: files.length,
-        latencyMs: Date.now() - startTime
-      },
+      intentType: 'file_search',
+      confidence: 0.9,
+      language,
+      response: isPortuguese
+        ? `Não encontrei nenhum arquivo chamado "${searchTerm}". Tente verificar o nome ou use termos diferentes.`
+        : `I couldn't find any file named "${searchTerm}". Try checking the name or using different terms.`,
+      files: [],
     };
   }
 
-  return { handled: false };
+  if (files.length === 1) {
+    const file = files[0];
+    const docMarker = `{{DOC:::${file.id}:::${file.filename}:::${file.folderPath}:::open}}`;
+
+    return {
+      handled: true,
+      intentType: 'file_search',
+      confidence: 0.95,
+      language,
+      response: isPortuguese
+        ? `Encontrei o arquivo **${file.filename}**:\n\n${docMarker}`
+        : `I found the file **${file.filename}**:\n\n${docMarker}`,
+      files,
+    };
+  }
+
+  // Multiple results
+  let response = isPortuguese
+    ? `Encontrei ${files.length} arquivos relacionados a "${searchTerm}":\n\n`
+    : `I found ${files.length} files related to "${searchTerm}":\n\n`;
+
+  for (const file of files) {
+    const docMarker = `{{DOC:::${file.id}:::${file.filename}:::${file.folderPath}:::open}}`;
+    response += `- ${docMarker}\n`;
+  }
+
+  return {
+    handled: true,
+    intentType: 'file_search',
+    confidence: 0.9,
+    language,
+    response,
+    files,
+  };
 }
 
 /**
- * Build context when no files are found
+ * Handle folder search query
  */
-function buildNoFilesFoundContext(req: NavigationRequest): string {
-  return `
-[FILE SEARCH RESULT]
+async function handleFolderSearch(
+  userId: string,
+  searchTerm: string,
+  language: string
+): Promise<NavigationResult> {
+  const isPortuguese = language === 'pt';
 
-No documents found matching the user's query:
-"${req.query}"
+  const navResult = await navigateToTarget(userId, searchTerm, { preferFolders: true });
 
-TASK:
-- Answer in ${req.detectedLanguage}.
-- Explain gently that you didn't find any matching documents.
-- Suggest the user to:
-  - Check if the document was uploaded.
-  - Try using different keywords or the document name.
-  - Check the Knowledge Hub / My Documents page to browse all files.
-- Be helpful and friendly, not robotic.
-`;
+  if (!navResult.found || navResult.folders.length === 0) {
+    return {
+      handled: true,
+      intentType: 'folder_search',
+      confidence: 0.85,
+      language,
+      response: isPortuguese
+        ? `Não encontrei nenhuma pasta chamada "${searchTerm}".`
+        : `I couldn't find any folder named "${searchTerm}".`,
+      folders: [],
+    };
+  }
+
+  const formattedResponse = formatNavigationResult(navResult, language);
+
+  return {
+    handled: true,
+    intentType: 'folder_search',
+    confidence: 0.9,
+    language,
+    response: formattedResponse,
+    folders: navResult.folders,
+    files: navResult.files,
+  };
 }
 
 /**
- * Build structured context for file navigation
+ * Handle list files in folder query
  */
-function buildFileNavigationContext(req: NavigationRequest, files: FileRecord[]): string {
-  // Build file list with all metadata
-  const fileLines = files.map((f, index) => {
-    const uploadedStr = f.uploadedAt 
-      ? formatDate(f.uploadedAt, req.detectedLanguage)
-      : 'unknown';
-    
-    const movedStr = f.movedAt 
-      ? formatDate(f.movedAt, req.detectedLanguage)
-      : 'never moved';
+async function handleListFiles(
+  userId: string,
+  folderPath: string,
+  language: string
+): Promise<NavigationResult> {
+  const isPortuguese = language === 'pt';
 
-    return `
-${index + 1}) ID: ${f.id}
-   Filename: ${f.filename}
-   Folder path: ${f.folderPath}
-   Uploaded at: ${uploadedStr}
-   Moved to current folder at: ${movedStr}
-   Mime type: ${f.mimeType}
-   Size: ${formatFileSize(f.sizeBytes)}
-`;
-  }).join('\n');
+  const files = await listFilesInFolderPath(userId, folderPath, { limit: 20 });
 
-  // Build document markers for frontend rendering
-  const docMarkers = files.map(f =>
-    `{{DOC:::${f.id}:::${f.filename}:::${f.mimeType}:::${f.sizeBytes}:::}}`
-  ).join('\n');
+  if (files.length === 0) {
+    return {
+      handled: true,
+      intentType: 'file_list',
+      confidence: 0.9,
+      language,
+      response: isPortuguese
+        ? `Não há arquivos nesta pasta.`
+        : `There are no files in this folder.`,
+      files: [],
+    };
+  }
 
-  return `
-[INTERNAL FILE CONTEXT]
+  let response = isPortuguese
+    ? `Arquivos em **${folderPath || '/'}** (${files.length}):\n\n`
+    : `Files in **${folderPath || '/'}** (${files.length}):\n\n`;
 
-User language: ${req.detectedLanguage}
-Original query: "${req.query}"
+  for (const file of files.slice(0, 15)) {
+    const docMarker = `{{DOC:::${file.id}:::${file.filename}:::${file.folderPath}:::open}}`;
+    response += `- ${docMarker}\n`;
+  }
 
-We found these files for this user:
+  if (files.length > 15) {
+    response += isPortuguese
+      ? `\n...e mais ${files.length - 15} arquivos`
+      : `\n...and ${files.length - 15} more files`;
+  }
 
-${fileLines}
-
-TASK FOR THE MODEL:
-
-- Answer in ${req.detectedLanguage} ONLY.
-- Sound natural, friendly, and concise.
-- First, explain which file(s) are most likely to match the user's request.
-- For each relevant file:
-  - Show the filename in **bold**.
-  - Then show the folder path in a new line, like:
-    "Location: My Documents / Projects / Mezzanine / Financial"
-  - If available, mention when it was uploaded and when it was moved to the current folder.
-- If there are multiple similar files, ask which one the user wants to open.
-- At the END of the answer, include the following special markers (one per line)
-  so that the frontend can render clickable documents:
-
-${docMarkers}
-
-Do NOT explain the markers. They are just for the UI.
-`;
+  return {
+    handled: true,
+    intentType: 'file_list',
+    confidence: 0.95,
+    language,
+    response,
+    files,
+  };
 }
 
 /**
- * Format date based on language
+ * Handle recent files query
  */
-function formatDate(date: Date, language: string): string {
-  const locale = language === 'pt' || language === 'pt-BR' ? 'pt-BR' : 'en-US';
-  
-  return date.toLocaleDateString(locale, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  });
+async function handleRecentFiles(
+  userId: string,
+  language: string
+): Promise<NavigationResult> {
+  const isPortuguese = language === 'pt';
+
+  const files = await getRecentFiles(userId, { limit: 10, days: 7 });
+
+  if (files.length === 0) {
+    return {
+      handled: true,
+      intentType: 'recent_files',
+      confidence: 0.9,
+      language,
+      response: isPortuguese
+        ? `Você não enviou nenhum arquivo nos últimos 7 dias.`
+        : `You haven't uploaded any files in the last 7 days.`,
+      files: [],
+    };
+  }
+
+  let response = isPortuguese
+    ? `Seus arquivos recentes (últimos 7 dias):\n\n`
+    : `Your recent files (last 7 days):\n\n`;
+
+  for (const file of files) {
+    const docMarker = `{{DOC:::${file.id}:::${file.filename}:::${file.folderPath}:::open}}`;
+    const date = file.updatedAt.toLocaleDateString(isPortuguese ? 'pt-BR' : 'en-US');
+    response += `- ${docMarker} (${date})\n`;
+  }
+
+  return {
+    handled: true,
+    intentType: 'recent_files',
+    confidence: 0.95,
+    language,
+    response,
+    files,
+  };
 }
 
 /**
- * Format file size in human-readable format
+ * Handle app help query
  */
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} bytes`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+async function handleAppHelp(
+  query: string,
+  language: string
+): Promise<NavigationResult> {
+  const helpResult = getHelpResponse(query, language);
+
+  return {
+    handled: true,
+    intentType: 'app_help',
+    confidence: helpResult.confidence,
+    language,
+    response: helpResult.response,
+    metadata: {
+      topics: helpResult.topics.map(t => t.id),
+    },
+  };
 }
 
 /**
- * Convenience function for quick testing
+ * Main orchestrator function - handles navigation and help queries
+ *
+ * @param query - The user's query
+ * @param context - Context including userId and language
+ * @returns NavigationResult indicating if the query was handled
  */
-export async function testNavigationOrchestrator(query: string, userId: string, language: string = 'pt-BR') {
-  const result = await handleNavigationOrAppHelp({
-    query,
-    userId,
-    detectedLanguage: language
-  });
-  
-  console.log('\n=== Navigation Orchestrator Test ===');
-  console.log('Query:', query);
-  console.log('Handled:', result.handled);
-  console.log('Answer Type:', result.answerType);
-  console.log('Related Files:', result.relatedFiles?.length || 0);
-  console.log('Diagnostics:', result.diagnostics);
-  console.log('\nAnswer:');
-  console.log(result.answer);
-  console.log('===================================\n');
-  
-  return result;
+export async function handleNavigationQuery(
+  query: string,
+  context?: OrchestratorContext | Record<string, unknown>
+): Promise<NavigationResult> {
+  // Extract context
+  const userId = (context as OrchestratorContext)?.userId;
+  const providedLanguage = (context as OrchestratorContext)?.language;
+  const currentFolderId = (context as OrchestratorContext)?.currentFolderId;
+
+  // If no userId, can't handle navigation
+  if (!userId) {
+    return { handled: false, intentType: 'not_handled' };
+  }
+
+  // Detect language
+  const language = providedLanguage || detectLanguage(query);
+
+  // Step 1: Check for file/folder navigation intent
+  const navIntent = detectFileNavigationIntent(query);
+
+  if (navIntent.isNavigation) {
+    switch (navIntent.targetType) {
+      case 'file':
+        if (navIntent.searchTerm) {
+          return handleFileSearch(userId, navIntent.searchTerm, language);
+        }
+        break;
+
+      case 'folder':
+        if (navIntent.searchTerm) {
+          return handleFolderSearch(userId, navIntent.searchTerm, language);
+        }
+        break;
+
+      case 'list':
+        return handleListFiles(userId, navIntent.folderPath || '/', language);
+
+      case 'recent':
+        return handleRecentFiles(userId, language);
+    }
+  }
+
+  // Step 2: Check for app help query
+  if (isHelpQuery(query)) {
+    return handleAppHelp(query, language);
+  }
+
+  // Step 3: Try more advanced intent detection (from imported services)
+  try {
+    const navigationIntentResult = detectNavigationIntent(query);
+    if (navigationIntentResult.type !== 'NONE' && navigationIntentResult.confidence > 0.7) {
+      // Use the detected target/searchTerm for search
+      const searchTarget = navigationIntentResult.searchTerm || navigationIntentResult.targetName;
+      if (searchTarget) {
+        return handleFileSearch(userId, searchTarget, language);
+      }
+    }
+
+    const appHelpIntentResult = detectAppHelpIntent(query);
+    if (appHelpIntentResult.type !== 'NONE' && appHelpIntentResult.confidence > 0.7) {
+      return handleAppHelp(query, language);
+    }
+  } catch (error) {
+    // Intent services may not be available, continue
+    console.log('[NavigationOrchestrator] Intent detection services not available');
+  }
+
+  // Not a navigation or help query
+  return {
+    handled: false,
+    intentType: 'not_handled',
+    language,
+  };
 }
+
+/**
+ * Quick check if query might be navigation-related (for early filtering)
+ */
+export function mightBeNavigationQuery(query: string): boolean {
+  const navKeywords = [
+    'find', 'search', 'where', 'open', 'show', 'locate', 'list',
+    'recent', 'folder', 'file', 'document', 'upload',
+    'encontrar', 'buscar', 'onde', 'abrir', 'mostrar', 'localizar', 'listar',
+    'recente', 'pasta', 'arquivo', 'documento', 'carregar',
+    'how do i', 'how to', 'help', 'what is',
+    'como', 'ajuda', 'o que é',
+  ];
+
+  const queryLower = query.toLowerCase();
+
+  for (const keyword of navKeywords) {
+    if (queryLower.includes(keyword)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export default {
+  handleNavigationQuery,
+  mightBeNavigationQuery,
+};

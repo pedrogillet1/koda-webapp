@@ -24,7 +24,7 @@ import {
 import * as languageDetectionService from '../services/languageDetection.service';
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 // ✅ FORMAT ENFORCEMENT: Import format enforcement services
-import { structureEnforcementService } from '../services/deletedServiceStubs';
+import { structureEnforcementService } from '../services/structureEnforcement.service';
 // DEPRECATED: Replaced by MasterFormatter and 3-layer architecture
 // import formatEnforcementService from '../services/formatEnforcement.service';
 import { formatEnforcementService } from '../services/deletedServiceStubs';
