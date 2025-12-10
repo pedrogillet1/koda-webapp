@@ -2,25 +2,171 @@
  * Language Detection Service - Enhanced for Multilingual Support
  * Detects language and handles greetings in multiple languages
  * Supports: English, Portuguese (pt), Spanish (es)
- *
- * NOTE: This service now uses the centralized languageEngine.service.ts
- * for primary detection. Helper functions remain here for backward compatibility.
- *
- * @deprecated Use languageEngine.service.ts for new code
  */
-
-import { detectLanguageSimple, isGreeting as isGreetingEngine } from './languageEngine.service';
 
 /**
  * Detect language from user input
- * Uses centralized language engine for detection
- * @deprecated Use detectLanguageSimple from languageEngine.service.ts
+ * Uses keyword-based detection for common patterns
+ * ✅ FIX: English is the default, only switch if strong non-English signals
+ * ✅ FIX #2: Single-word greetings are now detected correctly
  */
 export function detectLanguage(text: string): string {
-  const detected = detectLanguageSimple(text, 'pt-BR');
-  // Map SupportedLanguage to legacy format
-  if (detected === 'pt-BR') return 'pt';
-  return detected;
+  const lowerText = text.toLowerCase().trim();
+
+  // ✅ FIX #2: Check for single-word greetings FIRST (these need special handling)
+  // Single-word greetings should immediately return the correct language
+  const greetingLanguageMap: Record<string, string> = {
+    // Portuguese greetings
+    'olá': 'pt', 'ola': 'pt', 'oi': 'pt', 'e aí': 'pt', 'eai': 'pt',
+    'bom dia': 'pt', 'boa tarde': 'pt', 'boa noite': 'pt', 'tudo bem': 'pt',
+    // Spanish greetings
+    'hola': 'es', 'buenos días': 'es', 'buenos dias': 'es',
+    'buenas tardes': 'es', 'buenas noches': 'es', 'qué tal': 'es', 'que tal': 'es',
+    // French greetings
+    'bonjour': 'fr', 'bonsoir': 'fr', 'salut': 'fr', 'coucou': 'fr', 'ça va': 'fr',
+  };
+
+  // Check if the text is a greeting (with optional punctuation)
+  const cleanText = lowerText.replace(/[!?.]+$/, '').trim();
+  if (greetingLanguageMap[cleanText]) {
+    const detectedLang = greetingLanguageMap[cleanText];
+    console.log(`🌐 [LANG] Detected ${detectedLang} from greeting: "${cleanText}"`);
+    return detectedLang;
+  }
+
+  // ✅ FIX: Check for explicit English patterns first
+  // If the text is clearly English, return early
+  const strongEnglishPatterns = [
+    /\bwhat\s+is\b/i,
+    /\bhow\s+(many|much|is|are|does|do)\b/i,
+    /\bwhy\s+(is|are|does|do)\b/i,
+    /\bwhat\s+are\b/i,
+    /\bwhich\s+(is|are|property|properties)\b/i,
+    /\bshould\s+i\b/i,
+    /\bcan\s+(you|i)\b/i,
+    /\bif\s+i\s+have\b/i,
+    /\bbased\s+on\b/i,
+    /\baccording\s+to\b/i,
+    /\bplease\b/i,
+    /\bthe\s+(total|average|sum|revenue|investment|budget)\b/i,
+    /\b(calculate|compare|analyze|explain|show|find|get)\b/i,
+  ];
+
+  // If query matches strong English patterns, return English
+  if (strongEnglishPatterns.some(pattern => pattern.test(lowerText))) {
+    return 'en';
+  }
+
+  // Helper function to count matches
+  const countMatches = (text: string, words: string[]): number => {
+    return words.filter(word => text.includes(word)).length;
+  };
+
+  // Portuguese patterns (comprehensive list - EXPANDED)
+  const portuguesePatterns = [
+    // Greetings
+    'olá', 'ola', 'oi', 'bom dia', 'boa tarde', 'boa noite',
+    'como está', 'como esta', 'tudo bem', 'como vai', 'e aí', 'eai',
+    'obrigado', 'obrigada', 'por favor',
+    // Question words
+    'quantos', 'quantas', 'quais', 'qual é', 'qual', 'onde', 'quando', 'como', 'porque', 'por que', 'quem',
+    'o que', 'que é', 'que e', 'como é', 'como e', 'onde está', 'onde esta',
+    // Common verbs (including conjugations)
+    'tenho', 'posso', 'pode', 'preciso', 'quero', 'gostaria',
+    'ajudar', 'mostrar', 'mostra', 'mostre', 'me mostra', 'explicar', 'encontrar', 'buscar', 'procurar',
+    'abre', 'abra', 'abrir', 'exibe', 'exiba', 'exibir',
+    'são', 'sao', 'foi', 'fazer', 'ver', 'ler',
+    // File/document terms
+    'arquivo', 'arquivos', 'documento', 'documentos', 'pasta', 'pastas',
+    'contrato', 'contratos', 'análise', 'analise', 'relatório', 'relatorio',
+    'projeto', 'projetos', 'planilha', 'planilhas',
+    // Actions
+    'criar', 'deletar', 'apagar', 'mover', 'renomear', 'excluir',
+    // Common words
+    'sobre', 'para', 'isso', 'este', 'esta', 'esse', 'essa',
+    'meu', 'minha', 'meus', 'minhas', 'seu', 'sua',
+    'não', 'nao', 'sim', 'muito', 'mais', 'menos', 'também', 'tambem',
+    // Financial/business terms
+    'total', 'valor', 'preço', 'preco', 'custo', 'data', 'nome',
+    'lucro', 'receita', 'despesa', 'investimento', 'roi', 'cálculo', 'calculo',
+    // Adjectives
+    'principal', 'principais', 'melhor', 'pior', 'maior', 'menor',
+    // Portuguese-specific characters/suffixes
+    'ção', 'ões', 'ã', 'õ'
+  ];
+
+  // Spanish patterns (comprehensive list)
+  const spanishPatterns = [
+    // Greetings
+    'hola', 'buenos días', 'buenos dias', 'buenas tardes', 'buenas noches',
+    'cómo estás', 'como estas', 'gracias', 'por favor',
+    // Question words
+    'cuántos', 'cuantos', 'cuántas', 'cuantas', 'cuáles', 'cuales', 'cuál', 'cual',
+    'dónde', 'donde', 'cuándo', 'cuando', 'cómo', 'por qué', 'quién', 'quien',
+    // Common verbs (including conjugations)
+    'tengo', 'puedo', 'necesito', 'quiero', 'quisiera',
+    'ayudar', 'mostrar', 'muestra', 'muéstrame', 'muestrame', 'explicar', 'buscar', 'encontrar',
+    'abre', 'abra', 'abrir', 'enseña', 'enseñar', 'déjame', 'dejame',
+    // File/document terms
+    'archivo', 'archivos', 'documento', 'documentos', 'carpeta', 'carpetas',
+    // Actions
+    'crear', 'borrar', 'eliminar', 'mover', 'renombrar',
+    // Common words
+    'esto', 'mi', 'mis', 'tu', 'tus', 'sí', 'mucho', 'más', 'mas', 'menos',
+    // Spanish-specific
+    'ñ', '¿', '¡'
+  ];
+
+  // French patterns
+  const frenchPatterns = [
+    // Greetings (already handled above but add more)
+    'bonjour', 'bonsoir', 'salut', 'coucou', 'ça va', 'merci', 's\'il vous plaît', 'svp',
+    // Question words
+    'combien', 'quels', 'quelle', 'quel', 'où', 'quand', 'comment', 'pourquoi', 'qui',
+    // Common verbs (including conjugations)
+    'j\'ai', 'je peux', 'je veux', 'j\'aimerais', 'je voudrais',
+    'montrer', 'montre', 'montrez', 'montre-moi', 'afficher', 'affiche', 'ouvrir', 'ouvre',
+    'voir', 'regarder', 'chercher', 'trouver',
+    // File/document terms
+    'fichier', 'fichiers', 'document', 'documents', 'dossier', 'dossiers',
+    // Actions
+    'créer', 'supprimer', 'déplacer', 'renommer', 'effacer',
+    // Common words
+    'le', 'la', 'les', 'mon', 'ma', 'mes', 'ce', 'cette', 'oui', 'non',
+    // French-specific
+    'é', 'è', 'ê', 'ç', 'à', 'ù', 'û', 'î', 'ô'
+  ];
+
+  // Count matches for each language
+  const ptCount = countMatches(lowerText, portuguesePatterns);
+  const esCount = countMatches(lowerText, spanishPatterns);
+  const frCount = countMatches(lowerText, frenchPatterns);
+
+  // ✅ FIX: Lowered from 2 to 1 to handle short queries like "Qual é o total?"
+  // Single matches for language-specific words are now sufficient
+  const MIN_MATCHES_FOR_LANGUAGE_SWITCH = 1;
+
+  // Return language with most matches, only if above threshold
+  // Priority: pt > es > fr (in case of ties, prefer in this order)
+  const maxCount = Math.max(ptCount, esCount, frCount);
+
+  if (maxCount >= MIN_MATCHES_FOR_LANGUAGE_SWITCH) {
+    if (ptCount === maxCount) {
+      console.log(`🌐 [LANG] Detected Portuguese (${ptCount} matches)`);
+      return 'pt';
+    }
+    if (esCount === maxCount) {
+      console.log(`🌐 [LANG] Detected Spanish (${esCount} matches)`);
+      return 'es';
+    }
+    if (frCount === maxCount) {
+      console.log(`🌐 [LANG] Detected French (${frCount} matches)`);
+      return 'fr';
+    }
+  }
+
+  // Default to English
+  return 'en';
 }
 
 /**

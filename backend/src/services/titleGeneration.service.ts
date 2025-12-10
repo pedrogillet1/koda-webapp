@@ -1,15 +1,19 @@
 /**
  * Title Generation Service
- *
+ * 
  * Generates warm, specific, engaging titles for:
  * 1. Conversation titles (sidebar)
  * 2. Answer titles and section headings
  * 3. Document titles (file listing)
- *
- * Uses Gemini 2.5 Flash for fast, cost-effective title generation.
+ * 
+ * Uses GPT-4o-mini for fast, cheap title generation.
  */
 
-import geminiClient from './geminiClient.service';
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 export type TitleMode =
   | 'chat_title'
@@ -39,21 +43,21 @@ export interface TitleResult {
  * Main title generation function
  */
 export async function generateTitleArtifacts(params: TitleParams): Promise<TitleResult> {
-  const { mode } = params;
-
+  const { mode, language } = params;
+  
   switch (mode) {
     case 'chat_title':
       return { chatTitle: await generateChatTitle(params) };
-
+    
     case 'answer_title':
       return { answerTitle: await generateAnswerTitle(params) };
-
+    
     case 'answer_sections':
       return { sectionHeadings: await generateSectionHeadings(params) };
-
+    
     case 'document_title':
       return { documentTitle: await generateDocumentTitle(params) };
-
+    
     default:
       throw new Error(`Unknown title mode: ${mode}`);
   }
@@ -61,7 +65,7 @@ export async function generateTitleArtifacts(params: TitleParams): Promise<Title
 
 /**
  * Generate conversation title (for sidebar)
- *
+ * 
  * Rules:
  * - 6-8 words maximum
  * - Warm, specific, engaging
@@ -70,12 +74,12 @@ export async function generateTitleArtifacts(params: TitleParams): Promise<Title
  */
 async function generateChatTitle(params: TitleParams): Promise<string> {
   const { language, userMessage, assistantPreview } = params;
-
+  
   if (!userMessage) {
     throw new Error('userMessage is required for chat_title mode');
   }
-
-  const prompt = `You are Koda's Title Engine.
+  
+  const systemPrompt = `You are Koda's Title Engine.
 
 Your job is to generate **short, engaging conversation titles** for a personal document assistant.
 
@@ -88,17 +92,19 @@ Rules:
 * Prefer natural, human phrasing over academic tone
 
 Examples in Portuguese:
-* Analisando o ROI do mezanino
-* Organizando seus contratos de locação
-* Revisando riscos do projeto de expansão
-* Comparando cenários financeiros
+* "Analisando o ROI do mezanino"
+* "Organizando seus contratos de locação"
+* "Revisando riscos do projeto de expansão"
+* "Comparando cenários financeiros"
 
 Examples in English:
-* Checking ROI of the mezzanine
-* Reviewing your storage contracts
-* Analyzing project expansion risks
+* "Checking ROI of the mezzanine"
+* "Reviewing your storage contracts"
+* "Analyzing project expansion risks"
 
-LANG=${language}
+Output: return **ONLY** the title text, nothing else.`;
+
+  const userPrompt = `LANG=${language}
 
 USER_MESSAGE:
 "${userMessage}"
@@ -106,24 +112,24 @@ USER_MESSAGE:
 ${assistantPreview ? `ASSISTANT_PREVIEW:\n"${assistantPreview.substring(0, 200)}..."` : ''}
 
 TASK:
-Generate a short, engaging conversation title following the rules above.
-Output: return **ONLY** the title text, nothing else.`;
+Generate a short, engaging conversation title following the rules above.`;
 
   try {
-    const model = geminiClient.getModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 30
-      }
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 30
     });
-
-    const result = await model.generateContent(prompt);
-    const title = result.response.text()?.trim() || 'New Conversation';
-
+    
+    const title = response.choices[0]?.message?.content?.trim() || 'New Conversation';
+    
     // Remove quotes if present
-    return title.replace(/^["']|["']$/g, '').replace(/^#+\s*/, '');
-
+    return title.replace(/^["']|["']$/g, '');
+    
   } catch (error) {
     console.error('[TitleGen] Failed to generate chat title:', error);
     // Fallback: extract first few words from user message
@@ -133,7 +139,7 @@ Output: return **ONLY** the title text, nothing else.`;
 
 /**
  * Generate answer title (H1 for the response)
- *
+ * 
  * Rules:
  * - 7-10 words maximum
  * - Engaging but professional
@@ -142,12 +148,12 @@ Output: return **ONLY** the title text, nothing else.`;
  */
 async function generateAnswerTitle(params: TitleParams): Promise<string> {
   const { language, userMessage, answerDraft } = params;
-
+  
   if (!userMessage) {
     throw new Error('userMessage is required for answer_title mode');
   }
-
-  const prompt = `You are Koda's Answer Title Generator.
+  
+  const systemPrompt = `You are Koda's Answer Title Generator.
 
 Your job is to generate **engaging H1 titles** for answers.
 
@@ -160,17 +166,19 @@ Rules:
 * Professional but friendly tone
 
 Examples in Portuguese:
-* Vale a pena investir no mezanino?
-* Como calcular o ROI do projeto
-* Principais riscos do contrato de locação
-* Resumo financeiro do mezanino Guarda Bens
+* "Vale a pena investir no mezanino?"
+* "Como calcular o ROI do projeto"
+* "Principais riscos do contrato de locação"
+* "Resumo financeiro do mezanino Guarda Bens"
 
 Examples in English:
-* Is the mezzanine investment worth it?
-* How to calculate project ROI
-* Main risks in the lease contract
+* "Is the mezzanine investment worth it?"
+* "How to calculate project ROI"
+* "Main risks in the lease contract"
 
-LANG=${language}
+Output: return **ONLY** the title text.`;
+
+  const userPrompt = `LANG=${language}
 
 USER_QUESTION:
 "${userMessage}"
@@ -178,24 +186,24 @@ USER_QUESTION:
 ${answerDraft ? `ANSWER_PREVIEW:\n"${answerDraft.substring(0, 300)}..."` : ''}
 
 TASK:
-Generate a clear, engaging H1 title for this answer.
-Output: return **ONLY** the title text.`;
+Generate a clear, engaging H1 title for this answer.`;
 
   try {
-    const model = geminiClient.getModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 40
-      }
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 40
     });
-
-    const result = await model.generateContent(prompt);
-    const title = result.response.text()?.trim() || 'Answer';
-
+    
+    const title = response.choices[0]?.message?.content?.trim() || 'Answer';
+    
     // Remove markdown symbols and quotes
     return title.replace(/^#+\s*/, '').replace(/^["']|["']$/g, '');
-
+    
   } catch (error) {
     console.error('[TitleGen] Failed to generate answer title:', error);
     return 'Answer';
@@ -204,7 +212,7 @@ Output: return **ONLY** the title text.`;
 
 /**
  * Generate section headings (H2) for structured answers
- *
+ * 
  * Rules:
  * - 2-5 sections
  * - Clear, informative
@@ -212,12 +220,12 @@ Output: return **ONLY** the title text.`;
  */
 async function generateSectionHeadings(params: TitleParams): Promise<string[]> {
   const { language, userMessage, answerDraft, domainHint } = params;
-
+  
   if (!userMessage || !answerDraft) {
     throw new Error('userMessage and answerDraft are required for answer_sections mode');
   }
-
-  const prompt = `You are Koda's Section Heading Generator.
+  
+  const systemPrompt = `You are Koda's Section Heading Generator.
 
 Your job is to generate **2-5 clear H2 section headings** for a structured answer.
 
@@ -227,15 +235,17 @@ Rules:
 * No markdown symbols (no ##), just the text
 * No quotes, no emojis
 * Clear, informative, logical flow
-* Return as a JSON object with "headings" array
+* Return as a JSON array of strings
 
 Examples in Portuguese:
-{"headings": ["Cenário atual", "Cenário com mezanino", "ROI e payback", "Conclusão"]}
+["Cenário atual", "Cenário com mezanino", "ROI e payback", "Conclusão"]
 
 Examples in English:
-{"headings": ["Current scenario", "Scenario with mezzanine", "ROI and payback", "Conclusion"]}
+["Current scenario", "Scenario with mezzanine", "ROI and payback", "Conclusion"]
 
-LANG=${language}
+Output: return **ONLY** a JSON array of heading strings.`;
+
+  const userPrompt = `LANG=${language}
 ${domainHint ? `DOMAIN=${domainHint}` : ''}
 
 USER_QUESTION:
@@ -245,31 +255,31 @@ ANSWER_DRAFT:
 "${answerDraft.substring(0, 500)}..."
 
 TASK:
-Generate 2-5 clear section headings for this answer.
-Output: return **ONLY** a JSON object like {"headings": ["...", "..."]}`;
+Generate 2-5 clear section headings for this answer as a JSON array.`;
 
   try {
-    const model = geminiClient.getModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 150,
-        responseMimeType: 'application/json'
-      }
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 100,
+      response_format: { type: 'json_object' }
     });
-
-    const result = await model.generateContent(prompt);
-    const content = result.response.text()?.trim();
+    
+    const content = response.choices[0]?.message?.content?.trim();
     if (!content) return [];
-
+    
     const parsed = JSON.parse(content);
     const headings = parsed.headings || parsed.sections || [];
-
+    
     // Clean up headings
-    return headings.map((h: string) =>
+    return headings.map((h: string) => 
       h.replace(/^#+\s*/, '').replace(/^["']|["']$/g, '').trim()
     );
-
+    
   } catch (error) {
     console.error('[TitleGen] Failed to generate section headings:', error);
     return [];
@@ -278,7 +288,7 @@ Output: return **ONLY** a JSON object like {"headings": ["...", "..."]}`;
 
 /**
  * Generate document title (for file listing)
- *
+ * 
  * Rules:
  * - 3-8 words
  * - Descriptive, specific
@@ -287,12 +297,12 @@ Output: return **ONLY** a JSON object like {"headings": ["...", "..."]}`;
  */
 async function generateDocumentTitle(params: TitleParams): Promise<string> {
   const { language, filename, documentText } = params;
-
+  
   if (!filename && !documentText) {
     throw new Error('filename or documentText is required for document_title mode');
   }
-
-  const prompt = `You are Koda's Document Title Engine.
+  
+  const systemPrompt = `You are Koda's Document Title Engine.
 
 Your job is to generate a **short, clear title** for a document based on its content.
 
@@ -304,46 +314,47 @@ Rules:
 * Only one line, no markdown
 
 Examples in Portuguese:
-* Análise financeira mezanino Guarda Bens
-* Contrato de locação comercial
-* Relatório de exames laboratoriais
-* Proposta de expansão do projeto
+* "Análise financeira mezanino Guarda Bens"
+* "Contrato de locação comercial"
+* "Relatório de exames laboratoriais"
+* "Proposta de expansão do projeto"
 
 Examples in English:
-* Financial analysis mezzanine storage
-* Commercial lease agreement
-* Laboratory test report
-* Project expansion proposal
+* "Financial analysis mezzanine storage"
+* "Commercial lease agreement"
+* "Laboratory test report"
+* "Project expansion proposal"
 
-LANG=${language}
+Output: return **ONLY** the title text.`;
+
+  const userPrompt = `LANG=${language}
 
 ${filename ? `FILENAME: ${filename}` : ''}
 
 ${documentText ? `DOCUMENT_EXCERPT:\n${documentText.substring(0, 2000)}` : ''}
 
 TASK:
-Generate a short, descriptive title for this document.
-Output: return **ONLY** the title text.`;
+Generate a short, descriptive title for this document.`;
 
   try {
-    const model = geminiClient.getModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 30
-      }
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 30
     });
-
-    const result = await model.generateContent(prompt);
-    const title = result.response.text()?.trim();
+    
+    const title = response.choices[0]?.message?.content?.trim();
     if (!title) return filename || 'Untitled Document';
-
+    
     // Remove file extensions and quotes
     return title
       .replace(/\.(pdf|docx?|xlsx?|txt|md)$/i, '')
-      .replace(/^["']|["']$/g, '')
-      .replace(/^#+\s*/, '');
-
+      .replace(/^["']|["']$/g, '');
+    
   } catch (error) {
     console.error('[TitleGen] Failed to generate document title:', error);
     return filename || 'Untitled Document';
@@ -370,25 +381,13 @@ export async function generateAnswerTitleOnly(params: {
   userMessage: string;
   answerDraft?: string;
   language: string;
+  domainHint?: string;
 }): Promise<string> {
   const result = await generateTitleArtifacts({
     mode: 'answer_title',
     ...params
   });
   return result.answerTitle || 'Answer';
-}
-
-export async function generateSectionHeadingsOnly(params: {
-  userMessage: string;
-  answerDraft: string;
-  language: string;
-  domainHint?: TitleParams['domainHint'];
-}): Promise<string[]> {
-  const result = await generateTitleArtifacts({
-    mode: 'answer_sections',
-    ...params
-  });
-  return result.sectionHeadings || [];
 }
 
 export async function generateDocumentTitleOnly(params: {
@@ -402,11 +401,3 @@ export async function generateDocumentTitleOnly(params: {
   });
   return result.documentTitle || params.filename || 'Untitled Document';
 }
-
-export default {
-  generateTitleArtifacts,
-  generateChatTitleOnly,
-  generateAnswerTitleOnly,
-  generateSectionHeadingsOnly,
-  generateDocumentTitleOnly
-};

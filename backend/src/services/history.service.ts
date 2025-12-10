@@ -10,11 +10,16 @@
  */
 
 import prisma from '../config/database';
-import geminiClient from './geminiClient.service';
+import OpenAI from 'openai';
+import { config } from '../config/env';
+
+const openai = new OpenAI({
+  apiKey: config.OPENAI_API_KEY,
+});
 
 /**
  * Generate an AI title for a conversation based on its messages
- * Uses Gemini for fast, cost-effective title generation
+ * Uses GPT-4o-mini for fast, cost-effective title generation
  */
 export async function generateConversationTitle(
   conversationId: string
@@ -40,18 +45,24 @@ export async function generateConversationTitle(
       .map((msg) => `${msg.role}: ${msg.content.substring(0, 200)}`)
       .join('\n');
 
-    const model = geminiClient.getModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: { temperature: 0.3, maxOutputTokens: 20 }
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content:
+            'Generate a concise, descriptive title (3-6 words) for this conversation. Be specific and capture the main topic. Do not use quotes or punctuation at the end.',
+        },
+        {
+          role: 'user',
+          content: `Conversation:\n${conversationText}`,
+        },
+      ],
+      temperature: 0.3,
+      max_tokens: 20,
     });
 
-    const prompt = `Generate a concise, descriptive title (3-6 words) for this conversation. Be specific and capture the main topic. Do not use quotes or punctuation at the end.
-
-Conversation:
-${conversationText}`;
-
-    const result = await model.generateContent(prompt);
-    const title = result.response.text()?.trim() || 'New Chat';
+    const title = response.choices[0]?.message?.content?.trim() || 'New Chat';
 
     // Update the conversation with the generated title
     await prisma.conversation.update({
@@ -95,17 +106,24 @@ export async function generateConversationSummary(
       .join('\n')
       .substring(0, 2000);
 
-    const model = geminiClient.getModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: { temperature: 0.3, maxOutputTokens: 100 }
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content:
+            'Summarize this conversation in 1-2 sentences. Focus on the key topics, questions, and outcomes. Be concise and factual.',
+        },
+        {
+          role: 'user',
+          content: conversationText,
+        },
+      ],
+      temperature: 0.3,
+      max_tokens: 100,
     });
 
-    const prompt = `Summarize this conversation in 1-2 sentences. Focus on the key topics, questions, and outcomes. Be concise and factual.
-
-${conversationText}`;
-
-    const result = await model.generateContent(prompt);
-    const summary = result.response.text()?.trim() || null;
+    const summary = response.choices[0]?.message?.content?.trim() || null;
 
     if (summary) {
       await prisma.conversation.update({

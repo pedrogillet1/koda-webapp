@@ -212,7 +212,7 @@ io.on('connection', (socket) => {
       // Use NEW Hybrid RAG service with streaming
       let fullResponse = '';
 
-      const { sources } = await ragService.generateAnswerStream(
+      const { sources, documentList } = await ragService.generateAnswerStream(
         authenticatedUserId,
         data.content,
         conversationId,
@@ -242,6 +242,7 @@ io.on('connection', (socket) => {
       const result = {
         answer: processedAnswer,  // Use processed answer instead of raw fullResponse
         sources: sources,
+        documentList: documentList,  // Include document list for name→ID mapping in frontend
         expandedQuery: undefined,
         contextId: undefined,
         actions: []
@@ -272,9 +273,11 @@ io.on('connection', (socket) => {
       // Signal streaming complete (chunks already sent in real-time above)
       console.log('🚀🚀🚀 EMITTING message-complete event to room AND sender:', `conversation:${conversationId}`);
       console.log('📊 Sources:', result.sources?.length || 0);
+      console.log('📋 DocumentList:', result.documentList?.length || 0);
       emitToConversation('message-complete', {
         conversationId: conversationId,
-        sources: result.sources  // ✅ FIX: Include sources for frontend display
+        sources: result.sources,  // ✅ FIX: Include sources for frontend display
+        documentList: result.documentList  // ✅ NEW: Include document list for name→ID mapping
       });
       console.log('✅ message-complete event emitted successfully');
 

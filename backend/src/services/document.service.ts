@@ -4,9 +4,8 @@ import { uploadFile, downloadFile, getSignedUrl, deleteFile, bucket, fileExists 
 import { config } from '../config/env';
 import * as textExtractionService from './textExtraction.service';
 import * as visionService from './vision.service';
-import * as geminiService from './openai.service';
+import * as geminiService from './gemini.service';
 import * as folderService from './folder.service';
-import { generateDocumentTitleOnly } from './titleGeneration.service';
 import markdownConversionService from './markdownConversion.service';
 import cacheService from './cache.service';
 import encryptionService from './encryption.service';
@@ -727,23 +726,22 @@ async function processDocumentWithTimeout(
       fs.writeFileSync(tempPdfPath, fileBuffer);
 
       try {
-        // Import OCR service (consolidated from mistral-ocr.service)
-        const mistralOCR = (await import('./ocr.service')).default;
+        // Import Mistral OCR service
+        const mistralOCR = (await import('./mistral-ocr.service')).default;
 
         // Check if PDF is scanned (with fallback if check fails)
         let isScanned = false;
         try {
-          isScanned = await mistralOCR.isScannedPDF(tempPdfPath);
+          isScanned = await mistralOCR.isScannedPDF(fileBuffer);
         } catch (scanCheckError: any) {
           isScanned = false; // Assume text-based if check fails
         }
 
         if (isScanned && mistralOCR.isAvailable()) {
-          // Scanned PDF - try OCR service first, fallback to Google Cloud Vision
+          // Scanned PDF - try Mistral OCR first, fallback to Google Cloud Vision
           try {
-            // processScannedPDF returns a string directly
-            extractedText = await mistralOCR.processScannedPDF(tempPdfPath);
-            ocrConfidence = 0.95; // High confidence for OCR (95-98% accuracy)
+            extractedText = await mistralOCR.processScannedPDF(fileBuffer);
+            ocrConfidence = 0.95; // High confidence for Mistral OCR (95-98% accuracy)
           } catch (mistralError: any) {
             console.error('❌ Mistral OCR failed:', mistralError.message);
 
@@ -1386,25 +1384,6 @@ async function processDocumentWithTimeout(
         const crypto = require('crypto');
         const fileHashActual = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
-        // ═══════════════════════════════════════════════════════════════
-        // Generate AI-powered display title for the document
-        // ═══════════════════════════════════════════════════════════════
-        let displayTitle: string | null = null;
-        try {
-          const { detectLanguage } = await import('./languageDetection.service');
-          const detectedLang = detectLanguage(extractedText?.slice(0, 500) || '') || 'pt';
-
-          displayTitle = await generateDocumentTitleOnly({
-            filename,
-            documentText: extractedText?.slice(0, 1000), // First 1000 chars for context
-            language: detectedLang
-          });
-          console.log(`📝 [TITLE] Generated display title: "${displayTitle}"`);
-        } catch (titleError: any) {
-          console.warn(`⚠️ [TITLE] Failed to generate title: ${titleError.message}`);
-          // Don't fail the whole process - displayTitle will remain null
-        }
-
         await prisma.document.update({
           where: { id: documentId },
           data: {
@@ -1413,7 +1392,6 @@ async function processDocumentWithTimeout(
             renderableContent: extractedText || null,
             embeddingsGenerated: true,
             chunksCount: chunks?.length || 0,
-            displayTitle: displayTitle, // AI-generated human-readable title
             updatedAt: new Date()
           },
         });
@@ -1551,7 +1529,7 @@ async function processDocumentWithTimeout(
     // This allows frontend to update document status in state
     const completedDocument = await prisma.document.findUnique({
       where: { id: documentId },
-      include: { folder: { select: { id: true, name: true, path: true, emoji: true } } }
+      include: { folder: { select: { id: true, name: true, emoji: true } } }
     });
     if (completedDocument) {
       emitToUser(userId, 'processing-complete', completedDocument);
