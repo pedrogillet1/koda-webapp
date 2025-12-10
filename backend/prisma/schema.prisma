@@ -225,7 +225,7 @@ model Document {
 model DocumentMetadata {
   id                       String    @id @default(uuid())
   documentId               String    @unique
-  extractedText            String?
+  extractedText            String?   @db.Text
   ocrConfidence            Float?
   pageCount                Int?
   wordCount                Int?
