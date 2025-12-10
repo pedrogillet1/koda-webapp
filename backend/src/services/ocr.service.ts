@@ -11,8 +11,8 @@
 
 import Tesseract from 'tesseract.js';
 import vision, { ImageAnnotatorClient } from '@google-cloud/vision';
-// @ts-ignore - pdf-poppler has no type declarations
-import { convert } from 'pdf-poppler';
+import { exec } from "child_process";
+import { promisify } from "util";
 import sharp from 'sharp';
 import fs from 'fs/promises';
 import path from 'path';
@@ -22,6 +22,10 @@ import os from 'os';
 class OCRService {
   private client: ImageAnnotatorClient | null = null;
   private isInitialized = false;
+
+  // Timeout and retry configuration
+  private readonly OCR_TIMEOUT_MS = 60000; // 60 seconds timeout per image
+  private readonly MAX_RETRIES = 2;
 
   constructor() {
     this.initialize();
@@ -388,14 +392,21 @@ class OCRService {
     pdfPath: string,
     outputDir: string
   ): Promise<string[]> {
-    const options = {
-      format: 'png',
-      out_dir: outputDir,
-      out_prefix: 'page',
-      page: null, // Convert all pages
-    };
+    // Use pdftoppm directly instead of pdf-poppler package (which doesn't support Linux)
+    const execAsync = promisify(exec);
+    const outputPrefix = path.join(outputDir, 'page');
 
-    await convert(pdfPath, options);
+    // pdftoppm command: convert all pages to PNG at 200 DPI
+    const command = `pdftoppm -png -r 200 "${pdfPath}" "${outputPrefix}"`;
+
+    console.log(`   🔄 [OCR] Running pdftoppm: ${command}`);
+
+    try {
+      await execAsync(command, { timeout: 120000 }); // 2 minute timeout
+    } catch (error: any) {
+      console.error(`❌ [OCR] pdftoppm failed: ${error.message}`);
+      throw new Error(`Failed to convert PDF to images: ${error.message}`);
+    }
 
     // Get list of generated images
     const files = await fs.readdir(outputDir);
@@ -409,11 +420,12 @@ class OCRService {
       })
       .map(f => path.join(outputDir, f));
 
+    console.log(`   ✅ [OCR] Converted ${imageFiles.length} pages to images`);
     return imageFiles;
   }
 
   /**
-   * Run OCR on a single image
+   * Run OCR on a single image with timeout and retry protection
    *
    * @param imagePath - Path to image file
    * @returns Extracted text
@@ -423,28 +435,59 @@ class OCRService {
       throw new Error('OCR client not initialized');
     }
 
-    try {
-      // Optimize image for OCR (resize if too large, enhance contrast)
-      const optimizedImagePath = await this.optimizeImageForOCR(imagePath);
+    // Retry loop with exponential backoff
+    for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
+      try {
+        console.log(`      🔤 [OCR] Attempt ${attempt}/${this.MAX_RETRIES} for ${path.basename(imagePath)}...`);
 
-      // Run Google Cloud Vision OCR
-      const [result] = await this.client.textDetection(optimizedImagePath);
-      const detections = result.textAnnotations;
+        // Optimize image for OCR (resize if too large, enhance contrast)
+        const optimizedImagePath = await this.optimizeImageForOCR(imagePath);
 
-      if (!detections || detections.length === 0) {
-        console.warn(`      ⚠️  No text detected in ${path.basename(imagePath)}`);
-        return '';
+        // Create the OCR API call
+        const ocrCall = this.client.textDetection(optimizedImagePath);
+
+        // Wrap with timeout using Promise.race
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('OCR timeout after 60 seconds')), this.OCR_TIMEOUT_MS)
+        );
+
+        // Race between OCR call and timeout
+        const [result] = await Promise.race([ocrCall, timeoutPromise]) as any;
+        const detections = result.textAnnotations;
+
+        if (!detections || detections.length === 0) {
+          console.warn(`      ⚠️  No text detected in ${path.basename(imagePath)}`);
+          return '';
+        }
+
+        // First annotation contains full text
+        const fullText = detections[0].description || '';
+
+        console.log(`      ✅ [OCR] Success on attempt ${attempt}: extracted ${fullText.length} characters`);
+        return fullText.trim();
+
+      } catch (error: any) {
+        const isLastAttempt = attempt === this.MAX_RETRIES;
+
+        if (error.message?.includes('timeout')) {
+          console.warn(`      ⏱️  [OCR] Timeout on attempt ${attempt}/${this.MAX_RETRIES}`);
+        } else {
+          console.warn(`      ⚠️  [OCR] Error on attempt ${attempt}/${this.MAX_RETRIES}: ${error.message}`);
+        }
+
+        if (!isLastAttempt) {
+          // Exponential backoff: 2s, 4s, 8s...
+          const delay = Math.pow(2, attempt) * 1000;
+          console.log(`      ⏳ [OCR] Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        } else {
+          console.error(`      ❌ [OCR] All ${this.MAX_RETRIES} attempts failed for ${path.basename(imagePath)}`);
+        }
       }
-
-      // First annotation contains full text
-      const fullText = detections[0].description || '';
-
-      return fullText.trim();
-
-    } catch (error) {
-      console.error(`      ❌ OCR failed for ${path.basename(imagePath)}:`, error);
-      return '';
     }
+
+    // All retries failed, return empty string
+    return '';
   }
 
   /**

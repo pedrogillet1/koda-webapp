@@ -877,6 +877,33 @@ export const extractText = async (
   buffer: Buffer,
   mimeType: string
 ): Promise<ExtractionResult> => {
+  // Check for explicitly unsupported types first with clear error messages
+  const UNSUPPORTED_TYPES: Record<string, string> = {
+    'video/quicktime': 'Video files (.mov) are not supported for text extraction',
+    'video/mp4': 'Video files (.mp4) are not supported for text extraction',
+    'video/x-msvideo': 'Video files (.avi) are not supported for text extraction',
+    'video/x-matroska': 'Video files (.mkv) are not supported for text extraction',
+    'video/webm': 'Video files (.webm) are not supported for text extraction',
+    'audio/mpeg': 'Audio files (.mp3) are not supported for text extraction',
+    'audio/wav': 'Audio files (.wav) are not supported for text extraction',
+    'audio/ogg': 'Audio files (.ogg) are not supported for text extraction',
+    'audio/aac': 'Audio files (.aac) are not supported for text extraction',
+  };
+
+  // Check explicit unsupported types
+  if (UNSUPPORTED_TYPES[mimeType]) {
+    throw new Error(UNSUPPORTED_TYPES[mimeType]);
+  }
+
+  // Check wildcard patterns for video/audio
+  if (mimeType.startsWith('video/')) {
+    throw new Error(`Video files (${mimeType}) are not supported for text extraction`);
+  }
+
+  if (mimeType.startsWith('audio/')) {
+    throw new Error(`Audio files (${mimeType}) are not supported for text extraction`);
+  }
+
   try {
     switch (mimeType) {
       case 'application/pdf':
@@ -898,9 +925,23 @@ export const extractText = async (
         return await extractTextFromPlainText(buffer);
 
       case 'text/html':
-        // Use HTML processor for proper structure preservation
-        const htmlProcessor = require('./htmlProcessor.service').default;
-        return await htmlProcessor.processHTML(buffer);
+        // Simple HTML to text conversion (strip HTML tags)
+        try {
+          const htmlText = buffer.toString('utf-8');
+          // Strip HTML tags for basic text extraction
+          const text = htmlText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+          const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
+
+          console.log(`[HTML] Extracted ${wordCount} words from HTML`);
+
+          return {
+            text,
+            wordCount,
+            confidence: 0.9, // Lower confidence for simple HTML stripping
+          };
+        } catch (error: any) {
+          throw new Error(`Failed to process HTML: ${error.message}`);
+        }
 
       case 'text/csv':
         // Use CSV processor for structured table output
@@ -909,14 +950,8 @@ export const extractText = async (
 
       case 'application/zip':
       case 'application/x-zip-compressed':
-        // Use ZIP processor for archive extraction
-        const zipProcessor = require('./zipProcessor.service').default;
-        const zipResult = await zipProcessor.processZIP(buffer);
-        return {
-          text: zipResult.text,
-          wordCount: zipResult.wordCount,
-          confidence: zipResult.confidence,
-        };
+        // ZIP files are not supported for direct text extraction
+        throw new Error('ZIP archive files are not supported for text extraction. Please extract and upload individual files.');
 
       case 'image/jpeg':
       case 'image/png':

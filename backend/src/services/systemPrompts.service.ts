@@ -10,6 +10,13 @@
  * The AI naturally adapts its response based on psychological user needs.
  */
 
+// ✅ CENTRALIZED LANGUAGE SERVICE - Single source of truth for language detection
+import {
+  getShortLanguageInstruction,
+  getLanguageSystemPrompt,
+  type SupportedLanguage,
+} from './kodaLanguage.service';
+// Legacy import for backward compatibility
 import { createLanguageInstruction } from './languageDetection.service';
 
 export type AnswerLength = 'short' | 'medium' | 'summary' | 'long';
@@ -259,7 +266,12 @@ FORMATTING RULES (apply when structured response is needed):
 1. **HEADLINE**: Plain text (1-2 lines), NO ## markdown - direct answer to user's query
 2. **MICRO LABELS**: Use ### with ALL CAPS (e.g., ### DETALHES, ### PRINCIPAIS ARQUIVOS)
 3. **SECTIONS**: Use 2-5 ### sections for complex content (all in uppercase)
-4. **BULLETS**: Use • character, NOT - or *, each on own line, NO spacing between bullets
+4. **BULLETS & NUMBERED LISTS**:
+   - Use • character for simple bullet points (NOT - or *)
+   - Use numbered lists (1. 2. 3.) when listing documents with details - NUMBER AND DOCUMENT NAME MUST BE ON SAME LINE
+   - CORRECT: "1. **Document.pdf**" (number + space + document on SAME line)
+   - WRONG: "1.\n**Document.pdf**" (number on separate line)
+   - Each item on own line, NO spacing between bullets
 5. **BOLD & CITATIONS**:
    - Bold for key numbers: **$1,234**, **25%**, **Q4 2024**
    - NEVER nest bold inside italic: BAD *text **bold*** GOOD **bold text**

@@ -2,9 +2,9 @@
  * ============================================================================
  * KODA RETRIEVAL ENGINE - UNIFIED RAG RETRIEVAL
  * ============================================================================
- * 
+ *
  * This service consolidates ALL retrieval logic into a single engine.
- * 
+ *
  * CONSOLIDATES:
  * - bm25-retrieval.service.ts
  * - hybridRetrieval.service.ts
@@ -14,17 +14,19 @@
  * - semanticFileMatcher.service.ts
  * - conversationRetrieval.service.ts
  * - pinecone.service.ts
- * 
+ *
  * INTEGRATION STRATEGY:
  * This engine integrates with the existing Pinecone service and BM25 index.
  * It provides a clean API for all retrieval needs with built-in skill-based
  * keyword boosting (from kodaBM25Keywords.config.ts).
- * 
- * @version 2.0.0
- * @date 2025-12-08
+ *
+ * @version 2.1.0 - CONNECTED TO REAL PINECONE + EMBEDDING SERVICES
+ * @date 2025-12-09
  */
 
-// Removed NestJS dependency for compatibility
+// ✅ REAL INTEGRATIONS - Connected to actual services
+import pineconeService from './pinecone.service';
+import embeddingService from './embedding.service';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -316,40 +318,103 @@ export class KodaRetrievalEngine {
   }
   
   // ==========================================================================
-  // HELPER METHODS (stubs for production implementation)
+  // HELPER METHODS - CONNECTED TO REAL SERVICES
   // ==========================================================================
-  
+
   private tokenize(text: string): string[] {
-    // Simple tokenization (replace with proper tokenizer in production)
+    // Simple tokenization for BM25
     return text.toLowerCase().match(/\b\w+\b/g) || [];
   }
-  
+
+  /**
+   * ✅ REAL IMPLEMENTATION - Uses OpenAI embeddings via embedding.service.ts
+   */
   private async generateEmbedding(text: string): Promise<number[]> {
-    // Stub: In production, call embedding service (e.g., Google Gemini embeddings)
-    // return await this.embeddingService.embed(text);
-    return new Array(768).fill(0); // Placeholder
+    try {
+      console.log(`🔮 [KodaRetrieval] Generating embedding for: "${text.substring(0, 50)}..."`);
+      const result = await embeddingService.generateEmbedding(text);
+      console.log(`✅ [KodaRetrieval] Generated ${result.embedding.length}-dim embedding`);
+      return result.embedding;
+    } catch (error) {
+      console.error(`❌ [KodaRetrieval] Embedding generation failed:`, error);
+      throw error;
+    }
   }
-  
+
+  /**
+   * BM25 search - currently uses vector search as fallback
+   * TODO: Integrate with PostgreSQL full-text search if needed
+   */
   private async searchBM25Index(
     tokens: string[],
     userId: string,
     topK: number,
     filters?: RetrievalOptions['filters']
   ): Promise<RetrievalChunk[]> {
-    // Stub: In production, query BM25 index
-    // return await this.bm25Service.search(tokens, userId, topK, filters);
-    return [];
+    // For now, BM25 falls back to vector search
+    // The keyword boosting is applied before this method
+    console.log(`📚 [KodaRetrieval] BM25 search with ${tokens.length} tokens`);
+
+    // Use vector search as fallback for BM25
+    const query = tokens.join(' ');
+    const embedding = await this.generateEmbedding(query);
+    return this.searchVectorDB(embedding, userId, topK, filters);
   }
-  
+
+  /**
+   * ✅ REAL IMPLEMENTATION - Uses Pinecone via pinecone.service.ts
+   */
   private async searchVectorDB(
     embedding: number[],
     userId: string,
     topK: number,
     filters?: RetrievalOptions['filters']
   ): Promise<RetrievalChunk[]> {
-    // Stub: In production, query Pinecone
-    // return await this.pineconeService.query(embedding, userId, topK, filters);
-    return [];
+    try {
+      console.log(`🔍 [KodaRetrieval] Searching Pinecone for userId: ${userId.substring(0, 8)}...`);
+
+      // Check if Pinecone is available
+      if (!pineconeService.isAvailable()) {
+        console.warn(`⚠️ [KodaRetrieval] Pinecone not available!`);
+        return [];
+      }
+
+      // Determine if we need to filter by specific document
+      const documentId = filters?.documentIds?.[0];
+
+      // Query Pinecone with REAL embeddings
+      const results = await pineconeService.searchSimilarChunks(
+        embedding,
+        userId,
+        topK,
+        0.3, // minSimilarity threshold
+        documentId, // attachedDocumentId filter
+        undefined // folderId filter
+      );
+
+      console.log(`✅ [KodaRetrieval] Pinecone returned ${results.length} chunks`);
+
+      // Transform Pinecone results to RetrievalChunk format
+      return results.map((result, index) => ({
+        id: `${result.documentId}-${result.chunkIndex}`,
+        documentId: result.documentId,
+        documentName: result.document?.filename || result.metadata?.filename || 'Unknown',
+        content: result.content || '',
+        metadata: {
+          pageNumber: result.metadata?.pageNumber,
+          chunkIndex: result.chunkIndex,
+          chunkType: result.metadata?.chunkType || 'text',
+          filename: result.document?.filename,
+          mimeType: result.document?.mimeType,
+          ...result.metadata,
+        },
+        score: result.similarity,
+        retrievalMethod: 'vector' as const,
+      }));
+    } catch (error) {
+      console.error(`❌ [KodaRetrieval] Pinecone search failed:`, error);
+      return [];
+    }
   }
   
   /**
