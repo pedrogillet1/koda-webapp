@@ -832,8 +832,25 @@ export const citationTracking = {
       }
     }
 
+    // ✅ FIX: Filter out low-relevance sources to prevent irrelevant document fallback
+    // Minimum threshold of 0.15 (normalized score) to exclude noise
+    const MIN_SOURCE_RELEVANCE = 0.15;
+    const filteredSources = sources.filter(s => {
+      // Keep sources that are either:
+      // 1. Above the minimum relevance threshold, OR
+      // 2. Have a high score relative to the best source (within 50% of best)
+      const bestScore = Math.max(...sources.map(src => src.score || 0));
+      const relativeThreshold = bestScore * 0.5;
+      const isRelevant = (s.score || 0) >= MIN_SOURCE_RELEVANCE || (s.score || 0) >= relativeThreshold;
+
+      if (!isRelevant) {
+        console.log(`⚠️ [CITATION TRACKING] Filtering out low-relevance source: ${s.documentName} (score: ${(s.score || 0).toFixed(3)})`);
+      }
+      return isRelevant;
+    });
+
     // Sort by score descending
-    return sources.sort((a, b) => (b.score || 0) - (a.score || 0));
+    return filteredSources.sort((a, b) => (b.score || 0) - (a.score || 0));
   },
 
   /**

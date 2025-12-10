@@ -383,8 +383,27 @@ export class KodaIntentEngine {
       };
     }
     
-    // Check for calculation
-    if (lowerQuery.includes('calculate') || lowerQuery.includes('compute') || /\d+\s*[\+\-\*\/]\s*\d+/.test(lowerQuery) || lowerQuery.includes('calcular') || lowerQuery.includes('computar') || lowerQuery.includes('calculer')) {
+    // Check for calculation - comprehensive patterns
+    const calcPatterns = [
+      // Direct math expressions: "5+3", "100/4", "2*3"
+      /\d+\s*[\+\-\*\/\^]\s*\d+/,
+      // Percentages: "15% of 100", "20% de 500"
+      /\d+\s*%\s*(of|de|von)\s*\d+/i,
+      // Explicit calculation requests
+      /calculate|compute|calcular|computar|calculer|rechnen/i,
+      // "What is X + Y" patterns
+      /what\s+is\s+\d+/i,
+      /quanto\s+[ée]\s+\d+/i,
+      /cu[áa]nto\s+es?\s+\d+/i,
+      // Financial calculations
+      /\b(roi|irr|npv|payback|moic|margin|growth rate)\b/i,
+      /\b(retorno|margem|taxa de crescimento)\b/i,
+      // Sum/total patterns
+      /\b(sum|total|average|mean|median)\b.*\d+/i,
+      /\b(soma|total|média|mediana)\b.*\d+/i,
+    ];
+
+    if (calcPatterns.some(p => p.test(lowerQuery))) {
       return {
         intent: QueryIntent.CALCULATION,
         skill: SkillType.DATA_EXTRACTION,
@@ -589,6 +608,264 @@ export class KodaIntentEngine {
     
     return Math.min(confidence, 1.0);
   }
+}
+
+// ============================================================================
+// ANSWER TYPE DETECTION (for ragOrchestrator)
+// Maps complex intents to simple answer types for routing
+// ============================================================================
+
+export type AnswerType =
+  | 'ULTRA_FAST_GREETING'
+  | 'DOC_COUNT'
+  | 'FILE_NAVIGATION'
+  | 'FOLDER_NAVIGATION'
+  | 'APP_HELP'
+  | 'CALCULATION'
+  | 'SINGLE_DOC_RAG'
+  | 'CROSS_DOC_RAG'
+  | 'COMPLEX_ANALYSIS'
+  | 'MEMORY'
+  | 'STANDARD_QUERY';
+
+export interface IntentDetectionResult {
+  answerType: AnswerType;
+  confidence: number;
+  entities: {
+    fileNames?: string[];
+    folderNames?: string[];
+    numbers?: number[];
+    dates?: string[];
+    topics?: string[];
+  };
+  requiresRetrieval: boolean;
+  requiresMemory: boolean;
+  requiresCalculation: boolean;
+}
+
+/**
+ * Detect answer type from query - simplified routing for ragOrchestrator
+ */
+export async function detectAnswerType(params: {
+  query: string;
+  conversationHistory?: any[];
+  userId?: string;
+}): Promise<IntentDetectionResult> {
+  const { query, conversationHistory = [] } = params;
+  const lowerQuery = query.toLowerCase().trim();
+
+  // 1. ULTRA_FAST_GREETING - Greetings (no LLM, no DB)
+  const greetings = [
+    'hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening',
+    'what can you do', 'what do you do', 'who are you',
+    'olá', 'ola', 'oi', 'bom dia', 'boa tarde', 'boa noite',
+    'o que você faz', 'o que voce faz', 'quem é você', 'quem e voce',
+    'hola', 'buenos días', 'buenos dias', 'buenas tardes', 'buenas noches',
+    'qué puedes hacer', 'que puedes hacer', 'quién eres', 'quien eres',
+  ];
+  if (greetings.some(g => lowerQuery === g || lowerQuery === g + '!' || lowerQuery === g + '?')) {
+    return {
+      answerType: 'ULTRA_FAST_GREETING',
+      confidence: 1.0,
+      entities: {},
+      requiresRetrieval: false,
+      requiresMemory: false,
+      requiresCalculation: false,
+    };
+  }
+
+  // 2. DOC_COUNT - Document count queries
+  const docCountPatterns = [
+    /how many (documents?|files?|pdfs?)/i,
+    /number of (documents?|files?)/i,
+    /count (of )?(my )?(documents?|files?)/i,
+    /quantos? (documentos?|arquivos?|pdfs?)/i,
+    /número de (documentos?|arquivos?)/i,
+    /cuántos? (documentos?|archivos?)/i,
+  ];
+  if (docCountPatterns.some(p => p.test(query))) {
+    return {
+      answerType: 'DOC_COUNT',
+      confidence: 0.95,
+      entities: {},
+      requiresRetrieval: false,
+      requiresMemory: false,
+      requiresCalculation: false,
+    };
+  }
+
+  // 3. CALCULATION - Math/calculation queries (BEFORE file navigation to catch math expressions)
+  const calcPatterns = [
+    // Direct math expressions: "5+3", "100/4", "2*3", "2+2"
+    /^\s*[\d\s\+\-\*\/\(\)\.\,\^]+\s*$/,
+    /\d+\s*[\+\-\*\/\^]\s*\d+/,
+    // Percentages: "15% of 100", "20% de 500"
+    /\d+\s*%\s*(of|de|von)\s*\d+/i,
+    // Explicit calculation requests
+    /^(calculate|compute|what is|quanto [eé]|cuánto es?|calcular)\s+/i,
+    // Financial calculations
+    /\b(roi|irr|npv|payback|moic)\b/i,
+    /\b(growth rate|taxa de crescimento|margin|margem)\s+(from|de)?\s*\d+/i,
+  ];
+  if (calcPatterns.some(p => p.test(query))) {
+    // Extract numbers
+    const numbers = (query.match(/\d+(?:\.\d+)?/g) || []).map(Number);
+    return {
+      answerType: 'CALCULATION',
+      confidence: 0.9,
+      entities: { numbers },
+      requiresRetrieval: false,
+      requiresMemory: false,
+      requiresCalculation: true,
+    };
+  }
+
+  // 4. FILE_NAVIGATION - File location queries
+  const fileNavPatterns = [
+    /where is (the )?(file|document|pdf)/i,
+    /find (the )?(file|document)/i,
+    /locate (the )?(file|document)/i,
+    /show me (the )?(file|document)/i,
+    /onde (está|esta) o? (arquivo|documento)/i,
+    /encontr(a|e|ar) o? (arquivo|documento)/i,
+    /cad(ê|e) o? (arquivo|documento)/i,
+  ];
+  if (fileNavPatterns.some(p => p.test(query))) {
+    const fileNames: string[] = [];
+    const quotedMatch = query.match(/"([^"]+)"|'([^']+)'/);
+    if (quotedMatch) fileNames.push(quotedMatch[1] || quotedMatch[2]);
+    return {
+      answerType: 'FILE_NAVIGATION',
+      confidence: 0.95,
+      entities: { fileNames },
+      requiresRetrieval: false,
+      requiresMemory: false,
+      requiresCalculation: false,
+    };
+  }
+
+  // 5. FOLDER_NAVIGATION - Folder queries
+  const folderNavPatterns = [
+    /what('s| is) in (the )?(folder|directory)/i,
+    /show (me )?(files in|contents of) (the )?(folder|directory)/i,
+    /o que (tem|está|esta) na pasta/i,
+    /mostr(a|e|ar) (arquivos da|conteúdo da) pasta/i,
+  ];
+  if (folderNavPatterns.some(p => p.test(query))) {
+    const folderNames: string[] = [];
+    const quotedMatch = query.match(/"([^"]+)"|'([^']+)'/);
+    if (quotedMatch) folderNames.push(quotedMatch[1] || quotedMatch[2]);
+    return {
+      answerType: 'FOLDER_NAVIGATION',
+      confidence: 0.9,
+      entities: { folderNames },
+      requiresRetrieval: false,
+      requiresMemory: false,
+      requiresCalculation: false,
+    };
+  }
+
+  // 6. APP_HELP - UI/app usage questions
+  const appHelpPatterns = [
+    /how (do i|to) (upload|create|delete|move|rename)/i,
+    /how does (this|koda) work/i,
+    /what can (you|koda) do/i,
+    /como (faço|fazer) (para )?(upload|criar|deletar)/i,
+    /como (funciona|usar) (o koda|isso)/i,
+  ];
+  if (appHelpPatterns.some(p => p.test(query))) {
+    return {
+      answerType: 'APP_HELP',
+      confidence: 0.9,
+      entities: {},
+      requiresRetrieval: false,
+      requiresMemory: false,
+      requiresCalculation: false,
+    };
+  }
+
+  // 7. MEMORY - "Do you remember..." queries
+  const memoryPatterns = [
+    /do you remember|did (i|we) (say|mention|talk about)/i,
+    /what (did|was) (i|we) (say|talking about)/i,
+    /earlier (you|we) (said|mentioned)/i,
+    /você lembra|eu (disse|mencionei)/i,
+    /o que (eu|nós) (disse|dissemos)/i,
+  ];
+  if (conversationHistory.length > 0 && memoryPatterns.some(p => p.test(query))) {
+    return {
+      answerType: 'MEMORY',
+      confidence: 0.85,
+      entities: {},
+      requiresRetrieval: false,
+      requiresMemory: true,
+      requiresCalculation: false,
+    };
+  }
+
+  // 8. COMPLEX_ANALYSIS - Multi-step, comparison, deep analysis
+  const complexPatterns = [
+    /compare|contrast|difference between/i,
+    /analyze|analysis|evaluate|assessment/i,
+    /step by step|detailed explanation/i,
+    /compar(a|e|ar)|diferença entre/i,
+    /analis(a|e|ar)|avali(a|e|ar)/i,
+  ];
+  if (complexPatterns.some(p => p.test(query))) {
+    return {
+      answerType: 'COMPLEX_ANALYSIS',
+      confidence: 0.85,
+      entities: {},
+      requiresRetrieval: true,
+      requiresMemory: conversationHistory.length > 0,
+      requiresCalculation: false,
+    };
+  }
+
+  // 9. CROSS_DOC_RAG - Mentions multiple documents
+  const crossDocPatterns = [
+    /in (both|all) (documents?|files?)/i,
+    /across (the )?(documents?|files?)/i,
+    /em (ambos|todos) os? (documentos?|arquivos?)/i,
+  ];
+  if (crossDocPatterns.some(p => p.test(query))) {
+    return {
+      answerType: 'CROSS_DOC_RAG',
+      confidence: 0.8,
+      entities: {},
+      requiresRetrieval: true,
+      requiresMemory: conversationHistory.length > 0,
+      requiresCalculation: false,
+    };
+  }
+
+  // 10. SINGLE_DOC_RAG - Mentions specific document
+  const singleDocPatterns = [
+    /in (the|this) (document|file|pdf)/i,
+    /from (the|this) (document|file)/i,
+    /n(o|a|este|esse) (documento|arquivo)/i,
+    /d(o|a|este|esse) (documento|arquivo)/i,
+  ];
+  if (singleDocPatterns.some(p => p.test(query))) {
+    return {
+      answerType: 'SINGLE_DOC_RAG',
+      confidence: 0.75,
+      entities: {},
+      requiresRetrieval: true,
+      requiresMemory: conversationHistory.length > 0,
+      requiresCalculation: false,
+    };
+  }
+
+  // Default: STANDARD_QUERY
+  return {
+    answerType: 'STANDARD_QUERY',
+    confidence: 0.7,
+    entities: {},
+    requiresRetrieval: true,
+    requiresMemory: conversationHistory.length > 0,
+    requiresCalculation: false,
+  };
 }
 
 /**

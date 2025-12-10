@@ -37,6 +37,12 @@ import { CalculationType } from './calculation/calculationTypes';
 import { excelFormulaEngine } from './calculation';
 import calculationRouter from './calculation/calculationRouter.service';
 
+// ============================================================================
+// NO-DOCUMENTS MODE & USER DOCUMENT CONTEXT
+// ============================================================================
+import { userHasDocuments, getUserDocumentState } from './userDocumentContext.service';
+import { generateNoDocsResponse, queryRequiresDocuments } from './noDocumentsMode.service';
+
 import { formatValidationService } from './formatValidation.service';
 
 import * as confidenceScoring from './archived/confidence-scoring.service';
@@ -1845,9 +1851,9 @@ interface AgentLoopConfig {
 
 const DEFAULT_AGENT_CONFIG: AgentLoopConfig = {
   maxAttempts: 2,              // Reduced from 3 (saves 10-15s on complex queries)
-  minRelevanceScore: 0.05,     // Slightly lower threshold (0.7 â†’ 0.65)
+  minRelevanceScore: 0.15,     // Raised threshold (0.05 → 0.15) to filter out low-relevance noise
   minChunks: 3,
-  improvementThreshold: 0.15   // Higher threshold (0.1 â†’ 0.15) to stop earlier if not improving much
+  improvementThreshold: 0.15   // Higher threshold (0.1 → 0.15) to stop earlier if not improving much
 };
 
 interface AgentLoopState {
@@ -3239,6 +3245,35 @@ export async function generateAnswerStream(
   profilePrompt?: string,  // ? USER PROFILE: Custom prompt from user profile for personalization
   ragConfig: RAGConfig = DEFAULT_RAG_CONFIG  // RAG feature toggles
 ): Promise<{ sources: any[] }> {
+
+  // ============================================================================
+  // NO-DOCUMENTS MODE CHECK - Handle users with zero documents
+  // Must run BEFORE any RAG operations to prevent hallucinations
+  // ============================================================================
+  const hasDocsStream = await userHasDocuments(userId);
+  console.log(`[NO-DOCS-CHECK-STREAM] User ${userId} hasDocuments: ${hasDocsStream}`);
+
+  if (!hasDocsStream) {
+    // Detect language from query or use provided
+    const lang = detectedLanguage?.startsWith('pt') ? 'pt' :
+                 detectedLanguage?.startsWith('es') ? 'es' :
+                 query.match(/como|fazer|você|documento|arquivo/i) ? 'pt' :
+                 query.match(/cómo|hacer|documento|archivo/i) ? 'es' : 'en';
+
+    const noDocsResponseStream = generateNoDocsResponse(query, lang as 'en' | 'pt' | 'es');
+
+    // If allowBypass is false, return the onboarding response immediately
+    if (!noDocsResponseStream.allowBypass) {
+      console.log('[NO-DOCS-MODE-STREAM] Returning onboarding response (no bypass allowed)');
+      if (onChunk) onChunk(noDocsResponseStream.answer);
+      if (onStage) onStage('complete', 'Complete');
+      return { sources: [] };
+    }
+
+    // allowBypass=true means this is a general knowledge query - let it continue
+    console.log('[NO-DOCS-MODE-STREAM] Allowing general knowledge query to proceed');
+  }
+
   // ============================================================================
   // ENHANCED ROUTER LOGGING
   // ============================================================================
@@ -3308,20 +3343,71 @@ export async function generateAnswerStream(
   // HOW: Simple regex + single DB COUNT query
   // IMPACT: 4s → <500ms for doc count queries
 
-  const isDocCountQuery = detectUltraFastDocCount(query);
-  if (isDocCountQuery) {
-    console.log('⚡ ULTRA-FAST PATH: Doc count query detected - single DB query only');
+  const docCountDetection = detectEnhancedDocCount(query);
+  if (docCountDetection.isDocCount) {
+    console.log(`⚡ ULTRA-FAST PATH: Doc count query detected (type: ${docCountDetection.countType})`);
 
-    const docCount = await prisma.document.count({ where: { userId } });
     const lang = detectedLanguage || detectLanguageFromQuery(query);
-
     let response: string;
-    if (lang === 'pt') {
-      response = `Você tem **${docCount}** documento${docCount !== 1 ? 's' : ''} no total.\n\nO que você gostaria de saber sobre eles?`;
-    } else if (lang === 'es') {
-      response = `Tienes **${docCount}** documento${docCount !== 1 ? 's' : ''} en total.\n\n¿Qué te gustaría saber sobre ellos?`;
-    } else {
-      response = `You have **${docCount}** document${docCount !== 1 ? 's' : ''} in total.\n\nWhat would you like to know about them?`;
+
+    // ============================================================================
+    // FOLDER-SPECIFIC COUNT
+    // ============================================================================
+    if (docCountDetection.countType === 'folder' && docCountDetection.folderName) {
+      const { getDocumentsByFolder } = await import('./userDocumentContext.service');
+      const folderResult = await getDocumentsByFolder(userId, docCountDetection.folderName);
+
+      if (folderResult.folderId) {
+        const count = folderResult.count;
+        const folderName = folderResult.folderName || docCountDetection.folderName;
+
+        if (lang === 'pt') {
+          response = `A pasta **"${folderName}"** contém **${count}** documento${count !== 1 ? 's' : ''}.\n\nO que você gostaria de saber sobre eles?`;
+        } else if (lang === 'es') {
+          response = `La carpeta **"${folderName}"** contiene **${count}** documento${count !== 1 ? 's' : ''}.\n\n¿Qué te gustaría saber sobre ellos?`;
+        } else {
+          response = `The folder **"${folderName}"** contains **${count}** document${count !== 1 ? 's' : ''}.\n\nWhat would you like to know about them?`;
+        }
+      } else {
+        // Folder not found
+        if (lang === 'pt') {
+          response = `Não encontrei uma pasta chamada **"${docCountDetection.folderName}"**.\n\nVerifique o nome e tente novamente.`;
+        } else if (lang === 'es') {
+          response = `No encontré una carpeta llamada **"${docCountDetection.folderName}"**.\n\nVerifica el nombre e intenta de nuevo.`;
+        } else {
+          response = `I couldn't find a folder named **"${docCountDetection.folderName}"**.\n\nPlease check the name and try again.`;
+        }
+      }
+    }
+    // ============================================================================
+    // TYPE-SPECIFIC COUNT
+    // ============================================================================
+    else if (docCountDetection.countType === 'type' && docCountDetection.fileType) {
+      const { getDocumentsByType } = await import('./userDocumentContext.service');
+      const count = await getDocumentsByType(userId, docCountDetection.fileType);
+      const fileType = docCountDetection.fileType.toUpperCase();
+
+      if (lang === 'pt') {
+        response = `Você tem **${count}** arquivo${count !== 1 ? 's' : ''} ${fileType}.\n\nO que você gostaria de saber sobre eles?`;
+      } else if (lang === 'es') {
+        response = `Tienes **${count}** archivo${count !== 1 ? 's' : ''} ${fileType}.\n\n¿Qué te gustaría saber sobre ellos?`;
+      } else {
+        response = `You have **${count}** ${fileType} file${count !== 1 ? 's' : ''}.\n\nWhat would you like to know about them?`;
+      }
+    }
+    // ============================================================================
+    // TOTAL COUNT (original behavior)
+    // ============================================================================
+    else {
+      const docCount = await prisma.document.count({ where: { userId } });
+
+      if (lang === 'pt') {
+        response = `Você tem **${docCount}** documento${docCount !== 1 ? 's' : ''} no total.\n\nO que você gostaria de saber sobre eles?`;
+      } else if (lang === 'es') {
+        response = `Tienes **${docCount}** documento${docCount !== 1 ? 's' : ''} en total.\n\n¿Qué te gustaría saber sobre ellos?`;
+      } else {
+        response = `You have **${docCount}** document${docCount !== 1 ? 's' : ''} in total.\n\nWhat would you like to know about them?`;
+      }
     }
 
     if (onChunk) onChunk(response);
@@ -4427,8 +4513,8 @@ async function handleFileAction(
 
       // The executeAction doesn't return document/folder IDs needed for undo
     } else {
-      const sorry = lang === 'pt' ? 'Desculpe, nÃ£o consegui completar essa aÃ§Ã£o:' :
-                    lang === 'es' ? 'Lo siento, no pude completar esa acciÃ³n:' :
+      const sorry = lang === 'pt' ? 'Desculpe, não consegui completar essa ação:' :
+                    lang === 'es' ? 'Lo siento, no pude completar esa acción:' :
                     'Sorry, I couldn\'t complete that action:';
       // Error messages are short, skip format enforcement
       onChunk(`${sorry} ${result.error || result.message}`);
@@ -4436,8 +4522,8 @@ async function handleFileAction(
 
   } catch (error: any) {
     console.error('âŒ [FILE ACTION] Error:', error);
-    const sorry = lang === 'pt' ? 'Desculpe, ocorreu um erro ao tentar executar essa aÃ§Ã£o:' :
-                  lang === 'es' ? 'Lo siento, ocurriÃ³ un error al intentar ejecutar esa acciÃ³n:' :
+    const sorry = lang === 'pt' ? 'Desculpe, ocorreu um erro ao tentar executar essa ação:' :
+                  lang === 'es' ? 'Lo siento, ocurrió un error al intentar ejecutar esa acción:' :
                   'Sorry, an error occurred while trying to execute that action:';
     // Error messages are short, skip format enforcement
     onChunk(`${sorry} ${error.message}`);
@@ -6020,21 +6106,13 @@ async function handleDocumentListing(
     });
   }
 
-  // Apply structure enforcement (will skip title/sections for file listing)
-  const structuredListing = structureEnforcementService.enforceStructure(response, {
-    query,
-    sources: [],
-    isComparison: false,
-    responseType: 'file_listing'  // ✅ No title for file listing responses
-  });
+  // ⚡ PERFORMANCE FIX: Skip all processing for document listings
+  // The response already contains {{DOC:::}} markers that the frontend parses
+  // No need for structure enforcement or format enforcement
+  // This reduces response time from 8428ms to <500ms (17x faster)
 
-  // Then apply format enforcement
-  const formattedListing = applyFormatEnforcement(structuredListing.text, {
-    responseType: 'file_listing',
-    logPrefix: '[FILE-LISTING FORMAT]'
-  });
-
-  onChunk(formattedListing);
+  console.log('⚡ [DOCUMENT LISTING] Returning markers directly (no LLM processing)');
+  onChunk(response); // ✅ Direct return, no processing
 
   // âŒ NO SOURCES: Document listing queries don't use document CONTENT
   return { sources: [] };
@@ -8975,6 +9053,33 @@ export async function generateAnswer(
 ): Promise<{ answer: string; sources: any[] }> {
 
   // ============================================================================
+  // NO-DOCUMENTS MODE CHECK - Handle users with zero documents
+  // Must run BEFORE any RAG operations to prevent hallucinations
+  // ============================================================================
+  const hasDocuments = await userHasDocuments(userId);
+  console.log(`[NO-DOCS-CHECK] User ${userId} hasDocuments: ${hasDocuments}`);
+
+  if (!hasDocuments) {
+    // Detect language from query
+    const detectedLang = query.match(/como|fazer|você|documento|arquivo/i) ? 'pt' :
+                         query.match(/cómo|hacer|documento|archivo/i) ? 'es' : 'en';
+
+    const noDocsResponse = generateNoDocsResponse(query, detectedLang);
+
+    // If allowBypass is false, return the onboarding response immediately
+    if (!noDocsResponse.allowBypass) {
+      console.log('[NO-DOCS-MODE] Returning onboarding response (no bypass allowed)');
+      return {
+        answer: noDocsResponse.answer,
+        sources: []
+      };
+    }
+
+    // allowBypass=true means this is a general knowledge query - let it continue
+    console.log('[NO-DOCS-MODE] Allowing general knowledge query to proceed');
+  }
+
+  // ============================================================================
   // 8-ENGINE ORCHESTRATOR - NEW UNIFIED RAG PIPELINE
   // Check env at runtime (not module load time)
   // ============================================================================
@@ -9139,7 +9244,7 @@ export async function generateAnswer(
     // Detect language from query for appropriate fallback
     const lang = detectLanguage(query);
     const fallbackMessages: Record<string, string> = {
-      pt: 'Desculpe, nÃ£o consegui processar sua solicitaÃ§Ã£o. Por favor, tente reformular sua pergunta.',
+      pt: 'Desculpe, não consegui processar sua solicitação. Por favor, tente reformular sua pergunta.',
       es: 'Lo siento, no pude procesar tu solicitud. Por favor, intenta reformular tu pregunta.',
       en: "I'm sorry, I couldn't process your request. Please try rephrasing your question."
     };
@@ -10852,27 +10957,109 @@ function getInstantGreeting(query: string, language?: string): string {
 }
 
 /**
- * Detect language from greeting text
+ * Enhanced doc count detection that returns query type and extracted parameters
  */
+interface DocCountDetection {
+  isDocCount: boolean;
+  countType: 'total' | 'folder' | 'type' | 'none';
+  folderName?: string;  // For folder-specific counts
+  fileType?: string;    // For type-specific counts (pdf, docx, etc.)
+}
+
 function detectUltraFastDocCount(query: string): boolean {
+  return detectEnhancedDocCount(query).isDocCount;
+}
+
+function detectEnhancedDocCount(query: string): DocCountDetection {
   const normalized = query.toLowerCase().trim();
 
+  // ============================================================================
+  // FOLDER-SPECIFIC COUNT PATTERNS
+  // "Quantos documentos na pasta X?", "How many files in folder X?"
+  // ============================================================================
+
+  // Portuguese: "quantos documentos na pasta X"
+  const ptFolderMatch = normalized.match(/quantos?\s+(?:documentos?|arquivos?)\s+(?:eu\s+tenho\s+)?(?:na|em|dentro\s+da?)\s+pasta\s+["\']?([^"'\?]+)["\']?\s*\??/i);
+  if (ptFolderMatch) {
+    return { isDocCount: true, countType: 'folder', folderName: ptFolderMatch[1].trim() };
+  }
+
+  // English: "how many documents in folder X"
+  const enFolderMatch = normalized.match(/how\s+many\s+(?:documents?|files?)\s+(?:are\s+)?(?:in|inside)\s+(?:the\s+)?(?:folder\s+)?["\']?([^"'\?]+)["\']?\s*\??/i);
+  if (enFolderMatch) {
+    return { isDocCount: true, countType: 'folder', folderName: enFolderMatch[1].trim() };
+  }
+
+  // Spanish: "cuántos documentos en la carpeta X"
+  const esFolderMatch = normalized.match(/cu[aá]ntos?\s+(?:documentos?|archivos?)\s+(?:en|dentro\s+de)\s+(?:la\s+)?carpeta\s+["\']?([^"'\?]+)["\']?\s*\??/i);
+  if (esFolderMatch) {
+    return { isDocCount: true, countType: 'folder', folderName: esFolderMatch[1].trim() };
+  }
+
+  // ============================================================================
+  // TYPE-SPECIFIC COUNT PATTERNS
+  // "Quantos PDFs tenho?", "How many PDF files?"
+  // ============================================================================
+
+  // Portuguese: "quantos PDFs/DOCXs tenho"
+  const ptTypeMatch = normalized.match(/quantos?\s+(pdfs?|docx?|xlsx?|pptx?|txt|csv)\s+(?:eu\s+)?(?:tenho|possuo)/i);
+  if (ptTypeMatch) {
+    return { isDocCount: true, countType: 'type', fileType: ptTypeMatch[1].replace(/s$/, '') };
+  }
+
+  // Portuguese: "quantos documentos/arquivos são PDF"
+  const ptTypeMatch2 = normalized.match(/quantos?\s+(?:documentos?|arquivos?)\s+(?:s[aã]o|tipo)\s+(pdf|docx?|xlsx?|pptx?|txt|csv)/i);
+  if (ptTypeMatch2) {
+    return { isDocCount: true, countType: 'type', fileType: ptTypeMatch2[1] };
+  }
+
+  // English: "how many PDFs do I have"
+  const enTypeMatch = normalized.match(/how\s+many\s+(pdfs?|docs?|docx?|xlsx?|pptx?|txt|csv)\s+(?:files?\s+)?(?:do\s+)?i?\s*(?:have|got)/i);
+  if (enTypeMatch) {
+    return { isDocCount: true, countType: 'type', fileType: enTypeMatch[1].replace(/s$/, '') };
+  }
+
+  // English: "how many PDF files"
+  const enTypeMatch2 = normalized.match(/how\s+many\s+(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv)\s+(?:files?|documents?)/i);
+  if (enTypeMatch2) {
+    return { isDocCount: true, countType: 'type', fileType: enTypeMatch2[1] };
+  }
+
+  // ============================================================================
+  // TOTAL COUNT PATTERNS (original patterns)
+  // "Quantos documentos eu tenho?", "How many files do I have?"
+  // ============================================================================
+
   // Portuguese patterns
-  if (/quantos?\s+(documentos?|arquivos?|ficheiros?)\s+(eu\s+)?(tenho|possuo|tem)/i.test(normalized)) return true;
-  if (/eu\s+tenho\s+quantos?\s+(documentos?|arquivos?)/i.test(normalized)) return true;
+  if (/quantos?\s+(documentos?|arquivos?|ficheiros?)\s+(eu\s+)?(tenho|possuo|tem)/i.test(normalized)) {
+    return { isDocCount: true, countType: 'total' };
+  }
+  if (/eu\s+tenho\s+quantos?\s+(documentos?|arquivos?)/i.test(normalized)) {
+    return { isDocCount: true, countType: 'total' };
+  }
 
   // English patterns
-  if (/how\s+many\s+(documents?|files?)\s+(do\s+)?(i\s+)?(have|got)/i.test(normalized)) return true;
-  if (/number\s+of\s+(my\s+)?(documents?|files?)/i.test(normalized)) return true;
-  if (/count\s+(my\s+)?(documents?|files?)/i.test(normalized)) return true;
+  if (/how\s+many\s+(documents?|files?)\s+(do\s+)?(i\s+)?(have|got)/i.test(normalized)) {
+    return { isDocCount: true, countType: 'total' };
+  }
+  if (/number\s+of\s+(my\s+)?(documents?|files?)/i.test(normalized)) {
+    return { isDocCount: true, countType: 'total' };
+  }
+  if (/count\s+(my\s+)?(documents?|files?)/i.test(normalized)) {
+    return { isDocCount: true, countType: 'total' };
+  }
 
   // Spanish patterns
-  if (/cuántos?\s+(documentos?|archivos?)\s+(tengo|hay)/i.test(normalized)) return true;
+  if (/cu[aá]ntos?\s+(documentos?|archivos?)\s+(tengo|hay)/i.test(normalized)) {
+    return { isDocCount: true, countType: 'total' };
+  }
 
   // French patterns
-  if (/combien\s+(de\s+)?(documents?|fichiers?)/i.test(normalized)) return true;
+  if (/combien\s+(de\s+)?(documents?|fichiers?)/i.test(normalized)) {
+    return { isDocCount: true, countType: 'total' };
+  }
 
-  return false;
+  return { isDocCount: false, countType: 'none' };
 }
 
 /**

@@ -374,6 +374,10 @@ function removeDuplicateParagraphs(text: string): { text: string; removed: numbe
 
 function normalizeIdentity(text: string): { text: string; normalized: boolean } {
   const rules = [
+    // Remove "Koda:" prefix from responses (LLM sometimes adds this)
+    { pattern: /^Koda:\s*/i, replacement: '' },
+    { pattern: /\n\nKoda:\s*/gi, replacement: '\n\n' },
+    // AI identity normalization
     { pattern: /\bI am an AI\b/gi, replacement: 'I' },
     { pattern: /\bAs an AI\b/gi, replacement: '' },
     { pattern: /\bI'm an AI assistant\b/gi, replacement: "I'm Koda" },

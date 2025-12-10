@@ -23,6 +23,7 @@ import { generateAdaptiveAnswer, type GeneratedAnswer } from './answerGenerator.
 import { formatAnswer, type FormattedAnswer } from './answerFormatter.service';
 import { validateAnswer, type ValidationResult } from './answerValidator.service';
 import { KodaStreamingController } from './kodaStreamingController.service';
+import { calculationEngine } from './calculationEngine.service';
 import crypto from 'crypto';
 import { withBudget, getBudgetForQueryType, getAdaptiveBudget } from '../utils/budgetEnforcer';
 import { recordMetric, recordCacheEvent, recordQueryType } from './performanceMonitor.service';
@@ -396,19 +397,52 @@ async function handleCalculation(
   startTime: number,
   streamingCallback?: (chunk: string) => void
 ): Promise<QueryResult> {
-  // TODO: Import and use calculationEngine
-  // const { calculate } = await import('./calculationEngine.service');
-  
-  // Placeholder
-  return {
-    answer: 'Calculation handler not yet implemented',
-    answerType: 'CALCULATION',
-    language,
-    documentReferences: [],
-    metadata: {
-      totalTime: Date.now() - startTime,
-    },
-  };
+  try {
+    // Use the calculation engine to parse, compute, and explain the result
+    const calcResult = await calculationEngine.handleCalculation(query, language, userId);
+
+    // Stream the explanation if streaming is enabled
+    if (streamingCallback && calcResult.explanation) {
+      streamingCallback(calcResult.explanation);
+    }
+
+    return {
+      answer: calcResult.explanation,
+      answerType: 'CALCULATION',
+      language,
+      documentReferences: [],
+      metadata: {
+        totalTime: Date.now() - startTime,
+        numericResult: calcResult.numericResult,
+      },
+    };
+  } catch (error: any) {
+    console.error('[handleCalculation] Error:', error);
+
+    // Fallback: if calculation engine fails, fall back to RAG for complex calculations
+    if (intent.requiresRetrieval) {
+      console.log('[handleCalculation] Falling back to RAG for document-based calculation');
+      return handleRAG(query, userId, undefined, intent, language, startTime, streamingCallback);
+    }
+
+    // Return error message
+    const errorMessages: Record<string, string> = {
+      en: `I couldn't perform this calculation. Please try rephrasing your question or provide the numbers directly.`,
+      pt: `Não consegui realizar este cálculo. Por favor, tente reformular sua pergunta ou forneça os números diretamente.`,
+      es: `No pude realizar este cálculo. Por favor, intenta reformular tu pregunta o proporciona los números directamente.`,
+    };
+
+    return {
+      answer: errorMessages[language] || errorMessages.en,
+      answerType: 'CALCULATION',
+      language,
+      documentReferences: [],
+      metadata: {
+        totalTime: Date.now() - startTime,
+        error: error.message,
+      },
+    };
+  }
 }
 
 /**

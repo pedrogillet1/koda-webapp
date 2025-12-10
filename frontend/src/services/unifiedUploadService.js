@@ -498,16 +498,30 @@ async function uploadFiles(files, folderId, onProgress) {
 
       // Request presigned URLs
       onProgress?.({ stage: 'preparing', message: 'Preparing upload...', percentage: 5 + (completedCount / validFiles.length) * 85 });
-      const { presignedUrls, documentIds } = await requestPresignedUrls(fileInfos, folderId);
+      const { presignedUrls, documentIds, skippedFiles: skippedByBackend = [] } = await requestPresignedUrls(fileInfos, folderId);
+
+      // ✅ FIX: Filter out skipped files to match presignedUrls/documentIds arrays
+      // Backend returns shorter arrays when files are skipped (already exist)
+      const skippedSet = new Set(skippedByBackend.map(f => f.normalize('NFC')));
+      const filesToUpload = smallFiles.filter(f => !skippedSet.has(f.name.normalize('NFC')));
+
+      // Add skipped files to results immediately (they're already uploaded)
+      if (skippedByBackend.length > 0) {
+        console.log(`📋 [Upload] ${skippedByBackend.length} files skipped (already exist): ${skippedByBackend.join(', ')}`);
+        for (const skippedName of skippedByBackend) {
+          results.push({ success: true, fileName: skippedName, skipped: true });
+          completedCount++;
+        }
+      }
 
       // Upload all files in parallel batches
       onProgress?.({ stage: 'uploading', message: 'Uploading files...', percentage: 10 + (completedCount / validFiles.length) * 85 });
 
-      // Process in batches
+      // Process in batches - now arrays are aligned (filesToUpload.length === presignedUrls.length)
       const batches = [];
-      for (let i = 0; i < smallFiles.length; i += CONFIG.MAX_CONCURRENT_UPLOADS) {
+      for (let i = 0; i < filesToUpload.length; i += CONFIG.MAX_CONCURRENT_UPLOADS) {
         batches.push({
-          files: smallFiles.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS),
+          files: filesToUpload.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS),
           urls: presignedUrls.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS),
           ids: documentIds.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS)
         });
@@ -675,16 +689,30 @@ async function uploadFolder(files, onProgress, existingCategoryId = null) {
     if (smallFileInfos.length > 0) {
       // Request presigned URLs for small files only
       onProgress?.({ stage: 'preparing', message: 'Requesting upload URLs...', percentage: 18 + (completedCount / fileInfos.length) * 72 });
-      const { presignedUrls, documentIds } = await requestPresignedUrls(smallFileInfos, categoryId);
+      const { presignedUrls, documentIds, skippedFiles: skippedByBackend = [] } = await requestPresignedUrls(smallFileInfos, categoryId);
+
+      // ✅ FIX: Filter out skipped files to match presignedUrls/documentIds arrays
+      // Backend returns shorter arrays when files are skipped (already exist)
+      const skippedSet = new Set(skippedByBackend.map(f => f.normalize('NFC')));
+      const fileInfosToUpload = smallFileInfos.filter(fi => !skippedSet.has(fi.fileName.normalize('NFC')));
+
+      // Add skipped files to results immediately (they're already uploaded)
+      if (skippedByBackend.length > 0) {
+        console.log(`📋 [Folder Upload] ${skippedByBackend.length} files skipped (already exist): ${skippedByBackend.join(', ')}`);
+        for (const skippedName of skippedByBackend) {
+          results.push({ success: true, fileName: skippedName, skipped: true });
+          completedCount++;
+        }
+      }
 
       // Step 6: Upload all small files in parallel
       onProgress?.({ stage: 'uploading', message: 'Uploading files...', percentage: 20 + (completedCount / fileInfos.length) * 70 });
 
-      // Process in batches for concurrent limit
+      // Process in batches for concurrent limit - arrays are now aligned
       const batches = [];
-      for (let i = 0; i < smallFileInfos.length; i += CONFIG.MAX_CONCURRENT_UPLOADS) {
+      for (let i = 0; i < fileInfosToUpload.length; i += CONFIG.MAX_CONCURRENT_UPLOADS) {
         batches.push({
-          fileInfos: smallFileInfos.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS),
+          fileInfos: fileInfosToUpload.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS),
           urls: presignedUrls.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS),
           ids: documentIds.slice(i, i + CONFIG.MAX_CONCURRENT_UPLOADS)
         });

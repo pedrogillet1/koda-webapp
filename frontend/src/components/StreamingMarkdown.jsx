@@ -6,6 +6,13 @@ import './StreamingAnimation.css';
 import './SpacingUtilities.css';
 import './MarkdownStyles.css';
 import { ClickableDocumentName, isDocumentName } from './ClickableDocumentName';
+import {
+  parseInlineDocuments,
+  parseInlineFolders,
+  parseLoadMoreMarkers,
+  parseSimpleDocMarkers,
+  parseSeeAllMarkers
+} from '../utils/inlineDocumentParser';
 
 /**
  * ✨ StreamingMarkdown Component (with Koda Markdown Contract)
@@ -248,6 +255,41 @@ const StreamingMarkdown = ({
       .replace(/Ã‚/g, 'Â')
       .replace(/Ã€/g, 'À')
       .replace(/Ã‰/g, 'É');
+
+    // ============================================================
+    // FIX: Convert document markers to bold text format
+    // This allows the existing bold text handler to make them clickable
+    // ============================================================
+
+    // Parse legacy document markers: {{DOC:::id:::filename:::...}}
+    const legacyDocs = parseInlineDocuments(cleaned);
+    legacyDocs.forEach(doc => {
+      cleaned = cleaned.replace(doc.marker, `**${doc.filename}**`);
+    });
+
+    // Parse simple document markers: [[DOC:id:name]]
+    const simpleDocs = parseSimpleDocMarkers(cleaned);
+    simpleDocs.forEach(doc => {
+      cleaned = cleaned.replace(doc.marker, `**${doc.filename}**`);
+    });
+
+    // Parse folder markers: {{FOLDER:::id:::name:::count:::path}}
+    const folders = parseInlineFolders(cleaned);
+    folders.forEach(folder => {
+      cleaned = cleaned.replace(folder.marker, `**${folder.folderName}/**`);
+    });
+
+    // Parse load more markers: {{LOADMORE:::remaining:::total:::loaded}}
+    const loadMore = parseLoadMoreMarkers(cleaned);
+    loadMore.forEach(marker => {
+      cleaned = cleaned.replace(marker.marker, `**Ver todos os ${marker.totalCount} arquivos**`);
+    });
+
+    // Parse see all markers: [[SEE_ALL:text]]
+    const seeAll = parseSeeAllMarkers(cleaned);
+    seeAll.forEach(marker => {
+      cleaned = cleaned.replace(marker.marker, `**${marker.linkText}**`);
+    });
 
     // ============================================================
     // FIX: Convert backtick+bold document citations to just bold

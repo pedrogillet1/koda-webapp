@@ -162,6 +162,18 @@ class CalculationDetectorService {
       };
     }
 
+    // ✅ FIX: Skip definition, comparison, and conceptual queries
+    // These should use RAG, not calculation mode
+    // Examples: "O que é LGPD?", "What is GDPR?", "Compare documents A and B"
+    if (this.isDefinitionOrComparisonQuery(trimmedQuery)) {
+      console.log('🚫 [CALC-DETECT] Skipping calculation - detected definition/comparison query');
+      return {
+        isCalculation: false,
+        type: CalculationType.NONE,
+        confidence: 1.0
+      };
+    }
+
     // ✅ NEW: Check for unit conversion (HIGH PRIORITY - before other checks)
     const unitConversionResult = this.checkUnitConversion(trimmedQuery);
     if (unitConversionResult.isCalculation) {
@@ -360,6 +372,100 @@ class CalculationDetectorService {
       if (financialMetricInContext.some(pattern => pattern.test(query))) {
         return true;
       }
+    }
+
+    return false;
+  }
+
+  /**
+   * ✅ FIX: Check if query is asking for definitions, explanations, or comparisons
+   * These should use RAG/semantic search, NOT calculation mode
+   * Examples: "O que é LGPD?", "What is GDPR?", "Compare documents A and B"
+   */
+  private isDefinitionOrComparisonQuery(query: string): boolean {
+    const lowerQuery = query.toLowerCase();
+
+    // Definition patterns - "What is X?", "O que é X?", "¿Qué es X?"
+    const definitionPatterns = [
+      // English definition patterns
+      /^what\s+is\s+(?:the\s+|a\s+)?[\w\s]+\??$/i,
+      /^what\s+are\s+(?:the\s+)?[\w\s]+\??$/i,
+      /^what\s+does\s+[\w\s]+\s+mean\??$/i,
+      /^define\s+[\w\s]+/i,
+      /^explain\s+[\w\s]+/i,
+      /^what\s+do\s+you\s+mean\s+by\s+[\w\s]+/i,
+      // Portuguese definition patterns
+      /^o\s+que\s+[ée]\s+/i,       // "O que é X"
+      /^o\s+que\s+s[aã]o\s+/i,     // "O que são X"
+      /^explique\s+/i,             // "Explique X"
+      /^defina\s+/i,               // "Defina X"
+      /^qual\s+[ée]\s+a\s+defini[çc][aã]o\s+de\s+/i,  // "Qual é a definição de X"
+      // Spanish definition patterns
+      /^qu[ée]\s+es\s+/i,          // "¿Qué es X?"
+      /^qu[ée]\s+son\s+/i,         // "¿Qué son X?"
+      /^explique\s+/i,             // "Explique X"
+      /^defina\s+/i,               // "Defina X"
+      /^cu[aá]l\s+es\s+la\s+definici[oó]n\s+de\s+/i,  // "Cuál es la definición de X"
+    ];
+
+    // Comparison patterns
+    const comparisonPatterns = [
+      // English comparison patterns
+      /^compare\s+/i,              // "Compare X and Y"
+      /^how\s+does\s+[\w\s]+\s+compare\s+to\s+/i,
+      /^what(?:'s|\s+is)\s+the\s+difference\s+between\s+/i,
+      /^differences?\s+between\s+/i,
+      // Portuguese comparison patterns
+      /^compare\s+/i,              // "Compare X e Y"
+      /^qual\s+(?:[ée]\s+)?a\s+diferen[çc]a\s+entre\s+/i,
+      /^diferenc[ia]s?\s+entre\s+/i,
+      // Spanish comparison patterns
+      /^compara?\s+/i,             // "Compara X y Y"
+      /^cu[aá]l\s+(?:es\s+)?la\s+diferencia\s+entre\s+/i,
+      /^diferencias?\s+entre\s+/i,
+    ];
+
+    // Conceptual question patterns (should go to RAG, not calculator)
+    const conceptualPatterns = [
+      // "Why is X?", "How does X work?"
+      /^why\s+(?:is|are|does|do)\s+/i,
+      /^how\s+does\s+[\w\s]+\s+work\??$/i,
+      /^how\s+do\s+[\w\s]+\s+work\??$/i,
+      // Portuguese conceptual
+      /^por\s+que\s+/i,            // "Por que X?"
+      /^como\s+funciona\s+/i,      // "Como funciona X?"
+      // Spanish conceptual
+      /^por\s+qu[ée]\s+/i,         // "¿Por qué X?"
+      /^c[oó]mo\s+funciona\s+/i,   // "¿Cómo funciona X?"
+    ];
+
+    // Common acronyms/terms that are NEVER calculations
+    const nonCalculationTerms = [
+      'lgpd', 'gdpr', 'hipaa', 'sox', 'pci', 'iso', 'nist', 'ccpa',  // Regulations
+      'scrum', 'agile', 'kanban', 'waterfall', 'devops', 'ci/cd',    // Methodologies
+      'api', 'sdk', 'rest', 'graphql', 'json', 'xml',                // Tech terms
+      'koda', 'rag', 'llm', 'gpt', 'ai', 'ml',                       // AI terms
+    ];
+
+    // Check if query mentions a non-calculation term
+    if (nonCalculationTerms.some(term => lowerQuery.includes(term))) {
+      // If it's a "what is X" question, definitely not a calculation
+      if (/^(?:what|o\s+que|qu[ée])\s+/i.test(lowerQuery)) {
+        return true;
+      }
+    }
+
+    // Check patterns
+    if (definitionPatterns.some(pattern => pattern.test(query))) {
+      return true;
+    }
+
+    if (comparisonPatterns.some(pattern => pattern.test(query))) {
+      return true;
+    }
+
+    if (conceptualPatterns.some(pattern => pattern.test(query))) {
+      return true;
     }
 
     return false;
