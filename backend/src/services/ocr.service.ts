@@ -11,8 +11,8 @@
 
 import Tesseract from 'tesseract.js';
 import vision, { ImageAnnotatorClient } from '@google-cloud/vision';
-// @ts-ignore - pdf-poppler has no type declarations
-import { convert } from 'pdf-poppler';
+import { exec } from "child_process";
+import { promisify } from "util";
 import sharp from 'sharp';
 import fs from 'fs/promises';
 import path from 'path';
@@ -392,14 +392,21 @@ class OCRService {
     pdfPath: string,
     outputDir: string
   ): Promise<string[]> {
-    const options = {
-      format: 'png',
-      out_dir: outputDir,
-      out_prefix: 'page',
-      page: null, // Convert all pages
-    };
+    // Use pdftoppm directly instead of pdf-poppler package (which doesn't support Linux)
+    const execAsync = promisify(exec);
+    const outputPrefix = path.join(outputDir, 'page');
 
-    await convert(pdfPath, options);
+    // pdftoppm command: convert all pages to PNG at 200 DPI
+    const command = `pdftoppm -png -r 200 "${pdfPath}" "${outputPrefix}"`;
+
+    console.log(`   🔄 [OCR] Running pdftoppm: ${command}`);
+
+    try {
+      await execAsync(command, { timeout: 120000 }); // 2 minute timeout
+    } catch (error: any) {
+      console.error(`❌ [OCR] pdftoppm failed: ${error.message}`);
+      throw new Error(`Failed to convert PDF to images: ${error.message}`);
+    }
 
     // Get list of generated images
     const files = await fs.readdir(outputDir);
@@ -413,6 +420,7 @@ class OCRService {
       })
       .map(f => path.join(outputDir, f));
 
+    console.log(`   ✅ [OCR] Converted ${imageFiles.length} pages to images`);
     return imageFiles;
   }
 
