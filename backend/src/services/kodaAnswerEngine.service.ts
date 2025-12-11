@@ -17,13 +17,13 @@
  * 4. Calculation execution
  * 5. Answer synthesis
  *
- * @version 2.0.0
- * @date 2025-12-08
+ * ✅ CENTRALIZED: Now uses GeminiGateway for all API calls (2025-12-10)
+ *
+ * @version 3.0.0
+ * @date 2025-12-10
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+import geminiGateway, { type GeminiModel } from './geminiGateway.service';
 
 export interface AnswerOptions {
   prompt: string;
@@ -42,44 +42,55 @@ export interface AnswerResult {
 
 /**
  * Generate answer using the appropriate model and configuration
+ *
+ * ✅ CENTRALIZED: Uses GeminiGateway for unified API access
+ *
+ * OPTIMIZED FOR SPEED:
+ * - Reduced maxTokens from 8192 to 2500 (matches rag.service)
+ * - Reduced temperature from 0.7 to 0.4 (faster, more deterministic)
+ * - Added topK/topP for better token selection
  */
 export async function generateAnswer(options: AnswerOptions): Promise<AnswerResult> {
   const {
     prompt,
     skill,
-    temperature = 0.7,
-    maxTokens = 8192,
-    stream = false,
+    temperature = 0.4,  // OPTIMIZED: Was 0.7, now 0.4 for faster responses
+    maxTokens = 2500,   // OPTIMIZED: Was 8192, now 2500 to prevent overly long answers
   } = options;
 
   const startTime = Date.now();
 
   // Select model based on skill
   const modelName = selectModel(skill);
-  const model = genAI.getGenerativeModel({ model: modelName });
 
-  // Generate answer
-  const result = await model.generateContent({
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: {
+  // Generate answer using centralized gateway
+  const response = await geminiGateway.generateContent({
+    prompt,
+    model: modelName,
+    config: {
       temperature,
       maxOutputTokens: maxTokens,
+      topK: 40,   // OPTIMIZED: Better vocabulary variety
+      topP: 0.95, // OPTIMIZED: Nucleus sampling threshold
     },
+    safetySettings: 'permissive',
   });
 
-  const response = result.response;
-  const content = response.text();
-
   return {
-    content,
+    content: response.text,
     model: modelName,
-    tokensUsed: response.usageMetadata?.totalTokenCount || 0,
+    tokensUsed: response.totalTokens || 0,
     generationTime: Date.now() - startTime,
   };
 }
 
 /**
  * Generate streaming answer for real-time display
+ *
+ * ✅ CENTRALIZED: Uses GeminiGateway for unified streaming
+ *
+ * OPTIMIZED FOR SPEED:
+ * - Same optimizations as generateAnswer
  */
 export async function generateStreamingAnswer(
   options: AnswerOptions,
@@ -88,41 +99,40 @@ export async function generateStreamingAnswer(
   const {
     prompt,
     skill,
-    temperature = 0.7,
-    maxTokens = 8192,
+    temperature = 0.4,  // OPTIMIZED: Was 0.7
+    maxTokens = 2500,   // OPTIMIZED: Was 8192
   } = options;
 
   const startTime = Date.now();
   const modelName = selectModel(skill);
-  const model = genAI.getGenerativeModel({ model: modelName });
 
-  const result = await model.generateContentStream({
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: {
+  // Generate streaming answer using centralized gateway
+  const response = await geminiGateway.generateContentStream({
+    prompt,
+    model: modelName,
+    config: {
       temperature,
       maxOutputTokens: maxTokens,
+      topK: 40,   // OPTIMIZED
+      topP: 0.95, // OPTIMIZED
     },
+    onChunk,
+    safetySettings: 'permissive',
   });
 
-  let fullContent = '';
-  let tokensUsed = 0;
-
-  for await (const chunk of result.stream) {
-    const chunkText = chunk.text();
-    fullContent += chunkText;
-    onChunk(chunkText);
-    tokensUsed = chunk.usageMetadata?.totalTokenCount || tokensUsed;
-  }
-
   return {
-    content: fullContent,
+    content: response.text,
     model: modelName,
-    tokensUsed,
+    tokensUsed: response.totalTokens || 0,
     generationTime: Date.now() - startTime,
   };
 }
 
-function selectModel(skill: string): string {
+/**
+ * Select model based on skill
+ * ✅ Returns GeminiModel type for centralized gateway compatibility
+ */
+function selectModel(skill: string): GeminiModel {
   // Use Gemini 2.5 Flash for ALL queries
   return 'gemini-2.5-flash';
 }

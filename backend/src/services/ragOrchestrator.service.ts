@@ -15,6 +15,7 @@
  */
 
 import { detectAnswerType, type IntentDetectionResult } from './kodaIntentEngine.service';
+import type { RagMode, QuestionType } from './simpleIntentDetection.service';
 import { detectLanguage } from './languageDetection.service';
 import { KodaRetrievalEngine, type RetrievalResult } from './kodaRetrievalEngine.service';
 import { KodaMemoryEngine } from './kodaMemoryEngine.service';
@@ -24,6 +25,8 @@ import { formatAnswer, type FormattedAnswer } from './answerFormatter.service';
 import { validateAnswer, type ValidationResult } from './answerValidator.service';
 import { KodaStreamingController } from './kodaStreamingController.service';
 import { calculationEngine } from './calculationEngine.service';
+import { handleNavigationQuery } from './navigationOrchestrator.service';
+import { getHelpResponse } from './appHelpEngine.service';
 import crypto from 'crypto';
 import { withBudget, getBudgetForQueryType, getAdaptiveBudget } from '../utils/budgetEnforcer';
 import { recordMetric, recordCacheEvent, recordQueryType } from './performanceMonitor.service';
@@ -358,38 +361,126 @@ async function handleNavigation(
   language: string,
   startTime: number
 ): Promise<QueryResult> {
-  // TODO: Import and use navigationOrchestrator
-  // const { handleFileNavigation, handleFolderNavigation } = await import('./navigationOrchestrator.service');
-  
-  // Placeholder
-  return {
-    answer: 'Navigation handler not yet implemented',
-    answerType: intent.answerType,
-    language,
-    documentReferences: [],
-    metadata: {
-      totalTime: Date.now() - startTime,
-    },
-  };
+  try {
+    const navResult = await handleNavigationQuery(query, {
+      userId,
+      language,
+    });
+
+    if (navResult.handled && navResult.response) {
+      return {
+        answer: navResult.response,
+        answerType: intent.answerType,
+        language: navResult.language || language,
+        documentReferences: navResult.files?.map(f => ({
+          documentId: f.id,
+          filename: f.filename,
+          relevanceScore: f.score || 1,
+        })) || [],
+        metadata: {
+          totalTime: Date.now() - startTime,
+          navigationIntent: navResult.intentType,
+          filesFound: navResult.files?.length || 0,
+          foldersFound: navResult.folders?.length || 0,
+        },
+      };
+    }
+
+    // Navigation not handled - return generic response
+    return {
+      answer: language === 'pt' || language === 'pt-BR'
+        ? 'Não consegui encontrar o que você está procurando. Pode reformular sua solicitação?'
+        : 'I couldn\'t find what you\'re looking for. Could you rephrase your request?',
+      answerType: intent.answerType,
+      language,
+      documentReferences: [],
+      metadata: {
+        totalTime: Date.now() - startTime,
+        navigationIntent: 'not_handled',
+      },
+    };
+  } catch (error) {
+    console.error('[RAG Orchestrator] Navigation handler error:', error);
+    return {
+      answer: language === 'pt' || language === 'pt-BR'
+        ? 'Ocorreu um erro ao processar sua navegação. Por favor, tente novamente.'
+        : 'An error occurred while processing your navigation request. Please try again.',
+      answerType: intent.answerType,
+      language,
+      documentReferences: [],
+      metadata: {
+        totalTime: Date.now() - startTime,
+        error: (error as Error).message,
+      },
+    };
+  }
 }
 
 /**
  * Handle app help (< 1.5s)
  */
 async function handleAppHelp(query: string, language: string, startTime: number): Promise<QueryResult> {
-  // TODO: Import and use appHelpEngine
-  // const { getAppHelp } = await import('./appHelpEngine.service');
-  
-  // Placeholder
-  return {
-    answer: 'App help handler not yet implemented',
-    answerType: 'APP_HELP',
-    language,
-    documentReferences: [],
-    metadata: {
-      totalTime: Date.now() - startTime,
-    },
-  };
+  try {
+    const helpResult = getHelpResponse(query, language);
+
+    if (helpResult.found) {
+      return {
+        answer: helpResult.response,
+        answerType: 'APP_HELP',
+        language,
+        documentReferences: [],
+        metadata: {
+          totalTime: Date.now() - startTime,
+          helpTopic: helpResult.topic?.id,
+          helpCategory: helpResult.topic?.category,
+          relatedTopics: helpResult.relatedTopics?.map(t => t.title),
+        },
+      };
+    }
+
+    // No specific help found - provide generic response
+    const genericHelp: Record<string, string> = {
+      en: `I can help you with:
+- **Uploading files**: Drag & drop or click Upload
+- **Finding documents**: Use the search bar or ask me
+- **Organizing files**: Create folders and move documents
+- **Asking questions**: Chat with me about your documents
+
+What would you like to know more about?`,
+      pt: `Posso ajudá-lo com:
+- **Enviar arquivos**: Arraste e solte ou clique em Upload
+- **Encontrar documentos**: Use a barra de busca ou pergunte-me
+- **Organizar arquivos**: Crie pastas e mova documentos
+- **Fazer perguntas**: Converse comigo sobre seus documentos
+
+Sobre o que gostaria de saber mais?`,
+    };
+
+    return {
+      answer: genericHelp[language] || genericHelp.en,
+      answerType: 'APP_HELP',
+      language,
+      documentReferences: [],
+      metadata: {
+        totalTime: Date.now() - startTime,
+        helpTopic: 'generic',
+      },
+    };
+  } catch (error) {
+    console.error('[RAG Orchestrator] App help handler error:', error);
+    return {
+      answer: language === 'pt' || language === 'pt-BR'
+        ? 'Desculpe, não consegui acessar a ajuda no momento. Tente novamente.'
+        : 'Sorry, I couldn\'t access help at the moment. Please try again.',
+      answerType: 'APP_HELP',
+      language,
+      documentReferences: [],
+      metadata: {
+        totalTime: Date.now() - startTime,
+        error: (error as Error).message,
+      },
+    };
+  }
 }
 
 /**
@@ -521,28 +612,40 @@ async function handleRAG(
 
 /**
  * Execute RAG pipeline (internal)
+ * Now uses suggestedChunkCount from enhanced intent detection for adaptive retrieval
  */
 async function executeRAG(
   query: string,
   userId: string,
   conversationId: string | undefined,
-  intent: IntentDetectionResult,
+  intent: IntentDetectionResult & { ragMode?: RagMode; questionType?: QuestionType; suggestedChunkCount?: number },
   language: string,
   startTime: number,
   streamingCallback?: (chunk: string) => void
 ): Promise<QueryResult> {
   // Step 1: Retrieval (if needed)
+  // Use suggestedChunkCount from enhanced intent detection for adaptive retrieval
   let retrievalResult: RetrievalResult | null = null;
   let retrievalTime = 0;
 
   if (intent.requiresRetrieval) {
+    // Determine chunk count based on RAG mode
+    // no_rag: 0, light_rag: 3, full_rag: 15
+    const topK = intent.suggestedChunkCount ?? 10; // Default to 10 for backward compatibility
+
+    console.log(`📊 [RAG] Retrieving ${topK} chunks (RAG mode: ${intent.ragMode || 'default'}, type: ${intent.questionType || intent.answerType})`);
+
     const retrievalEngine = new KodaRetrievalEngine();
     retrievalResult = await retrievalEngine.retrieve(query, userId, {
-      topK: 10,
+      topK,
       method: 'auto',
       rerank: true,
     });
     retrievalTime = retrievalResult.retrievalTime;
+
+    console.log(`📊 [RAG] Retrieved ${retrievalResult.chunks?.length || 0} chunks in ${retrievalTime}ms`);
+  } else {
+    console.log(`⚡ [RAG] Skipping retrieval (ragMode: ${intent.ragMode || 'no_rag'})`);
   }
 
   // Step 2: Memory (if needed)

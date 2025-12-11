@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { addDocumentProcessingJob } from '../queues/document.queue';
 import { generatePresignedUploadUrl } from '../config/storage';
-import { emitDocumentEvent } from '../services/websocket.service';
+import { emitDocumentEvent, emitToUser } from '../services/websocket.service';
 
 /**
  * Helper function to create folder hierarchy from relative paths
@@ -346,17 +346,19 @@ export const completeBatchUpload = async (
     console.log(`✅ Updated ${updateResult.count} documents to processing status`);
 
     // ✅ OPTIMIZATION: Queue all documents for parallel background processing (10 concurrent)
-    // Fetch document details to get encryptedFilename and mimeType
+    // Fetch FULL document details for WebSocket emission AND processing queue
     const documents = await prisma.documents.findMany({
       where: {
         id: { in: documentIds },
         userId
       },
-      select: {
-        id: true,
-        encryptedFilename: true,
-        mimeType: true,
-        fileSize: true
+      include: {
+        folder: true,
+        tags: {
+          include: {
+            tag: true
+          }
+        }
       }
     });
 
@@ -389,9 +391,21 @@ export const completeBatchUpload = async (
     console.log(`📊 [METRICS] Queue processing speed: ${(queuedCount / (duration / 1000)).toFixed(2)} jobs/second`);
     console.log(`📊 [METRICS] Worker will process 10 documents concurrently (10x throughput)`);
 
-    // 🔔 Emit WebSocket event to notify UI that documents are now processing
-    console.log(`🔔 Notifying UI: ${updateResult.count} documents updated to processing status`);
-    emitDocumentEvent(userId, 'updated');
+    // 🔔 Emit WebSocket event with FULL document objects for instant UI display
+    // This is the key fix - frontend needs full document data to add to state immediately
+    console.log(`🔔 Notifying UI: ${documents.length} documents with full data for instant display`);
+    for (const doc of documents) {
+      emitToUser(userId, 'document-created', {
+        ...doc,
+        status: 'processing' // Ensure status is set correctly
+      });
+    }
+
+    // Also emit folder update if documents have folders
+    const folderIds = [...new Set(documents.filter(d => d.folderId).map(d => d.folderId))];
+    if (folderIds.length > 0) {
+      emitToUser(userId, 'folder-tree-updated', { folderIds });
+    }
 
     res.status(200).json({
       success: true,

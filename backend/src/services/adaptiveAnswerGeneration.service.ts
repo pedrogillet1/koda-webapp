@@ -1,15 +1,17 @@
 /**
  * ADAPTIVE ANSWER GENERATION SERVICE - FIXED VERSION
- * 
+ *
  * FIXES APPLIED:
  * 1. Increased all token limits by 2-3x to prevent truncation
  * 2. Added completion verification before returning
  * 3. Added streaming error handling
  * 4. Added retry logic for incomplete answers
- * 
+ *
+ * ✅ CENTRALIZED: Now uses GeminiGateway for all API calls (2025-12-10)
+ *
  * CHANGES FROM ORIGINAL:
  * - simple: 1000 → 2500 tokens
- * - medium: 1500 → 3500 tokens  
+ * - medium: 1500 → 3500 tokens
  * - complex: 2500 → 6000 tokens
  * - explanation: 1500 → 3500 tokens
  * - guidance: 1200 → 3000 tokens
@@ -18,7 +20,7 @@
  * - comparison: 2000 → 4500 tokens
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import geminiGateway from './geminiGateway.service';
 import { kodaPersonaService, KODA_CORE_PERSONA, KODA_DOCUMENT_CITATION_RULES } from './kodaPersona.service';
 
 // ============================================================================
@@ -82,12 +84,6 @@ export interface AnswerResult {
     tone: string;
   };
 }
-
-// ============================================================================
-// GEMINI CLIENT INITIALIZATION
-// ============================================================================
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // ============================================================================
 // RESPONSE TYPE CLASSIFICATION
@@ -356,21 +352,22 @@ export function verifyAnswerCompletion(answer: string): { isComplete: boolean; r
 
 // ============================================================================
 // MAIN GENERATION FUNCTION WITH FIXES
+// ✅ CENTRALIZED: Uses GeminiGateway for all API calls
 // ============================================================================
 
 export async function generateAdaptiveAnswer(
   params: GenerateAnswerParams,
   onChunk?: (chunk: string) => void
 ): Promise<AnswerResult> {
-  
+
   const { query, context, language = 'pt' } = params;
-  
+
   // Classify response type
   const responseType = classifyResponseType(query);
   const config = FLASH_OPTIMAL_CONFIG[responseType];
-  
+
   console.log(`[AdaptiveAnswer] Query type: ${responseType}, maxTokens: ${config.maxTokens}`);
-  
+
   // Build prompt with language enforcement and formatting rules
   const formattingRules = getFormattingRulesForResponseType(responseType, language);
 
@@ -393,19 +390,6 @@ ${config.useHeadings ? 'Use headings (##, ###)' : 'No headings needed'}
 
 Answer in ${language === 'pt' ? 'Portuguese' : language === 'es' ? 'Spanish' : 'English'} ONLY.`;
 
-  // Initialize model
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    systemInstruction,
-    generationConfig: {
-      temperature: config.temperature,
-      topP: config.topP,
-      topK: config.topK,
-      maxOutputTokens: config.maxTokens,
-      // stopSequences: [] // DISABLED - causes early termination
-    }
-  });
-
   let fullResponse = '';
   let retryCount = 0;
   const maxRetries = 2;
@@ -414,35 +398,47 @@ Answer in ${language === 'pt' ? 'Portuguese' : language === 'es' ? 'Spanish' : '
   while (retryCount <= maxRetries) {
     try {
       if (onChunk) {
-        // Streaming mode with error handling
-        const result = await model.generateContentStream(prompt);
-        fullResponse = '';
-
-        for await (const chunk of result.stream) {
-          try {
-            const chunkText = chunk.text();
-            fullResponse += chunkText;
-            onChunk(chunkText);
-          } catch (chunkError) {
-            console.error('[AdaptiveAnswer] Error processing chunk:', chunkError);
-            // Continue with next chunk
-          }
-        }
+        // Streaming mode using centralized gateway
+        const response = await geminiGateway.generateContentStream({
+          prompt,
+          systemInstruction,
+          model: 'gemini-2.5-flash',
+          config: {
+            temperature: config.temperature,
+            topP: config.topP,
+            topK: config.topK,
+            maxOutputTokens: config.maxTokens,
+          },
+          onChunk,
+          safetySettings: 'permissive',
+        });
+        fullResponse = response.text;
       } else {
-        // Non-streaming mode
-        const result = await model.generateContent(prompt);
-        fullResponse = result.response.text();
+        // Non-streaming mode using centralized gateway
+        const response = await geminiGateway.generateContent({
+          prompt,
+          systemInstruction,
+          model: 'gemini-2.5-flash',
+          config: {
+            temperature: config.temperature,
+            topP: config.topP,
+            topK: config.topK,
+            maxOutputTokens: config.maxTokens,
+          },
+          safetySettings: 'permissive',
+        });
+        fullResponse = response.text;
       }
 
       // Verify completion
       const completionCheck = verifyAnswerCompletion(fullResponse);
-      
+
       if (completionCheck.isComplete) {
         console.log(`[AdaptiveAnswer] Answer complete (${fullResponse.split(/\s+/).length} words)`);
         break;
       } else {
         console.warn(`[AdaptiveAnswer] Answer incomplete: ${completionCheck.reason}`);
-        
+
         if (retryCount < maxRetries) {
           console.log(`[AdaptiveAnswer] Retrying (attempt ${retryCount + 2}/${maxRetries + 1})...`);
           retryCount++;
@@ -453,10 +449,21 @@ Previous incomplete answer:
 ${fullResponse}
 
 Please complete the answer. Continue from where it left off.`;
-          
-          // Retry with continuation
-          const retryResult = await model.generateContent(continuationPrompt);
-          fullResponse += ' ' + retryResult.response.text();
+
+          // Retry with continuation using centralized gateway
+          const retryResponse = await geminiGateway.generateContent({
+            prompt: continuationPrompt,
+            systemInstruction,
+            model: 'gemini-2.5-flash',
+            config: {
+              temperature: config.temperature,
+              topP: config.topP,
+              topK: config.topK,
+              maxOutputTokens: config.maxTokens,
+            },
+            safetySettings: 'permissive',
+          });
+          fullResponse += ' ' + retryResponse.text;
         } else {
           console.error(`[AdaptiveAnswer] Max retries reached, returning incomplete answer`);
           break;
@@ -464,7 +471,7 @@ Please complete the answer. Continue from where it left off.`;
       }
     } catch (error) {
       console.error('[AdaptiveAnswer] Generation error:', error);
-      
+
       if (retryCount < maxRetries) {
         retryCount++;
         console.log(`[AdaptiveAnswer] Retrying after error (attempt ${retryCount + 1}/${maxRetries + 1})...`);

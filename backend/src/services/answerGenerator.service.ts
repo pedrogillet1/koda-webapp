@@ -1,16 +1,18 @@
 /**
  * Answer Generator - Unified Answer Generation
- * 
+ *
  * Merges:
  * - adaptiveAnswerGeneration.service.ts
  * - skillAwareAnswerGeneration.service.ts
  * - rag/generation/answer-generator.service.ts
  * - rag/generation/prompt-builder.service.ts
- * 
+ *
  * Single source of truth for LLM answer generation
+ *
+ * ✅ CENTRALIZED: Now uses GeminiGateway for all API calls
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import geminiGateway, { type GeminiModel } from './geminiGateway.service';
 
 export interface GenerateAnswerOptions {
   query: string;
@@ -30,16 +32,15 @@ export interface GeneratedAnswer {
   wasStreaming: boolean;
 }
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-
 /**
  * Generate adaptive answer using Gemini
+ * ✅ CENTRALIZED: Uses GeminiGateway for unified API access
  */
 export async function generateAdaptiveAnswer(
   options: GenerateAnswerOptions
 ): Promise<GeneratedAnswer> {
   const startTime = Date.now();
-  
+
   const {
     query,
     context,
@@ -52,7 +53,6 @@ export async function generateAdaptiveAnswer(
 
   // Select model based on answer type
   const modelName = selectModel(answerType);
-  const model = genAI.getGenerativeModel({ model: modelName });
 
   // Build system prompt
   const fullSystemPrompt = buildSystemPrompt({
@@ -63,30 +63,47 @@ export async function generateAdaptiveAnswer(
   });
 
   // Build final prompt
-  const finalPrompt = `${fullSystemPrompt}\n\n${context}\n\n## User Query\n\n${query}`;
+  const finalPrompt = `${context}\n\n## User Query\n\n${query}`;
 
-  // Generate (with or without streaming)
+  // Generate (with or without streaming) using centralized gateway
   let text = '';
   let tokensUsed = 0;
 
   if (streamingCallback) {
-    // Streaming generation
-    const result = await model.generateContentStream(finalPrompt);
-    
-    for await (const chunk of result.stream) {
-      const chunkText = chunk.text();
-      text += chunkText;
-      streamingCallback(chunkText);
-    }
+    // Streaming generation via centralized gateway
+    const response = await geminiGateway.generateContentStream({
+      prompt: finalPrompt,
+      systemInstruction: fullSystemPrompt,
+      model: modelName,
+      config: {
+        temperature: getTemperatureForType(answerType),
+        maxOutputTokens: getMaxTokensForType(answerType),
+        topK: 40,
+        topP: 0.95,
+      },
+      onChunk: streamingCallback,
+      safetySettings: 'permissive',
+    });
 
-    const response = await result.response;
-    tokensUsed = response.usageMetadata?.totalTokenCount || estimateTokens(text);
+    text = response.text;
+    tokensUsed = response.totalTokens || estimateTokens(text);
   } else {
-    // Non-streaming generation
-    const result = await model.generateContent(finalPrompt);
-    const response = result.response;
-    text = response.text();
-    tokensUsed = response.usageMetadata?.totalTokenCount || estimateTokens(text);
+    // Non-streaming generation via centralized gateway
+    const response = await geminiGateway.generateContent({
+      prompt: finalPrompt,
+      systemInstruction: fullSystemPrompt,
+      model: modelName,
+      config: {
+        temperature: getTemperatureForType(answerType),
+        maxOutputTokens: getMaxTokensForType(answerType),
+        topK: 40,
+        topP: 0.95,
+      },
+      safetySettings: 'permissive',
+    });
+
+    text = response.text;
+    tokensUsed = response.totalTokens || estimateTokens(text);
   }
 
   const generationTime = Date.now() - startTime;
@@ -101,15 +118,41 @@ export async function generateAdaptiveAnswer(
 }
 
 /**
- * Select model based on answer type
+ * Get temperature based on answer type
  */
-function selectModel(answerType: string): string {
-  // Use Flash for most queries (fast, cheap)
-  if (answerType === 'COMPLEX_ANALYSIS') {
-    return 'gemini-2.0-flash-exp'; // Still use Flash, it's very capable
-  }
+function getTemperatureForType(answerType: string): number {
+  const temperatures: Record<string, number> = {
+    COMPLEX_ANALYSIS: 0.4,
+    SINGLE_DOC_RAG: 0.2,
+    CROSS_DOC_RAG: 0.3,
+    CALCULATION: 0.1,
+    STANDARD_QUERY: 0.5,
+  };
+  return temperatures[answerType] || 0.4;
+}
 
-  return 'gemini-2.0-flash-exp';
+/**
+ * Get max tokens based on answer type
+ */
+function getMaxTokensForType(answerType: string): number {
+  const maxTokens: Record<string, number> = {
+    COMPLEX_ANALYSIS: 4000,
+    SINGLE_DOC_RAG: 2000,
+    CROSS_DOC_RAG: 3000,
+    CALCULATION: 1500,
+    STANDARD_QUERY: 2000,
+  };
+  return maxTokens[answerType] || 2000;
+}
+
+/**
+ * Select model based on answer type
+ * ✅ Returns GeminiModel type for centralized gateway compatibility
+ */
+function selectModel(answerType: string): GeminiModel {
+  // Use gemini-2.5-flash for most queries (fast, cost-effective)
+  // All answer types use flash for now - very capable for all tasks
+  return 'gemini-2.5-flash';
 }
 
 /**

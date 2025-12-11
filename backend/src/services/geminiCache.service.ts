@@ -28,7 +28,9 @@
 
 import { CachedContent, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { retryStreamingWithBackoff } from '../utils/retryUtils';
-// ✅ FIX: Use singleton client instead of creating new instance
+// ✅ CENTRALIZED: Use GeminiGateway for all API calls
+import geminiGateway from './geminiGateway.service';
+// Also keep geminiClient for explicit cache management (uses raw client)
 import geminiClient from './geminiClient.service';
 // ⚡ FLASH OPTIMIZATION: Import adaptive config
 import { classifyResponseType, FLASH_OPTIMAL_CONFIG, ResponseType } from './adaptiveAnswerGeneration.service';

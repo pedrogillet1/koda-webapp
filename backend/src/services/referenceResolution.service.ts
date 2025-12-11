@@ -16,7 +16,7 @@
  * 3. User: "Tell me about it" -> Resolves to last referenced document
  */
 
-import { documentListStateManager, DocumentListItem } from './documentListStateManager.service';
+import { documentListStateManager, DocumentListItem } from './deletedServiceStubs';
 
 // ============================================================================
 // TYPES

@@ -104,7 +104,7 @@ import { generateFallback as generateQAFallback } from './fallbackStrategy.servi
 import clarificationLogicService from './clarificationLogic.service';
 import rollingConversationSummaryService from './rollingConversationSummary.service';
 import { microSummaryRerankerService } from './microSummaryReranker.service';
-import { rerankByChunkType } from './chunkTypeReranker.service';
+import { rerankByChunkType } from './deletedServiceStubs';
 // DEPRECATED: Replaced by KodaMemoryEngine
 // import { getConversationState, updateConversationState, extractEntities, extractTopics } from './conversationStateTracker.service';
 import { getConversationState, updateConversationState, extractEntities, extractTopics } from './deletedServiceStubs';
@@ -196,7 +196,7 @@ import {
 import cacheService from './cache.service';
 
 // DOCUMENT INTELLIGENCE SYSTEM - Routing, Hybrid Search
-import { routeToDocument, routeToMultipleDocuments, type DocumentRoutingResult } from './documentRouter.service';
+import { routeToDocument, routeToMultipleDocuments, type DocumentRoutingResult } from './deletedServiceStubs';
 // DEPRECATED: Replaced by KodaRetrievalEngine
 // import { hybridSearch, analyzeQueryIntent, type SearchFilters, type HybridSearchOptions } from './hybridSearch.service';
 import { hybridSearch, analyzeQueryIntent, type SearchFilters, type HybridSearchOptions } from './deletedServiceStubs';
@@ -4153,8 +4153,8 @@ Respond in the same language as the user's question.`;
     }
   }
 
-  // DOCUMENT GENERATION DETECTION
-  const { detectDocumentGenerationIntent } = await import('./documentGenerationDetection.service');
+  // DOCUMENT GENERATION DETECTION (STUB - service removed)
+  const { detectDocumentGenerationIntent } = await import('./deletedServiceStubs');
 
   const docGenResult = detectDocumentGenerationIntent(query);
 

@@ -15,8 +15,8 @@
  */
 
 import { QueryPlan, SubQuestion } from './kodaComplexQueryPlanner.service';
-import { routeToDocument, routeToMultipleDocuments } from './documentRouter.service';
-import { rerankByChunkType, RankedChunk } from './chunkTypeReranker.service';
+import { routeToDocument, routeToMultipleDocuments } from './deletedServiceStubs';
+import { rerankByChunkType, RankedChunk } from './deletedServiceStubs';
 import { microSummaryRerankerService, SearchResult } from './microSummaryReranker.service';
 import embeddingService from './embedding.service';
 import pineconeService from './pinecone.service';

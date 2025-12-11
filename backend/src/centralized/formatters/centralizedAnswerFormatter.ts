@@ -116,22 +116,37 @@ export class CentralizedAnswerFormatter implements IAnswerFormatter {
   
   cleanInternalPlaceholders(text: string): string {
     let cleaned = text;
-    
+
     // Remove {{DOC ...}} blobs
     cleaned = cleaned.replace(/\{\{DOC[^}]*\}\}/g, '');
-    
-    // Remove mime type markers
-    cleaned = cleaned.replace(/:::[a-z/.-]+:::/gi, '');
-    
-    // Remove file paths like C:/Users/...
-    cleaned = cleaned.replace(/[A-Z]:[\\\/][^\s]+/g, 'sua pasta de documentos');
-    
+
+    // Remove MIME type markers in various formats:
+    // - :::application/vnd.openxmlformats-officedocument...:::
+    // - (application/vnd.openxmlformats-officedocument...)
+    // - application/vnd.openxmlformats-officedocument...
+    cleaned = cleaned.replace(/:::application\/[a-z0-9+.-]+:::/gi, '');
+    cleaned = cleaned.replace(/:::[a-z]+\/[a-z0-9+.-]+:::/gi, '');
+    cleaned = cleaned.replace(/\(application\/[a-z0-9+.-]+\)/gi, '');
+
+    // Remove Windows file paths (C:/Users/... or C:\Users\...)
+    // Match paths with ** markers like koda**test**files
+    cleaned = cleaned.replace(/[A-Z]:[\\\/][\w\\\/\-.*]+(?:\s|$|,|\))/gi, '');
+
+    // Remove "(Pasta: C:/Users/...)" or "(Pasta: application/...)" with system paths/mimetypes
+    cleaned = cleaned.replace(/\(Pasta:\s*[A-Z]:[\\\/][^)]+\)/gi, '');
+    cleaned = cleaned.replace(/\(Pasta:\s*application\/[^)]+\)/gi, '');
+
+    // Remove standalone "Pasta: C:/Users/..." or "Pasta: application/..."
+    cleaned = cleaned.replace(/Pasta:\s*[A-Z]:[\\\/][^\s\n]+/gi, '');
+    cleaned = cleaned.replace(/Pasta:\s*application\/[^\s\n]+/gi, '');
+
     // Remove "Koda:" prefix inside answer body
     cleaned = cleaned.replace(/^Koda:\s*/gim, '');
-    
-    // Remove "(Pasta: ...)" markers
-    cleaned = cleaned.replace(/\(Pasta:\s*[^)]+\)/g, '');
-    
+
+    // Clean up any leftover empty lines or multiple spaces
+    cleaned = cleaned.replace(/\n\s*\n\s*\n/g, '\n\n');
+    cleaned = cleaned.replace(/  +/g, ' ');
+
     return cleaned;
   }
   

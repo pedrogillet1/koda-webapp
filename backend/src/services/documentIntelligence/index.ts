@@ -48,7 +48,7 @@ export {
   ALL_CHUNK_TYPES,
   ALL_CATEGORIES,
   type ChunkClassification
-} from '../chunkClassifier.service';
+} from '../deletedServiceStubs';
 
 // Document Routing
 export {
@@ -57,7 +57,7 @@ export {
   getRoutingStats,
   type DocumentRoutingResult,
   type DocumentSummary
-} from '../documentRouter.service';
+} from '../deletedServiceStubs';
 
 // Hybrid Search - DEPRECATED: hybridSearch.service moved to _deprecated
 // Using stubs from deletedServiceStubs

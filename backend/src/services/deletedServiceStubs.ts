@@ -2093,3 +2093,156 @@ export default {
   microSummaryGeneratorService,
   conversationEmbeddingService
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Document Router Service Stub (REMOVED - upload restructure)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface DocumentRoutingResult {
+  documentId: string;
+  confidence: number;
+  reason: string;
+}
+
+export interface DocumentSummary {
+  id: string;
+  filename: string;
+  summary?: string;
+}
+
+export const routeToDocument = async (
+  _query: string,
+  _documents: DocumentSummary[],
+  _options?: any
+): Promise<DocumentRoutingResult | null> => null;
+
+export const routeToMultipleDocuments = async (
+  _query: string,
+  _documents: DocumentSummary[],
+  _options?: any
+): Promise<DocumentRoutingResult[]> => [];
+
+export const getRoutingStats = () => ({
+  totalRoutes: 0,
+  successfulRoutes: 0,
+  failedRoutes: 0
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Chunk Classifier Service Stub (REMOVED - upload restructure)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface ChunkClassification {
+  chunkType: string;
+  category: string;
+  confidence: number;
+}
+
+export const CHUNK_TAXONOMY = {
+  CATEGORIES: ['general', 'technical', 'business', 'legal'],
+  TYPES: ['paragraph', 'table', 'list', 'heading', 'code']
+};
+
+export const ALL_CHUNK_TYPES = CHUNK_TAXONOMY.TYPES;
+export const ALL_CATEGORIES = CHUNK_TAXONOMY.CATEGORIES;
+
+export const classifyChunk = async (
+  _text: string,
+  _options?: any
+): Promise<ChunkClassification> => ({
+  chunkType: 'paragraph',
+  category: 'general',
+  confidence: 0.5
+});
+
+export const classifyChunksBatch = async (
+  texts: string[],
+  _options?: any
+): Promise<ChunkClassification[]> =>
+  texts.map(() => ({
+    chunkType: 'paragraph',
+    category: 'general',
+    confidence: 0.5
+  }));
+
+export const getChunkTypesForCategory = (_category: string): string[] => ALL_CHUNK_TYPES;
+export const getCategoryForChunkType = (_chunkType: string): string => 'general';
+export const isDomainSpecificChunkType = (_chunkType: string): boolean => false;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Chunk Type Reranker Service Stub (REMOVED - upload restructure)
+// ═══════════════════════════════════════════════════════════════════════════
+export const chunkTypeRerankerService = {
+  rerank: async (chunks: any[], _query: string, _options?: any) => chunks,
+  rerankByChunkType: async (chunks: any[], _chunkType: string) => chunks
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Document List State Manager Stub (REMOVED - upload restructure)
+// ═══════════════════════════════════════════════════════════════════════════
+export const documentListStateManager = {
+  getState: () => ({ documents: [], lastUpdate: new Date() }),
+  updateState: async () => {},
+  invalidateCache: () => {},
+  refreshCache: async () => {}
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Additional stubs for documentListStateManager (REMOVED - upload restructure)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface DocumentListItem {
+  id: string;
+  filename: string;
+  displayTitle?: string;
+}
+
+export const documentListStateManagerFull = {
+  getState: () => ({ documents: [] as DocumentListItem[], lastUpdate: new Date() }),
+  updateState: async () => {},
+  invalidateCache: () => {},
+  refreshCache: async () => {},
+  setLastDocument: (_doc: any) => {},
+  getLastDocument: () => null as any,
+  setDocumentList: (_docs: any[]) => {},
+  getDocumentList: () => [] as DocumentListItem[]
+};
+
+// Re-export with full interface
+Object.assign(documentListStateManager, documentListStateManagerFull);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Chunk Type Reranker exports (REMOVED - upload restructure)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface RankedChunk {
+  text: string;
+  score: number;
+  metadata?: any;
+}
+
+export const rerankByChunkType = async (
+  chunks: any[],
+  _chunkType: string
+): Promise<RankedChunk[]> => chunks.map(c => ({ ...c, score: c.score || 0.5 }));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Document Generation Detection (REMOVED - upload restructure)
+// ═══════════════════════════════════════════════════════════════════════════
+export const detectDocumentGenerationIntent = (_query: string): {
+  isDocumentGeneration: boolean;
+  documentType?: string;
+  shouldProceedToRag: boolean;
+  confidence: number;
+} => ({
+  isDocumentGeneration: false,
+  shouldProceedToRag: true,
+  confidence: 0
+});
+
+export const detectDocumentGeneration = async () => false;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Document Generation Detection Stub (REMOVED - upload restructure)
+// ═══════════════════════════════════════════════════════════════════════════
+export const isDocumentGenerationRequest = (_query: string): boolean => false;
+export const documentGenerationDetectionService = {
+  isDocumentGeneration: (_query: string) => false,
+  detectIntent: (_query: string) => ({ isGeneration: false, confidence: 0 })
+};

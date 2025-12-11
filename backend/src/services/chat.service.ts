@@ -25,7 +25,7 @@ import { conversationContextService } from './deletedServiceStubs';
 // ============================================================================
 // MEMORY ENGINE 3.0 - Document Reference Resolution
 // ============================================================================
-import { documentListStateManager } from './documentListStateManager.service';
+import { documentListStateManager } from './deletedServiceStubs';
 import { referenceResolutionService } from './referenceResolution.service';
 // DEPRECATED: memoryInjection moved to _deprecated - using stub
 import { memoryInjectionService } from './deletedServiceStubs';

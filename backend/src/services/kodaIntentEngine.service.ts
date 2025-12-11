@@ -35,6 +35,18 @@ import { detectLanguageSimple, type SupportedLanguage } from './kodaLanguage.ser
 // ✅ CENTRALIZED PATTERN MATCHING SYSTEM - Single source of truth for patterns
 import { centralizedPatternMatcher, QueryIntent as CentralizedIntent, LanguageCode } from '../centralized';
 
+// ✅ ENHANCED INTENT DETECTION - New unified intent detection with RAG modes
+import {
+  classifyQuestion,
+  detectTemporalExpression,
+  getChunkCountForRagMode,
+  shouldSkipRag,
+  needsFullContext,
+  type ClassifiedQuestion,
+  type QuestionType,
+  type RagMode,
+} from './simpleIntentDetection.service';
+
 // ============================================================================
 // TYPES & INTERFACES
 // ============================================================================
@@ -737,36 +749,60 @@ export function detectIntentCentralized(query: string): {
 
 /**
  * Detect answer type from query - simplified routing for ragOrchestrator
+ * Now powered by enhanced simpleIntentDetection.service.ts with RAG modes
  */
 export async function detectAnswerType(params: {
   query: string;
   conversationHistory?: any[];
   userId?: string;
-}): Promise<IntentDetectionResult> {
+}): Promise<IntentDetectionResult & { ragMode?: RagMode; questionType?: QuestionType; hasTemporalExpression?: boolean; suggestedChunkCount?: number }> {
   const { query, conversationHistory = [] } = params;
   const lowerQuery = query.toLowerCase().trim();
 
-  // 1. ULTRA_FAST_GREETING - Greetings (no LLM, no DB)
-  const greetings = [
-    'hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening',
-    'what can you do', 'what do you do', 'who are you',
-    'olá', 'ola', 'oi', 'bom dia', 'boa tarde', 'boa noite',
-    'o que você faz', 'o que voce faz', 'quem é você', 'quem e voce',
-    'hola', 'buenos días', 'buenos dias', 'buenas tardes', 'buenas noches',
-    'qué puedes hacer', 'que puedes hacer', 'quién eres', 'quien eres',
-  ];
-  if (greetings.some(g => lowerQuery === g || lowerQuery === g + '!' || lowerQuery === g + '?')) {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PHASE 1: Use enhanced classifyQuestion for comprehensive intent detection
+  // ═══════════════════════════════════════════════════════════════════════════
+  const classification = classifyQuestion(query);
+
+  console.log(`🎯 [ENHANCED INTENT] Type: ${classification.type}, RAG Mode: ${classification.ragMode}, Temporal: ${classification.hasTemporalExpression}`);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PHASE 2: Map enhanced QuestionType to AnswerType for routing
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // 1. GREETING -> ULTRA_FAST_GREETING
+  if (classification.type === 'greeting') {
     return {
       answerType: 'ULTRA_FAST_GREETING',
-      confidence: 1.0,
+      confidence: classification.confidence,
       entities: {},
       requiresRetrieval: false,
       requiresMemory: false,
       requiresCalculation: false,
+      ragMode: 'no_rag',
+      questionType: classification.type,
+      hasTemporalExpression: classification.hasTemporalExpression,
+      suggestedChunkCount: 0,
     };
   }
 
-  // 2. DOC_COUNT - Document count queries
+  // 2. META -> APP_HELP (capability questions)
+  if (classification.type === 'meta') {
+    return {
+      answerType: 'APP_HELP',
+      confidence: classification.confidence,
+      entities: {},
+      requiresRetrieval: false,
+      requiresMemory: false,
+      requiresCalculation: false,
+      ragMode: 'no_rag',
+      questionType: classification.type,
+      hasTemporalExpression: classification.hasTemporalExpression,
+      suggestedChunkCount: 0,
+    };
+  }
+
+  // 3. DOC_COUNT - Document count queries (special pattern check)
   const docCountPatterns = [
     /how many (documents?|files?|pdfs?)/i,
     /number of (documents?|files?)/i,
@@ -783,24 +819,23 @@ export async function detectAnswerType(params: {
       requiresRetrieval: false,
       requiresMemory: false,
       requiresCalculation: false,
+      ragMode: 'no_rag',
+      questionType: 'simple_factual',
+      hasTemporalExpression: classification.hasTemporalExpression,
+      suggestedChunkCount: 0,
     };
   }
 
-  // 3. CALCULATION - Math/calculation queries (BEFORE file navigation to catch math expressions)
+  // 4. CALCULATION - Math/calculation queries
   const calcPatterns = [
-    // Direct math expressions: "5+3", "100/4", "2*3", "2+2"
     /^\s*[\d\s\+\-\*\/\(\)\.\,\^]+\s*$/,
     /\d+\s*[\+\-\*\/\^]\s*\d+/,
-    // Percentages: "15% of 100", "20% de 500"
     /\d+\s*%\s*(of|de|von)\s*\d+/i,
-    // Explicit calculation requests
     /^(calculate|compute|what is|quanto [eé]|cuánto es?|calcular)\s+/i,
-    // Financial calculations
     /\b(roi|irr|npv|payback|moic)\b/i,
     /\b(growth rate|taxa de crescimento|margin|margem)\s+(from|de)?\s*\d+/i,
   ];
   if (calcPatterns.some(p => p.test(query))) {
-    // Extract numbers
     const numbers = (query.match(/\d+(?:\.\d+)?/g) || []).map(Number);
     return {
       answerType: 'CALCULATION',
@@ -809,10 +844,14 @@ export async function detectAnswerType(params: {
       requiresRetrieval: false,
       requiresMemory: false,
       requiresCalculation: true,
+      ragMode: 'no_rag',
+      questionType: 'simple_factual',
+      hasTemporalExpression: classification.hasTemporalExpression,
+      suggestedChunkCount: 0,
     };
   }
 
-  // 4. FILE_NAVIGATION - File location queries
+  // 5. FILE_NAVIGATION - File location queries
   const fileNavPatterns = [
     /where is (the )?(file|document|pdf)/i,
     /find (the )?(file|document)/i,
@@ -833,10 +872,14 @@ export async function detectAnswerType(params: {
       requiresRetrieval: false,
       requiresMemory: false,
       requiresCalculation: false,
+      ragMode: 'no_rag',
+      questionType: 'simple_factual',
+      hasTemporalExpression: classification.hasTemporalExpression,
+      suggestedChunkCount: 0,
     };
   }
 
-  // 5. FOLDER_NAVIGATION - Folder queries
+  // 6. FOLDER_NAVIGATION - Folder queries
   const folderNavPatterns = [
     /what('s| is) in (the )?(folder|directory)/i,
     /show (me )?(files in|contents of) (the )?(folder|directory)/i,
@@ -854,109 +897,140 @@ export async function detectAnswerType(params: {
       requiresRetrieval: false,
       requiresMemory: false,
       requiresCalculation: false,
+      ragMode: 'no_rag',
+      questionType: 'simple_factual',
+      hasTemporalExpression: classification.hasTemporalExpression,
+      suggestedChunkCount: 0,
     };
   }
 
-  // 6. APP_HELP - UI/app usage questions
-  const appHelpPatterns = [
-    /how (do i|to) (upload|create|delete|move|rename)/i,
-    /how does (this|koda) work/i,
-    /what can (you|koda) do/i,
-    /como (faço|fazer) (para )?(upload|criar|deletar)/i,
-    /como (funciona|usar) (o koda|isso)/i,
-  ];
-  if (appHelpPatterns.some(p => p.test(query))) {
+  // 7. FOLLOWUP / MEMORY queries
+  if (classification.type === 'followup' && conversationHistory.length > 0) {
     return {
-      answerType: 'APP_HELP',
-      confidence: 0.9,
+      answerType: 'MEMORY',
+      confidence: classification.confidence,
+      entities: {},
+      requiresRetrieval: classification.ragMode !== 'no_rag',
+      requiresMemory: true,
+      requiresCalculation: false,
+      ragMode: classification.ragMode,
+      questionType: classification.type,
+      hasTemporalExpression: classification.hasTemporalExpression,
+      suggestedChunkCount: getChunkCountForRagMode(classification.ragMode),
+    };
+  }
+
+  // 8. COMPARISON queries -> COMPLEX_ANALYSIS or CROSS_DOC_RAG
+  if (classification.type === 'comparison') {
+    const answerType = classification.ragMode === 'full_rag' ? 'CROSS_DOC_RAG' : 'COMPLEX_ANALYSIS';
+    return {
+      answerType,
+      confidence: classification.confidence,
+      entities: {},
+      requiresRetrieval: true,
+      requiresMemory: conversationHistory.length > 0,
+      requiresCalculation: false,
+      ragMode: classification.ragMode,
+      questionType: classification.type,
+      hasTemporalExpression: classification.hasTemporalExpression,
+      suggestedChunkCount: getChunkCountForRagMode(classification.ragMode),
+    };
+  }
+
+  // 9. COMPLEX_ANALYSIS / COMPLEX_MULTIDOC
+  if (classification.type === 'complex_analysis' || classification.type === 'complex_multidoc') {
+    const answerType = classification.type === 'complex_multidoc' ? 'CROSS_DOC_RAG' : 'COMPLEX_ANALYSIS';
+    return {
+      answerType,
+      confidence: classification.confidence,
+      entities: {},
+      requiresRetrieval: true,
+      requiresMemory: conversationHistory.length > 0,
+      requiresCalculation: false,
+      ragMode: 'full_rag',
+      questionType: classification.type,
+      hasTemporalExpression: classification.hasTemporalExpression,
+      suggestedChunkCount: 15, // Full context for complex analysis
+    };
+  }
+
+  // 10. MEDIUM_SPECIFIC -> SINGLE_DOC_RAG
+  if (classification.type === 'medium_specific') {
+    return {
+      answerType: 'SINGLE_DOC_RAG',
+      confidence: classification.confidence,
+      entities: {},
+      requiresRetrieval: true,
+      requiresMemory: conversationHistory.length > 0,
+      requiresCalculation: false,
+      ragMode: classification.ragMode,
+      questionType: classification.type,
+      hasTemporalExpression: classification.hasTemporalExpression,
+      suggestedChunkCount: getChunkCountForRagMode(classification.ragMode),
+    };
+  }
+
+  // 11. LIST queries
+  if (classification.type === 'list') {
+    const answerType = classification.ragMode === 'full_rag' ? 'CROSS_DOC_RAG' : 'SINGLE_DOC_RAG';
+    return {
+      answerType,
+      confidence: classification.confidence,
+      entities: {},
+      requiresRetrieval: classification.ragMode !== 'no_rag',
+      requiresMemory: conversationHistory.length > 0,
+      requiresCalculation: false,
+      ragMode: classification.ragMode,
+      questionType: classification.type,
+      hasTemporalExpression: classification.hasTemporalExpression,
+      suggestedChunkCount: getChunkCountForRagMode(classification.ragMode),
+    };
+  }
+
+  // 12. SIMPLE_FACTUAL with no_rag -> Don't retrieve
+  if (classification.type === 'simple_factual' && classification.ragMode === 'no_rag') {
+    return {
+      answerType: 'STANDARD_QUERY',
+      confidence: classification.confidence,
       entities: {},
       requiresRetrieval: false,
       requiresMemory: false,
       requiresCalculation: false,
+      ragMode: 'no_rag',
+      questionType: classification.type,
+      hasTemporalExpression: classification.hasTemporalExpression,
+      suggestedChunkCount: 0,
     };
   }
 
-  // 7. MEMORY - "Do you remember..." queries
-  const memoryPatterns = [
-    /do you remember|did (i|we) (say|mention|talk about)/i,
-    /what (did|was) (i|we) (say|talking about)/i,
-    /earlier (you|we) (said|mentioned)/i,
-    /você lembra|eu (disse|mencionei)/i,
-    /o que (eu|nós) (disse|dissemos)/i,
-  ];
-  if (conversationHistory.length > 0 && memoryPatterns.some(p => p.test(query))) {
+  // 13. MEDIUM queries -> STANDARD_QUERY with appropriate RAG mode
+  if (classification.type === 'medium') {
     return {
-      answerType: 'MEMORY',
-      confidence: 0.85,
+      answerType: 'STANDARD_QUERY',
+      confidence: classification.confidence,
       entities: {},
-      requiresRetrieval: false,
-      requiresMemory: true,
-      requiresCalculation: false,
-    };
-  }
-
-  // 8. COMPLEX_ANALYSIS - Multi-step, comparison, deep analysis
-  const complexPatterns = [
-    /compare|contrast|difference between/i,
-    /analyze|analysis|evaluate|assessment/i,
-    /step by step|detailed explanation/i,
-    /compar(a|e|ar)|diferença entre/i,
-    /analis(a|e|ar)|avali(a|e|ar)/i,
-  ];
-  if (complexPatterns.some(p => p.test(query))) {
-    return {
-      answerType: 'COMPLEX_ANALYSIS',
-      confidence: 0.85,
-      entities: {},
-      requiresRetrieval: true,
+      requiresRetrieval: classification.ragMode !== 'no_rag',
       requiresMemory: conversationHistory.length > 0,
       requiresCalculation: false,
+      ragMode: classification.ragMode,
+      questionType: classification.type,
+      hasTemporalExpression: classification.hasTemporalExpression,
+      suggestedChunkCount: getChunkCountForRagMode(classification.ragMode),
     };
   }
 
-  // 9. CROSS_DOC_RAG - Mentions multiple documents
-  const crossDocPatterns = [
-    /in (both|all) (documents?|files?)/i,
-    /across (the )?(documents?|files?)/i,
-    /em (ambos|todos) os? (documentos?|arquivos?)/i,
-  ];
-  if (crossDocPatterns.some(p => p.test(query))) {
-    return {
-      answerType: 'CROSS_DOC_RAG',
-      confidence: 0.8,
-      entities: {},
-      requiresRetrieval: true,
-      requiresMemory: conversationHistory.length > 0,
-      requiresCalculation: false,
-    };
-  }
-
-  // 10. SINGLE_DOC_RAG - Mentions specific document
-  const singleDocPatterns = [
-    /in (the|this) (document|file|pdf)/i,
-    /from (the|this) (document|file)/i,
-    /n(o|a|este|esse) (documento|arquivo)/i,
-    /d(o|a|este|esse) (documento|arquivo)/i,
-  ];
-  if (singleDocPatterns.some(p => p.test(query))) {
-    return {
-      answerType: 'SINGLE_DOC_RAG',
-      confidence: 0.75,
-      entities: {},
-      requiresRetrieval: true,
-      requiresMemory: conversationHistory.length > 0,
-      requiresCalculation: false,
-    };
-  }
-
-  // Default: STANDARD_QUERY
+  // Default: STANDARD_QUERY with light RAG
   return {
     answerType: 'STANDARD_QUERY',
-    confidence: 0.7,
+    confidence: classification.confidence,
     entities: {},
-    requiresRetrieval: true,
+    requiresRetrieval: classification.ragMode !== 'no_rag',
     requiresMemory: conversationHistory.length > 0,
     requiresCalculation: false,
+    ragMode: classification.ragMode,
+    questionType: classification.type,
+    hasTemporalExpression: classification.hasTemporalExpression,
+    suggestedChunkCount: getChunkCountForRagMode(classification.ragMode),
   };
 }
 

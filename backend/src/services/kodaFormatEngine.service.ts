@@ -150,6 +150,49 @@ function addCitations(content: string, sources: any[]): { formattedContent: stri
 }
 
 function finalCleanup(content: string): string {
+  // =========================================================================
+  // FIX UTF-8 MOJIBAKE (corrupted Portuguese accents)
+  // =========================================================================
+  // Common pattern: UTF-8 bytes decoded as Latin-1 then re-encoded
+  const utf8Fixes: Array<[RegExp, string]> = [
+    // Portuguese lowercase accents
+    [/Ã§/g, 'ç'],
+    [/Ã£/g, 'ã'],
+    [/Ã©/g, 'é'],
+    [/Ã¡/g, 'á'],
+    [/Ã³/g, 'ó'],
+    [/Ã­/g, 'í'],
+    [/Ãº/g, 'ú'],
+    [/Ã /g, 'à'],
+    [/Ã´/g, 'ô'],
+    [/Ãª/g, 'ê'],
+    [/Ã¢/g, 'â'],
+    [/Ãµ/g, 'õ'],
+    // Portuguese uppercase accents
+    [/Ã‡/g, 'Ç'],
+    [/Ã/g, 'Á'],
+    [/Ã€/g, 'À'],
+    [/Ãƒ/g, 'Ã'],
+    [/Ã‰/g, 'É'],
+    [/Ã"/g, 'Ó'],
+    [/Ãš/g, 'Ú'],
+    // Quotes and dashes
+    [/â€"/g, '—'],  // em dash
+    [/â€"/g, '–'],  // en dash
+    [/â€œ/g, '"'],  // left double quote
+    [/â€/g, '"'],   // right double quote
+    [/â€™/g, "'"],  // apostrophe
+    [/â€˜/g, "'"],  // left single quote
+    // Bullet points
+    [/â€¢/g, '•'],
+    // Ellipsis
+    [/â€¦/g, '…'],
+  ];
+
+  for (const [pattern, replacement] of utf8Fixes) {
+    content = content.replace(pattern, replacement);
+  }
+
   // Remove excessive whitespace
   content = content.trim();
   content = content.replace(/ +$/gm, '');
