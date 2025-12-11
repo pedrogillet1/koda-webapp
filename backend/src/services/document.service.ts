@@ -20,6 +20,12 @@ import os from 'os';
 import path from 'path';
 
 // ═══════════════════════════════════════════════════════════════
+// Upload Progress & Session Tracking Services
+// ═══════════════════════════════════════════════════════════════
+import documentProgressService from './documentProgress.service';
+import uploadSessionService from './uploadSession.service';
+
+// ═══════════════════════════════════════════════════════════════
 // V1 Stubs - Document Intelligence removed
 // ═══════════════════════════════════════════════════════════════
 interface DocumentClassification {
@@ -1769,6 +1775,9 @@ export const createDocumentAfterUpload = async (input: CreateDocumentAfterUpload
 
 /**
  * Process document asynchronously after direct upload
+ *
+ * 🔥 FIX: Added sessionId parameter for batch upload tracking
+ * 🔥 FIX: Using documentProgressService for 12 granular progress stages
  */
 async function processDocumentAsync(
   documentId: string,
@@ -1776,11 +1785,20 @@ async function processDocumentAsync(
   filename: string,
   mimeType: string,
   userId: string,
-  thumbnailUrl: string | null
+  thumbnailUrl: string | null,
+  sessionId?: string  // 🔥 NEW: Optional session ID for batch tracking
 ) {
   const io = require('../server').io;
 
-  // Helper function to emit progress updates
+  // 🔥 FIX: Progress options for documentProgressService
+  const progressOptions = {
+    documentId,
+    userId,
+    filename,
+    sessionId
+  };
+
+  // Legacy helper function (kept for backward compatibility with existing code paths)
   const emitProgress = (stage: string, progress: number, message: string) => {
     if (io) {
       io.to(`user:${userId}`).emit('document-processing-update', {
@@ -1791,14 +1809,15 @@ async function processDocumentAsync(
         message,
         status: 'processing'
       });
-    } else {
     }
   };
 
   try {
 
-    // Stage 1: Starting (5%)
-    emitProgress('starting', 5, 'Starting document processing...');
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE 1: EXTRACTION START (22%)
+    // ════════════════════════════════════════════════════════════════════════
+    await documentProgressService.emitProgress('EXTRACTION_START', progressOptions);
 
     // Get document to check if it's encrypted
     const document = await prisma.document.findUnique({
@@ -1809,14 +1828,13 @@ async function processDocumentAsync(
       throw new Error('Document not found');
     }
 
-    // Stage 2: Downloading (10%)
-    emitProgress('downloading', 10, 'Downloading file from storage...');
+    // Download file from storage
+    await documentProgressService.emitCustomProgress(23, 'Downloading file from storage...', progressOptions);
     let fileBuffer = await downloadFile(encryptedFilename);
 
     // 🔓 DECRYPT FILE IF ENCRYPTED
     if (document.isEncrypted && document.encryptionIV && document.encryptionAuthTag) {
-      // Stage 3: Decrypting (15%)
-      emitProgress('decrypting', 15, 'Decrypting file...');
+      await documentProgressService.emitCustomProgress(24, 'Decrypting file...', progressOptions);
       const encryptionService = await import('./encryption.service');
 
       // Reconstruct encrypted buffer format: IV + AuthTag + EncryptedData
@@ -1831,8 +1849,10 @@ async function processDocumentAsync(
       fileBuffer = encryptionService.default.decryptFile(encryptedBuffer, `document-${userId}`);
     }
 
-    // Stage 4: Extracting text (20%)
-    emitProgress('extracting', 20, 'Extracting text from document...');
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE 2: EXTRACTION PROGRESS (25%)
+    // ════════════════════════════════════════════════════════════════════════
+    await documentProgressService.emitProgress('EXTRACTION_PROGRESS', progressOptions);
 
     // Extract text based on file type
     let extractedText = '';
@@ -2165,8 +2185,28 @@ async function processDocumentAsync(
       }
     }
 
-    // Stage 5: Analyzing document (40-50%)
-    emitProgress('analyzing', 45, 'Analyzing document content...');
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE 3: EXTRACTION COMPLETE (30%)
+    // ════════════════════════════════════════════════════════════════════════
+    await documentProgressService.emitProgress('EXTRACTION_COMPLETE', progressOptions);
+
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE 4: CLEANING START (32%)
+    // ════════════════════════════════════════════════════════════════════════
+    await documentProgressService.emitProgress('CLEANING_START', progressOptions);
+
+    // Text preprocessing/cleaning would happen here if needed
+    // (currently extractedText is used as-is)
+
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE 5: CLEANING COMPLETE (40%)
+    // ════════════════════════════════════════════════════════════════════════
+    await documentProgressService.emitProgress('CLEANING_COMPLETE', progressOptions);
+
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE 6: ANALYSIS START (42%)
+    // ════════════════════════════════════════════════════════════════════════
+    await documentProgressService.emitProgress('ANALYSIS_START', progressOptions);
 
     // Analyze document with Gemini
     let classification = null;
@@ -2181,7 +2221,10 @@ async function processDocumentAsync(
       }
     }
 
-    emitProgress('analyzing', 50, 'Analysis complete');
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE 7: ANALYSIS COMPLETE (50%)
+    // ════════════════════════════════════════════════════════════════════════
+    await documentProgressService.emitProgress('ANALYSIS_COMPLETE', progressOptions);
 
     // 🆕 ENHANCED METADATA ENRICHMENT with semantic understanding
     let enrichedMetadata: { summary?: string; topics?: string[]; entities?: any[] } | null = null;
@@ -2246,21 +2289,23 @@ async function processDocumentAsync(
       },
     });
 
-    // ✅ OPTIMIZATION: Skip tag generation in main flow to save 5-10 seconds
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE 8: CHUNKING START (52%)
+    // ════════════════════════════════════════════════════════════════════════
+    await documentProgressService.emitProgress('CHUNKING_START', progressOptions);
+
     // Tags will be generated in background after document is complete
-    emitProgress('tagging', 60, 'Tags will be generated in background...');
 
-    // Stage 7: Embedding generation (60-85%)
-    // ⚡ NON-BLOCKING: Embeddings generate in background (20-30s)
-    // This allows upload to complete instantly (2-7s) while embeddings generate asynchronously
-
-    // GENERATE VECTOR EMBEDDINGS FOR RAG WITH SEMANTIC CHUNKING (BACKGROUND)
+    // GENERATE VECTOR EMBEDDINGS FOR RAG WITH SEMANTIC CHUNKING
+    // 🔥 FIX: Now BLOCKING to ensure embeddings complete before marking done
     if (extractedText && extractedText.length > 50) {
 
-      // Fire-and-forget IIFE - runs in background without blocking
-      (async () => {
-        try {
-          emitProgress('embedding', 65, 'Generating embeddings in background...');
+      // 🔥 FIX: Removed fire-and-forget - embeddings must complete before marking document done
+      try {
+        // ════════════════════════════════════════════════════════════════════════
+        // STAGE 9: EMBEDDING START (62%)
+        // ════════════════════════════════════════════════════════════════════════
+        await documentProgressService.emitProgress('EMBEDDING_START', progressOptions);
 
           const vectorEmbeddingService = await import('./vectorEmbedding.service');
           const embeddingService = await import('./embedding.service');
@@ -2369,23 +2414,61 @@ async function processDocumentAsync(
             }));
           }
 
-          // ✅ FIX: DocumentChunk removed - chunks stored via vectorEmbeddingService
+          // ════════════════════════════════════════════════════════════════════════
+          // STAGE 10: CHUNKING COMPLETE (60%)
+          // ════════════════════════════════════════════════════════════════════════
+          await documentProgressService.emitProgress('CHUNKING_COMPLETE', progressOptions);
           console.log(`💾 [Document] Preparing to store ${chunks.length} embeddings...`);
+
+          // ════════════════════════════════════════════════════════════════════════
+          // STAGE 11: VECTOR STORE START (72%)
+          // ════════════════════════════════════════════════════════════════════════
+          await documentProgressService.emitProgress('VECTOR_STORE_START', progressOptions);
 
           // Store embeddings in Pinecone + DocumentEmbedding table
           console.log(`🔄 [DIAGNOSTIC] About to call storeDocumentEmbeddings...`);
           await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
           console.log(`✅ [DIAGNOSTIC] storeDocumentEmbeddings completed successfully!`);
 
-          emitProgress('embedding', 85, 'Embeddings stored');
+          // ════════════════════════════════════════════════════════════════════════
+          // STAGE 12: VECTOR STORE COMPLETE (80%)
+          // ════════════════════════════════════════════════════════════════════════
+          await documentProgressService.emitProgress('VECTOR_STORE_COMPLETE', progressOptions);
 
-          // 🔍 VERIFY PINECONE STORAGE - Temporarily disabled during OpenAI migration
+          // ════════════════════════════════════════════════════════════════════════
+          // STAGE 13: VERIFICATION START (96%)
+          // 🔥 FIX: Verify Pinecone storage BEFORE marking complete
+          // ════════════════════════════════════════════════════════════════════════
+          await documentProgressService.emitProgress('VERIFICATION_START', progressOptions);
+
+          const pineconeService = await import('./pinecone.service');
+          const verification = await pineconeService.default.verifyDocumentEmbeddings(documentId);
+
+          if (!verification.success || verification.count < chunks.length * 0.95) {
+            // Allow 5% loss for edge cases
+            const expectedCount = chunks.length;
+            const actualCount = verification.count;
+
+            console.error(`❌ [VERIFICATION] Embedding storage verification failed!`);
+            console.error(`   Expected: ${expectedCount} chunks`);
+            console.error(`   Found: ${actualCount} embeddings`);
+
+            throw new Error(
+              `Embedding verification failed: expected ${expectedCount}, got ${actualCount}`
+            );
+          }
+
+          console.log(`✅ [VERIFICATION] Confirmed ${verification.count}/${chunks.length} embeddings stored`);
+
+          // ════════════════════════════════════════════════════════════════════════
+          // STAGE 14: VERIFICATION COMPLETE (99%)
+          // ════════════════════════════════════════════════════════════════════════
+          await documentProgressService.emitProgress('VERIFICATION_COMPLETE', progressOptions);
 
           // Embedding info stored - document ready for AI chat
           console.log(`✅ [EMBEDDING] Document ${documentId} ready for AI chat`);
 
           // Emit success event via WebSocket
-          const io = require('../server').io;
           if (io) {
             io.to(`user:${userId}`).emit('document-embeddings-ready', {
               documentId,
@@ -2395,39 +2478,30 @@ async function processDocumentAsync(
             });
           }
 
-
         } catch (error: any) {
-          // ⚠️ NON-CRITICAL ERROR: documents is still usable without embeddings
-          console.error('❌ [Background] Vector embedding generation failed:', error);
+          // 🔥 FIX: Embedding failures now FAIL the document (not silent)
+          console.error('❌ Vector embedding generation failed:', error);
 
-          // Log embedding error but continue - document is still usable
-          console.warn(`⚠️ [EMBEDDING] Failed for document ${documentId}, but document is still usable`);
+          // Emit error via documentProgressService
+          await documentProgressService.emitError(
+            error.message || 'Embedding generation failed',
+            progressOptions
+          );
 
-          // Emit warning event via WebSocket
-          const io = require('../server').io;
-          if (io) {
-            io.to(`user:${userId}`).emit('document-processing-warning', {
-              documentId,
-              filename,
-              message: 'Document uploaded but AI chat unavailable',
-              error: error.message
-            });
-          }
+          // Re-throw to mark document as failed
+          throw error;
         }
-      })(); // ← Don't await this - let it run in background
-
+    } else {
+      // No text to embed - skip to database stage
+      await documentProgressService.emitCustomProgress(80, 'No text content for embeddings', progressOptions);
     }
 
-    // Stage 8: Finalizing (90-100%)
-    emitProgress('finalizing', 95, 'Finalizing document...');
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE 15: DATABASE START (82%)
+    // ════════════════════════════════════════════════════════════════════════
+    await documentProgressService.emitProgress('DATABASE_START', progressOptions);
 
-    // Update document status to completed (only if verification passed)
-    await prisma.document.update({
-      where: { id: documentId },
-      data: { status: 'completed' },
-    });
-
-    // Queue document for embedding generation (async - doesn't block upload)
+    // Queue document for any additional processing if needed
     try {
       await addDocumentJob({
         documentId,
@@ -2435,14 +2509,43 @@ async function processDocumentAsync(
         filename,
         mimeType,
       });
-      console.log(`[Upload] Queued document ${documentId} for embedding generation`);
+      console.log(`[Upload] Queued document ${documentId} for additional processing`);
     } catch (queueError) {
-      console.error(`[Upload] Failed to queue document for embeddings:`, queueError);
-      // Don't fail the upload if queuing fails - embeddings can be generated later
+      console.error(`[Upload] Failed to queue document:`, queueError);
+      // Don't fail if queuing fails
     }
 
-    // Stage 9: Complete (100%)
-    emitProgress('complete', 100, 'Processing complete!');
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE 16: DATABASE COMPLETE (90%)
+    // ════════════════════════════════════════════════════════════════════════
+    await documentProgressService.emitProgress('DATABASE_COMPLETE', progressOptions);
+
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE 17: INDEXING START (92%)
+    // ════════════════════════════════════════════════════════════════════════
+    await documentProgressService.emitProgress('INDEXING_START', progressOptions);
+
+    // Invalidate cache for this user after successful processing
+    await cacheService.invalidateUserCache(userId);
+    // ⚡ PERFORMANCE: Invalidate file listing cache
+    invalidateFileListingCache(userId);
+
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE 18: INDEXING COMPLETE (95%)
+    // ════════════════════════════════════════════════════════════════════════
+    await documentProgressService.emitProgress('INDEXING_COMPLETE', progressOptions);
+
+    // 🔥 FIX: Update document status to completed ONLY after all verification passed
+    await prisma.document.update({
+      where: { id: documentId },
+      data: { status: 'completed' },
+    });
+
+    // ════════════════════════════════════════════════════════════════════════
+    // STAGE 19: COMPLETE (100%)
+    // 🔥 FIX: Only emit 100% AFTER everything is verified and stored
+    // ════════════════════════════════════════════════════════════════════════
+    await documentProgressService.emitProgress('COMPLETE', progressOptions);
 
     // Emit completion event
     try {
@@ -2454,13 +2557,8 @@ async function processDocumentAsync(
         });
       }
     } catch (wsError) {
+      console.error('WebSocket error:', wsError);
     }
-
-    // Invalidate cache for this user after successful processing
-    await cacheService.invalidateUserCache(userId);
-    // ⚡ PERFORMANCE: Invalidate file listing cache
-    invalidateFileListingCache(userId);
-
 
     // ✅ OPTIMIZATION: Start background tag generation AFTER document is completed
     // This saves 5-10 seconds by not blocking the upload response
@@ -2469,12 +2567,26 @@ async function processDocumentAsync(
         console.error('❌ Background tag generation failed:', error);
       });
     }
-  } catch (error) {
+
+    console.log(`✅ Document ${filename} processing complete!`);
+
+  } catch (error: any) {
     console.error('❌ Error processing document:', error);
+
+    // 🔥 FIX: Update status to failed with error message
     await prisma.document.update({
       where: { id: documentId },
-      data: { status: 'failed' },
+      data: {
+        status: 'failed',
+        error: error.message || 'Unknown error'
+      },
     });
+
+    // 🔥 FIX: Emit error via documentProgressService
+    await documentProgressService.emitError(
+      error.message || 'Processing failed',
+      { documentId, userId, filename, sessionId }
+    );
   }
 }
 
@@ -3975,7 +4087,7 @@ export const retryDocument = async (documentId: string, userId: string) => {
     });
 
 
-    // 3. Re-trigger async processing
+    // 3. Re-trigger async processing with PROPER error handling
     processDocumentAsync(
       document.id,
       document.encryptedFilename,
@@ -3983,8 +4095,31 @@ export const retryDocument = async (documentId: string, userId: string) => {
       document.mimeType,
       userId,
       document.metadata?.thumbnailUrl || null
-    ).catch(error => {
+    ).catch(async (error) => {
       console.error('❌ Error in retry processing:', error);
+
+      // 🔥 FIX: Update document status to 'failed' on error
+      await prisma.document.update({
+        where: { id: documentId },
+        data: {
+          status: 'failed',
+          error: error.message || 'Processing failed during retry'
+        },
+      });
+
+      // 🔥 FIX: Emit error to user via WebSocket
+      const io = require('../server').io;
+      if (io) {
+        io.to(`user:${userId}`).emit('document-processing-update', {
+          documentId: document.id,
+          filename: document.filename,
+          stage: 'failed',
+          progress: 0,
+          message: error.message || 'Processing failed',
+          status: 'failed',
+          error: error.message
+        });
+      }
     });
 
 

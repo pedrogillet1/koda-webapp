@@ -760,18 +760,25 @@ async function uploadFolder(files, onProgress, existingCategoryId = null) {
     }
 
     // Step 7: Final summary
-    onProgress?.({ stage: 'finalizing', message: 'Finalizing...', percentage: 95 });
+    // 🔥 FIX: S3 upload complete = 80%, backend processing will update to 100% via WebSocket
+    onProgress?.({ stage: 'processing', message: 'Processing documents...', percentage: 80 });
 
     const duration = Date.now() - startTime;
     const successfulUploads = results.filter(r => r.success);
     const successCount = successfulUploads.length;
     const failureCount = fileInfos.length - successCount;
+
+    // 🔥 NOTE: Don't emit 100% here - let backend emit 100% after verification
+    // Backend will emit progress 80% → 100% as it processes (extraction, chunking, embedding, verification)
+    // Frontend should listen to 'document-processing-update' WebSocket events for real-time progress
     onProgress?.({
-      stage: 'complete',
-      message: 'Upload complete!',
-      percentage: 100,
+      stage: 'processing',
+      message: `Uploaded ${successCount} files, processing...`,
+      percentage: 80,
       successCount,
-      failureCount
+      failureCount,
+      // 🔥 NEW: Signal to frontend that backend will send remaining progress
+      awaitingBackendProgress: true
     });
 
     return {
