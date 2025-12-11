@@ -14,6 +14,7 @@ import prisma from './config/database';
 import websocketService from './services/websocket.service';
 import { ragServiceV1 } from './services/core/ragV1.service';
 import chatService from './services/chat.service';
+import { startDocumentWorker, stopDocumentWorker } from './queues/document.queue';
 
 // ============================================================================
 // Global Error Handlers
@@ -170,6 +171,14 @@ async function startServer() {
 
     // Check SSL certificate expiry
     checkCertificateExpiry();
+
+    // Start document processing queue worker
+    try {
+      startDocumentWorker();
+      console.log('[Server] Document queue worker started');
+    } catch (queueError) {
+      console.warn('[Server] Document queue worker failed to start:', queueError);
+    }
 
     console.log('[Server] V1 RAG Pipeline initialized');
   } catch (error) {

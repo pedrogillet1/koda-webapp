@@ -1,0 +1,85 @@
+/**
+ * Vector Embedding Service V1
+ *
+ * Handles storage of document embeddings to Pinecone
+ */
+
+import embeddingService from './embedding.service';
+import pineconeService from './pinecone.service';
+import prisma from '../config/database';
+
+export async function generateEmbedding(text: string): Promise<number[]> {
+  const result = await embeddingService.generateEmbedding(text);
+  return result.embedding;
+}
+
+export async function storeDocumentEmbeddings(
+  documentId: string,
+  chunks: Array<{
+    chunkIndex: number;
+    content: string;
+    embedding: number[];
+    metadata?: any;
+  }>
+): Promise<void> {
+  console.log(`[VectorEmbedding] Storing ${chunks.length} embeddings for doc ${documentId}...`);
+
+  // Fetch document details from database
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+    include: {
+      folder: true,
+    }
+  });
+
+  if (!document) {
+    throw new Error(`Document ${documentId} not found`);
+  }
+
+  // Build document metadata for Pinecone
+  const documentMetadata = {
+    filename: document.filename,
+    originalName: document.filename,
+    mimeType: document.mimeType,
+    createdAt: document.createdAt,
+    status: document.status,
+    folderId: document.folderId || undefined,
+    folderName: document.folder?.name || undefined,
+    folderPath: document.folder?.path || undefined,
+  };
+
+  // Call Pinecone service to store embeddings
+  await pineconeService.upsertDocumentEmbeddings(
+    documentId,
+    document.userId,
+    documentMetadata,
+    chunks.map(chunk => ({
+      chunkIndex: chunk.chunkIndex,
+      content: chunk.content,
+      embedding: chunk.embedding,
+      metadata: chunk.metadata || {},
+    }))
+  );
+
+  console.log(`[VectorEmbedding] Stored ${chunks.length} embeddings in Pinecone for doc ${documentId}`);
+}
+
+export async function deleteDocumentEmbeddings(documentId: string): Promise<void> {
+  console.log(`[VectorEmbedding] Deleting embeddings for doc ${documentId}...`);
+  await pineconeService.deleteDocumentEmbeddings(documentId);
+  console.log(`[VectorEmbedding] Deleted embeddings for doc ${documentId}`);
+}
+
+export async function deleteChunkEmbeddings(chunkIds: string[]): Promise<void> {
+  console.log(`[VectorEmbedding] Would delete ${chunkIds.length} chunk embeddings`);
+  // Note: Individual chunk deletion not commonly used - Pinecone deletes by documentId prefix
+}
+
+export const vectorEmbeddingService = {
+  generateEmbedding,
+  storeDocumentEmbeddings,
+  deleteDocumentEmbeddings,
+  deleteChunkEmbeddings,
+};
+
+export default vectorEmbeddingService;

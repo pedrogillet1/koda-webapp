@@ -19,7 +19,7 @@ import ragRoutes from './routes/rag.routes';
 // import securityRoutes from './routes/security.routes';
 import rbacRoutes from './routes/rbac.routes';
 import healthRoutes from './routes/health.routes';
-import recoveryVerificationRoutes from './routes/recoveryVerification.routes';
+// import recoveryVerificationRoutes from './routes/recoveryVerification.routes'; // Disabled - service deleted
 import batchRoutes from './routes/batch.routes';
 import searchRoutes from './routes/search.routes';
 import memoryRoutes from './routes/memory.routes';
@@ -32,7 +32,7 @@ import agentRoutes from './routes/agent.routes';
 import creativityRoutes from './routes/creativity.routes';
 import profileRoutes from './routes/profile.routes';
 import historyRoutes from './routes/history.routes';
-import analyticsRoutes from './routes/analytics.routes';
+// import analyticsRoutes from './routes/analytics.routes'; // Disabled - service deleted
 import analyticsPublicRoutes from './routes/analytics-public.routes';
 import { explanationController } from './controllers/explanation.controller';
 import { profileController } from './controllers/profile.controller';
@@ -211,7 +211,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/rag', ragRoutes); // RAG query endpoints with streaming support
 // app.use('/api/security', securityRoutes); // Security monitoring endpoints (temporarily disabled - missing service)
 app.use('/api/rbac', rbacRoutes); // RBAC and access control endpoints
-app.use('/api/recovery-verification', recoveryVerificationRoutes); // Recovery verification endpoints
+// app.use('/api/recovery-verification', recoveryVerificationRoutes); // Disabled - service deleted
 app.use('/api/batch', batchRoutes); // Batch API endpoints for optimized data loading (3 requests → 1)
 app.use('/api/search', searchRoutes); // Semantic search endpoints using vector embeddings
 app.use('/api/memories', memoryRoutes); // Cross-session memory management endpoints
@@ -222,7 +222,7 @@ app.use('/api/presentations', presentationRoutes); // Manus-style presentation g
 app.use('/api/agent', agentRoutes); // Problem-solving agent with ReAct reasoning
 app.use('/api/creativity', creativityRoutes); // AI Creativity Engine: temperature and persona controls
 app.use('/api/profile', profileRoutes); // User profile and knowledge gathering
-app.use('/api/admin/analytics', analyticsRoutes); // Admin analytics dashboard
+// app.use('/api/admin/analytics', analyticsRoutes); // Disabled - service deleted
 app.use('/api/analytics', analyticsPublicRoutes); // Public analytics (feedback, tracking)
 
 // Additional profile endpoints with userId parameter (for admin/testing purposes)

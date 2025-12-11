@@ -125,9 +125,11 @@ export type RagStatus =
 
 export interface SourceDocument {
   documentId: string;
-  title: string;
-  filename: string;
+  title: string;           // Display title (displayTitle || filename)
+  filename: string;        // Original filename
+  displayTitle?: string | null;  // KODA FIX: AI-generated display title
   mimeType: string;
+  fileSize?: number;       // KODA FIX: File size for citation markers
   folder?: string;
   uploadedAt: Date;
   metadata?: {

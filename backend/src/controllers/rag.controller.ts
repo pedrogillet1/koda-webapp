@@ -2,8 +2,8 @@
  * RAG Controller V1
  *
  * Clean RAG implementation using the V1 pipeline:
- * - Intent classification via kodaIntentEngineV1
- * - Retrieval via kodaRetrievalEngineV1 (Pinecone + BM25)
+ * - Intent classification via kodaIntentEngineV2
+ * - Retrieval via kodaRetrievalEngineV2 (Pinecone + BM25)
  * - Answer generation via kodaAnswerEngineV1 (Gemini)
  * - 4-layer formatting pipeline
  *
@@ -24,10 +24,10 @@ import cacheService from '../services/cache.service';
 import { generateConversationTitle } from '../services/openai.service';
 
 // V1 Services
-import { ragServiceV1 } from '../services/core/ragV1.service';
-import { kodaIntentEngineV1 } from '../services/core/kodaIntentEngineV1.service';
-import { kodaRetrievalEngineV1 } from '../services/retrieval/kodaRetrievalEngineV1.service';
-import type { AnswerRequest, ConversationContext } from '../types/ragV1.types';
+import { ragServiceV2 } from '../services/core/ragV2.service';
+import { kodaIntentEngineV2 } from '../services/core/kodaIntentEngineV2.service';
+import { kodaRetrievalEngineV2 } from '../services/retrieval/kodaRetrievalEngineV2.service';
+import type { AnswerRequest, ConversationContext } from '../types/ragV2.types';
 
 // ============================================================================
 // Helper Functions
@@ -119,7 +119,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    console.log(`[RAG V1] Query: "${query.substring(0, 50)}..."`);
+    console.log(`[RAG V2] Query: "${query.substring(0, 50)}..."`);
 
     // Handle document attachments
     let attachedDocumentIds: string[] = [];
@@ -127,10 +127,10 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       attachedDocumentIds = attachedDocuments
         .map((doc: any) => (typeof doc === 'string' ? doc : doc.id))
         .filter(Boolean);
-      console.log(`[RAG V1] ${attachedDocumentIds.length} documents attached`);
+      console.log(`[RAG V2] ${attachedDocumentIds.length} documents attached`);
     } else if (documentId) {
       attachedDocumentIds = [documentId];
-      console.log(`[RAG V1] Single document attached: ${documentId}`);
+      console.log(`[RAG V2] Single document attached: ${documentId}`);
     }
 
     // Ensure conversation exists
@@ -150,9 +150,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     };
 
     // Call RAG V1 service
-    const response = await ragServiceV1.handleQuery(request);
+    const response = await ragServiceV2.handleQuery(request);
 
-    console.log(`[RAG V1] Status: ${response.metadata.ragStatus}, Time: ${Date.now() - startTime}ms`);
+    console.log(`[RAG V2] Status: ${response.metadata.ragStatus}, Time: ${Date.now() - startTime}ms`);
 
     // Save user message
     const userMessage = await prisma.message.create({
@@ -197,9 +197,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           where: { id: conversationId },
           data: { title },
         });
-        console.log(`[RAG V1] Generated title: "${title}"`);
+        console.log(`[RAG V2] Generated title: "${title}"`);
       } catch (err) {
-        console.warn('[RAG V1] Title generation failed:', err);
+        console.warn('[RAG V2] Title generation failed:', err);
       }
     }
 
@@ -233,7 +233,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       },
     });
   } catch (error: any) {
-    console.error('[RAG V1] Error:', error);
+    console.error('[RAG V2] Error:', error);
     res.status(500).json({
       error: error.message || 'Internal server error',
       answer: 'Desculpe, ocorreu um erro ao processar sua pergunta. Por favor, tente novamente.',
@@ -264,10 +264,10 @@ export const getContext = async (req: Request, res: Response) => {
     }
 
     // Classify intent
-    const intent = kodaIntentEngineV1.classifyIntent(query);
+    const intent = kodaIntentEngineV2.classifyIntent(query);
 
     // Retrieve context
-    const { context, status } = await kodaRetrievalEngineV1.retrieve(query, userId, intent);
+    const { context, status } = await kodaRetrievalEngineV2.retrieve(query, userId, intent);
 
     res.status(200).json({
       intent,
@@ -279,7 +279,7 @@ export const getContext = async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('[RAG V1] Context error:', error);
+    console.error('[RAG V2] Context error:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -309,21 +309,16 @@ export const answerFollowUp = async (req: Request, res: Response): Promise<void>
     // Build context with follow-up flag
     const conversationContext = await buildConversationContext(conversationId, userId);
 
+    // Let ragServiceV2 classify intent automatically - it will detect follow-up from context
     const request: AnswerRequest = {
       query,
       userId,
       sessionId: conversationId,
       conversationContext,
-      intent: {
-        domain: 'doc_content',
-        questionType: 'follow_up',
-        scope: 'multiple_documents',
-        complexity: 'simple',
-        isFollowUp: true,
-      },
+      // No explicit intent - ragServiceV2 will classify and detect follow-up from conversationContext
     };
 
-    const response = await ragServiceV1.handleQuery(request);
+    const response = await ragServiceV2.handleQuery(request);
 
     res.status(200).json({
       answer: response.text,
@@ -331,7 +326,7 @@ export const answerFollowUp = async (req: Request, res: Response): Promise<void>
       metadata: response.metadata,
     });
   } catch (error: any) {
-    console.error('[RAG V1] Follow-up error:', error);
+    console.error('[RAG V2] Follow-up error:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -382,7 +377,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     };
 
     // Get response (non-streaming for V1)
-    const response = await ragServiceV1.handleQuery(request);
+    const response = await ragServiceV2.handleQuery(request);
 
     // Stream the response in chunks
     const chunks = response.text.split(' ');
@@ -420,7 +415,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
     res.end();
   } catch (error: any) {
-    console.error('[RAG V1] Streaming error:', error);
+    console.error('[RAG V2] Streaming error:', error);
     res.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
     res.end();
   }
@@ -443,11 +438,11 @@ export const classifyIntent = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const intent = kodaIntentEngineV1.classifyIntent(query);
+    const intent = kodaIntentEngineV2.classifyIntent(query);
 
     res.status(200).json(intent);
   } catch (error: any) {
-    console.error('[RAG V1] Classify error:', error);
+    console.error('[RAG V2] Classify error:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -474,8 +469,8 @@ export const retrieveChunks = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const intent = kodaIntentEngineV1.classifyIntent(query);
-    const { context, status } = await kodaRetrievalEngineV1.retrieve(query, userId, intent);
+    const intent = kodaIntentEngineV2.classifyIntent(query);
+    const { context, status } = await kodaRetrievalEngineV2.retrieve(query, userId, intent);
 
     res.status(200).json({
       status,
@@ -485,7 +480,7 @@ export const retrieveChunks = async (req: Request, res: Response): Promise<void>
       chunks: context.rawSourceData,
     });
   } catch (error: any) {
-    console.error('[RAG V1] Retrieve error:', error);
+    console.error('[RAG V2] Retrieve error:', error);
     res.status(500).json({ error: error.message });
   }
 };

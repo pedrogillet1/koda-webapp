@@ -9,9 +9,9 @@
 
 import prisma from '../config/database';
 import { generateConversationTitle } from './openai.service';
-import { ragServiceV1 } from './core/ragV1.service';
+import { ragServiceV2 } from './core/ragV2.service';
 import cacheService from './cache.service';
-import type { AnswerRequest, ConversationContext } from '../types/ragV1.types';
+import type { AnswerRequest, ConversationContext } from '../types/ragV2.types';
 
 // ============================================================================
 // Types
@@ -206,7 +206,7 @@ async function sendMessage(params: SendMessageParams): Promise<MessageResult> {
   };
 
   // Get AI response
-  const response = await ragServiceV1.handleQuery(request);
+  const response = await ragServiceV2.handleQuery(request);
 
   // Save assistant message
   const assistantMessage = await prisma.message.create({
@@ -284,7 +284,7 @@ async function sendMessageStreaming(
   };
 
   // Get AI response
-  const response = await ragServiceV1.handleQuery(request);
+  const response = await ragServiceV2.handleQuery(request);
 
   // Stream the response in chunks
   const words = response.text.split(' ');

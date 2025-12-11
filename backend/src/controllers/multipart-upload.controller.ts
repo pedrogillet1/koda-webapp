@@ -13,7 +13,7 @@ import {
   completeMultipartUpload,
   abortMultipartUpload,
 } from '../services/s3Storage.service';
-import { addDocumentProcessingJob } from '../queues/document.queue';
+import { retryDocument } from '../services/document.service';
 import { emitDocumentEvent } from '../services/websocket.service';
 
 /**
@@ -63,7 +63,7 @@ export const initMultipartUpload = async (req: Request, res: Response): Promise<
     const presignedUrls = await getMultipartUploadUrls(storageKey, uploadId, partNumbers);
 
     // Create document record in database with "uploading" status
-    const document = await prisma.documents.create({
+    const document = await prisma.document.create({
       data: {
         user: { connect: { id: userId } },
         folder: folderId ? { connect: { id: folderId } } : undefined,
@@ -117,7 +117,7 @@ export const completeMultipartUploadHandler = async (req: Request, res: Response
     }
 
     // Verify document belongs to user
-    const document = await prisma.documents.findFirst({
+    const document = await prisma.document.findFirst({
       where: {
         id: documentId,
         userId,
@@ -135,22 +135,10 @@ export const completeMultipartUploadHandler = async (req: Request, res: Response
     // Complete S3 multipart upload
     await completeMultipartUpload(storageKey, uploadId, parts);
 
-    // Update document status to "processing"
-    await prisma.documents.update({
-      where: { id: documentId },
-      data: { status: 'processing' },
-    });
+    // Trigger document processing (this sets status to 'processing' and starts async processing)
+    await retryDocument(documentId, userId);
 
-    // Queue document for background processing
-    await addDocumentProcessingJob({
-      documentId,
-      userId,
-      encryptedFilename: storageKey,
-      mimeType: document.mimeType,
-      fileSize: document.fileSize || 0,
-    });
-
-    console.log(`✅ [Multipart] Upload completed and queued: ${documentId}`);
+    console.log(`✅ [Multipart] Upload completed and processing started: ${documentId}`);
 
     // Emit WebSocket event
     emitDocumentEvent(userId, 'updated');
@@ -193,7 +181,7 @@ export const abortMultipartUploadHandler = async (req: Request, res: Response): 
 
     // Delete document record if it exists
     if (documentId) {
-      await prisma.documents.deleteMany({
+      await prisma.document.deleteMany({
         where: {
           id: documentId,
           userId,

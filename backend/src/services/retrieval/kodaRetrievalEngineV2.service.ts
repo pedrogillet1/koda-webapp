@@ -1,25 +1,22 @@
 /**
- * Koda Retrieval Engine V1
+ * Koda Retrieval Engine V2
  *
- * Single retrieval orchestrator for all RAG queries.
- * Handles:
- * - Vector search (Pinecone)
- * - BM25 keyword search
- * - Result merging & deduplication
- * - Optional reranking
- *
- * Theme 1 from notes: Single golden retrieval path
+ * Enhanced retrieval with multi-document support and V2 intent types.
+ * Based on V1 but compatible with 25-category classification.
  */
 
 import type {
   RagConfig,
-  RagContext,
   RagStatus,
   RetrievedChunk,
   SourceDocument,
-  IntentClassification,
   ChunkType,
 } from '../../types/ragV1.types';
+
+import type {
+  IntentClassificationV2,
+  RagContext,
+} from '../../types/ragV2.types';
 
 // Import existing services
 import pineconeService from '../pinecone.service';
@@ -27,25 +24,32 @@ import embeddingService from '../embedding.service';
 import prisma from '../../config/database';
 
 // ============================================================================
-// Retrieval Engine Class
+// Retrieval Engine Class V2
 // ============================================================================
 
-class KodaRetrievalEngineV1 {
+class KodaRetrievalEngineV2 {
   /**
-   * Main retrieval function
-   * Returns chunks + metadata or empty with status
+   * Main retrieval function with V2 intent support
    */
   async retrieve(
     query: string,
     userId: string,
-    intent: IntentClassification,
+    intent: IntentClassificationV2,
     config?: Partial<RagConfig>
   ): Promise<{ context: RagContext; status: RagStatus }> {
     const startTime = Date.now();
 
     try {
-      // Build RAG config from intent
-      const ragConfig = this.buildRagConfig(intent, userId, config);
+      // Check if RAG is needed
+      if (intent.ragMode === 'NO_RAG') {
+        return {
+          context: this.buildEmptyContext(startTime),
+          status: 'SUCCESS',
+        };
+      }
+
+      // Build RAG config from V2 intent
+      const ragConfig = this.buildRagConfigV2(intent, userId, config);
 
       // Check if user has documents
       const docsCount = await this.getDocumentCount(userId, ragConfig.docsFilter);
@@ -62,7 +66,7 @@ class KodaRetrievalEngineV1 {
 
       // Check if we found anything
       if (chunks.length === 0) {
-        const status = intent.scope === 'single_document'
+        const status = intent.targetDocuments === 'EXPLICIT_SINGLE'
           ? 'NO_MATCH_SINGLE_DOC'
           : 'NO_MATCH';
 
@@ -81,7 +85,7 @@ class KodaRetrievalEngineV1 {
       };
 
     } catch (error) {
-      console.error('[KodaRetrievalEngineV1] Error:', error);
+      console.error('[KodaRetrievalEngineV2] Error:', error);
       return {
         context: this.buildEmptyContext(startTime),
         status: 'ERROR',
@@ -90,10 +94,10 @@ class KodaRetrievalEngineV1 {
   }
 
   /**
-   * Build RAG config from intent
+   * Build RAG config from V2 intent
    */
-  private buildRagConfig(
-    intent: IntentClassification,
+  private buildRagConfigV2(
+    intent: IntentClassificationV2,
     userId: string,
     overrides?: Partial<RagConfig>
   ): RagConfig {
@@ -106,9 +110,16 @@ class KodaRetrievalEngineV1 {
       useReranking: false,
     };
 
-    // Adjust based on intent
-    if (intent.questionType === 'comparison') {
+    // Adjust based on RAG mode
+    if (intent.ragMode === 'MULTI_DOC_RAG') {
       baseConfig.maxChunks = 15;
+      baseConfig.maxDocs = 10;
+      baseConfig.useBM25 = true;
+    }
+
+    // Adjust based on question type
+    if (intent.questionType === 'comparison') {
+      baseConfig.maxChunks = 20;
       baseConfig.maxDocs = 10;
       baseConfig.useBM25 = true;
     }
@@ -123,16 +134,24 @@ class KodaRetrievalEngineV1 {
       baseConfig.chunkTypes = ['kpi', 'table', 'paragraph'];
     }
 
-    // Single document scope
-    if (intent.scope === 'single_document' && intent.targetDocId) {
+    // Adjust based on target documents
+    if (intent.targetDocuments === 'EXPLICIT_SINGLE' && intent.targetDocId) {
       baseConfig.docsFilter = [intent.targetDocId];
       baseConfig.maxDocs = 1;
     }
 
-    // Multiple documents scope
-    if (intent.scope === 'multiple_documents' && intent.targetDocIds) {
+    if (intent.targetDocuments === 'EXPLICIT_MULTI' && intent.targetDocIds) {
       baseConfig.docsFilter = intent.targetDocIds;
       baseConfig.maxDocs = intent.targetDocIds.length;
+    }
+
+    // Adjust based on reasoning flags
+    if (intent.reasoningFlags?.needsAggregation) {
+      baseConfig.maxChunks = 25;
+    }
+
+    if (intent.reasoningFlags?.needsComparison) {
+      baseConfig.maxDocs = 10;
     }
 
     // Apply overrides
@@ -206,13 +225,13 @@ class KodaRetrievalEngineV1 {
       }));
 
     } catch (error) {
-      console.error('[KodaRetrievalEngineV1] Vector search error:', error);
+      console.error('[KodaRetrievalEngineV2] Vector search error:', error);
       return [];
     }
   }
 
   /**
-   * BM25 keyword search (placeholder - integrate with existing BM25 service)
+   * BM25 keyword search
    */
   private async bm25Search(
     query: string,
@@ -223,7 +242,7 @@ class KodaRetrievalEngineV1 {
       return [];
 
     } catch (error) {
-      console.error('[KodaRetrievalEngineV1] BM25 search error:', error);
+      console.error('[KodaRetrievalEngineV2] BM25 search error:', error);
       return [];
     }
   }
@@ -258,11 +277,11 @@ class KodaRetrievalEngineV1 {
     topK: number
   ): Promise<RetrievedChunk[]> {
     try {
-      // TODO: Use reranker model (e.g., Cohere, cross-encoder)
+      // TODO: Use reranker model
       return chunks.slice(0, topK);
 
     } catch (error) {
-      console.error('[KodaRetrievalEngineV1] Reranking error:', error);
+      console.error('[KodaRetrievalEngineV2] Reranking error:', error);
       return chunks.slice(0, topK);
     }
   }
@@ -323,7 +342,7 @@ class KodaRetrievalEngineV1 {
       return count;
 
     } catch (error) {
-      console.error('[KodaRetrievalEngineV1] Error counting documents:', error);
+      console.error('[KodaRetrievalEngineV2] Error counting documents:', error);
       return 0;
     }
   }
@@ -341,9 +360,9 @@ class KodaRetrievalEngineV1 {
         select: {
           id: true,
           filename: true,
-          displayTitle: true,  // KODA FIX: Include AI-generated display title
+          displayTitle: true,
           mimeType: true,
-          fileSize: true,      // KODA FIX: Include file size for citation markers
+          fileSize: true,
           folderId: true,
           createdAt: true,
         },
@@ -351,18 +370,17 @@ class KodaRetrievalEngineV1 {
 
       return docs.map(doc => ({
         documentId: doc.id,
-        // KODA FIX: Use displayTitle if available, fallback to filename
         title: doc.displayTitle || doc.filename,
         filename: doc.filename,
-        displayTitle: doc.displayTitle || null,  // KODA FIX: Include display title
+        displayTitle: doc.displayTitle || null,
         mimeType: doc.mimeType,
-        fileSize: doc.fileSize,  // KODA FIX: Include file size
+        fileSize: doc.fileSize,
         folder: doc.folderId || undefined,
         uploadedAt: doc.createdAt,
       }));
 
     } catch (error) {
-      console.error('[KodaRetrievalEngineV1] Error fetching documents:', error);
+      console.error('[KodaRetrievalEngineV2] Error fetching documents:', error);
       return [];
     }
   }
@@ -372,5 +390,5 @@ class KodaRetrievalEngineV1 {
 // Export Singleton
 // ============================================================================
 
-export const kodaRetrievalEngineV1 = new KodaRetrievalEngineV1();
-export default kodaRetrievalEngineV1;
+export const kodaRetrievalEngineV2 = new KodaRetrievalEngineV2();
+export default kodaRetrievalEngineV2;
