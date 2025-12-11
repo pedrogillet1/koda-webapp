@@ -52,7 +52,7 @@ import { generateCountResponse, generateTypeBreakdownResponse, generateDocumentL
 
 import { formatValidationService } from './formatValidation.service';
 
-import * as confidenceScoring from './archived/confidence-scoring.service';
+import * as confidenceScoring from './deletedServiceStubs';
 
 // QA Orchestrator Service (Quality Assurance Gate)
 import { runQualityAssurance } from './qaOrchestrator.service';

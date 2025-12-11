@@ -2101,6 +2101,8 @@ export interface DocumentRoutingResult {
   documentId: string;
   confidence: number;
   reason: string;
+  documentTitle?: string;
+  routingMethod?: string;
 }
 
 export interface DocumentSummary {
@@ -2110,14 +2112,14 @@ export interface DocumentSummary {
 }
 
 export const routeToDocument = async (
-  _query: string,
-  _documents: DocumentSummary[],
+  _userIdOrQuery: string,
+  _queryOrDocuments: string | DocumentSummary[],
   _options?: any
 ): Promise<DocumentRoutingResult | null> => null;
 
 export const routeToMultipleDocuments = async (
-  _query: string,
-  _documents: DocumentSummary[],
+  _userIdOrQuery: string,
+  _queryOrDocuments: string | DocumentSummary[],
   _options?: any
 ): Promise<DocumentRoutingResult[]> => [];
 
@@ -2178,49 +2180,57 @@ export const chunkTypeRerankerService = {
 // ═══════════════════════════════════════════════════════════════════════════
 // Document List State Manager Stub (REMOVED - upload restructure)
 // ═══════════════════════════════════════════════════════════════════════════
-export const documentListStateManager = {
-  getState: () => ({ documents: [], lastUpdate: new Date() }),
-  updateState: async () => {},
-  invalidateCache: () => {},
-  refreshCache: async () => {}
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Additional stubs for documentListStateManager (REMOVED - upload restructure)
-// ═══════════════════════════════════════════════════════════════════════════
 export interface DocumentListItem {
   id: string;
   filename: string;
   displayTitle?: string;
+  name?: string;
 }
 
-export const documentListStateManagerFull = {
+export const documentListStateManager = {
   getState: () => ({ documents: [] as DocumentListItem[], lastUpdate: new Date() }),
   updateState: async () => {},
   invalidateCache: () => {},
   refreshCache: async () => {},
-  setLastDocument: (_doc: any) => {},
-  getLastDocument: () => null as any,
-  setDocumentList: (_docs: any[]) => {},
-  getDocumentList: () => [] as DocumentListItem[]
+  setLastDocument: (_conversationId: string, _docId: string) => {},
+  getLastDocument: (_conversationId: string) => null as string | null,
+  setDocumentList: (_conversationId: string, _docs: DocumentListItem[]) => {},
+  getDocumentList: (_conversationId: string) => [] as DocumentListItem[]
 };
-
-// Re-export with full interface
-Object.assign(documentListStateManager, documentListStateManagerFull);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Chunk Type Reranker exports (REMOVED - upload restructure)
 // ═══════════════════════════════════════════════════════════════════════════
 export interface RankedChunk {
+  id: string;
   text: string;
   score: number;
+  finalScore: number;
   metadata?: any;
+}
+
+export interface ChunkTypeRerankerResult {
+  rerankedChunks: RankedChunk[];
+  stats?: {
+    totalChunks: number;
+    reranked: number;
+  };
 }
 
 export const rerankByChunkType = async (
   chunks: any[],
-  _chunkType: string
-): Promise<RankedChunk[]> => chunks.map(c => ({ ...c, score: c.score || 0.5 }));
+  _query: string,
+  _chunkType?: string
+): Promise<ChunkTypeRerankerResult> => ({
+  rerankedChunks: chunks.map(c => ({
+    id: c.id || c.chunkId || '',
+    text: c.text || '',
+    score: c.score || 0.5,
+    finalScore: c.score || 0.5,
+    metadata: c.metadata,
+  })),
+  stats: { totalChunks: chunks.length, reranked: chunks.length }
+});
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Document Generation Detection (REMOVED - upload restructure)
@@ -2246,3 +2256,37 @@ export const documentGenerationDetectionService = {
   isDocumentGeneration: (_query: string) => false,
   detectIntent: (_query: string) => ({ isGeneration: false, confidence: 0 })
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Confidence Scoring Stub (REMOVED - archived folder deleted)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface Evidence {
+  type: 'supporting' | 'conflicting' | 'neutral';
+  text: string;
+  source: string;
+  score: number;
+}
+
+export interface ConfidenceResult {
+  confidence: number;
+  evidenceStrength: number;
+  conflictLevel: number;
+  supportingCount: number;
+  conflictingCount: number;
+}
+
+export const scoreEvidence = (
+  _chunks: any[],
+  _query: string,
+  _answer: string
+): Evidence[] => [];
+
+export const calculateConfidence = (
+  _evidence: Evidence[]
+): ConfidenceResult => ({
+  confidence: 0.8,
+  evidenceStrength: 0.8,
+  conflictLevel: 0,
+  supportingCount: 0,
+  conflictingCount: 0
+});

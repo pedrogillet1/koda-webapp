@@ -1,49 +1,54 @@
 /**
- * SMS Service - STUB (service removed)
- * This stub file prevents import errors while the service is removed.
+ * SMS Service Stub
+ *
+ * This service was removed during cleanup. This stub provides no-op implementations
+ * to maintain backward compatibility.
+ *
+ * TODO: Remove usages of this service from auth.service.ts and recoveryVerification.service.ts
  */
 
-export const sendSMS = async (phoneNumber: string, message: string): Promise<void> => {
-  console.log(`[SMS STUB] Would send to ${phoneNumber}: ${message}`);
-  // No-op - SMS service removed
-};
+/**
+ * Format a phone number (stub - returns as-is)
+ */
+export function formatPhoneNumber(phoneNumber: string): string {
+  return phoneNumber;
+}
 
-export const generateSMSCode = (): string => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
-
-export const verifySMSCode = async (phoneNumber: string, code: string): Promise<boolean> => {
-  console.log(`[SMS STUB] Would verify code ${code} for ${phoneNumber}`);
-  return false;
-};
-
-// Additional stubs for auth.service.ts
-export const formatPhoneNumber = (phone: string): string => {
-  // Simple pass-through - no actual formatting
-  return phone;
-};
-
-export const isValidPhoneNumber = (_phone: string): boolean => {
-  // Always return true as stub
+/**
+ * Check if a phone number is valid (stub - always returns true)
+ */
+export function isValidPhoneNumber(_phoneNumber: string): boolean {
+  console.warn('[SMS STUB] isValidPhoneNumber called - SMS service is disabled');
   return true;
-};
+}
 
-export const sendVerificationSMS = async (phoneNumber: string, code: string): Promise<{ success: boolean }> => {
-  console.log(`[SMS STUB] Would send verification code ${code} to ${phoneNumber}`);
-  return { success: true };
-};
+/**
+ * Generate a 6-digit SMS code
+ */
+export function generateSMSCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
-export const sendPasswordResetSMS = async (phoneNumber: string, code: string): Promise<{ success: boolean }> => {
-  console.log(`[SMS STUB] Would send password reset code ${code} to ${phoneNumber}`);
-  return { success: true };
-};
+/**
+ * Send verification SMS (stub - logs warning and returns)
+ */
+export async function sendVerificationSMS(phoneNumber: string, code: string): Promise<void> {
+  console.warn(`[SMS STUB] sendVerificationSMS called - SMS service is disabled`);
+  console.warn(`  Phone: ${phoneNumber}, Code: ${code}`);
+}
+
+/**
+ * Send password reset SMS (stub - logs warning and returns)
+ */
+export async function sendPasswordResetSMS(phoneNumber: string, code: string): Promise<void> {
+  console.warn(`[SMS STUB] sendPasswordResetSMS called - SMS service is disabled`);
+  console.warn(`  Phone: ${phoneNumber}, Code: ${code}`);
+}
 
 export default {
-  sendSMS,
-  generateSMSCode,
-  verifySMSCode,
   formatPhoneNumber,
   isValidPhoneNumber,
+  generateSMSCode,
   sendVerificationSMS,
   sendPasswordResetSMS,
 };

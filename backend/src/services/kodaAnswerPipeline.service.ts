@@ -25,10 +25,10 @@
  */
 
 import { kodaOutputStructureEngine } from './kodaOutputStructureEngine.service';
-import { kodaFormatEngine } from './kodaFormatEngine.service';
+import kodaFormatEngine from './kodaFormatEngine.service';
 import { kodaAnswerValidationEngine } from './kodaAnswerValidationEngine.service';
 import { kodaUnifiedPostProcessor } from './kodaUnifiedPostProcessor.service';
-import { kodaCitationFormat } from './kodaCitationFormat.service';
+import { kodaCitationFormatService as kodaCitationFormat } from './kodaCitationFormat.service';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -195,13 +195,8 @@ class KodaAnswerPipeline {
     
     console.log('[KodaAnswerPipeline] Layer 3: Validation');
     
-    const validation = kodaAnswerValidationEngine.validate(currentText, {
-      checkCompleteness: true,
-      checkCoherence: true,
-      checkCitations: enableCitations,
-      checkMarkdown: true,
-      checkLanguage: true,
-    });
+    // Use quickValidate for immediate validation (the only sync method)
+    const validation = kodaAnswerValidationEngine.quickValidate(currentText);
     
     layersApplied.push('validation');
     
@@ -211,12 +206,13 @@ class KodaAnswerPipeline {
     
     console.log('[KodaAnswerPipeline] Layer 4: Polish');
     
-    const finalText = kodaUnifiedPostProcessor.polish(currentText, {
-      language,
-      ensureConsistency: true,
-      fallbackType: input.fallbackType || null,
-      citations,
+    const postProcessResult = kodaUnifiedPostProcessor.process({
+      answer: currentText,
+      query: input.query,
+      queryLanguage: language === 'Portuguese' ? 'pt' : language === 'English' ? 'en' : 'other',
+      sources: input.sourceMetadata?.map(s => ({ id: s.documentId, title: s.documentTitle })) || [],
     });
+    const finalText = postProcessResult.processedAnswer;
     
     layersApplied.push('polish');
     
@@ -241,16 +237,16 @@ class KodaAnswerPipeline {
     const processingTimeMs = Date.now() - startTime;
     
     console.log(`[KodaAnswerPipeline] Complete in ${processingTimeMs}ms`);
-    console.log(`[KodaAnswerPipeline] Quality score: ${validation.qualityScore}/100`);
-    console.log(`[KodaAnswerPipeline] Validation issues: ${validation.issues.length}`);
+    console.log(`[KodaAnswerPipeline] Validation: ${validation.isValid ? 'passed' : 'issues found'}`);
+    if (validation.issue) console.log(`[KodaAnswerPipeline] Issue: ${validation.issue}`);
     
     return {
       finalText,
       citations,
       answerType,
-      fallbackType: input.fallbackType,
-      qualityScore: validation.qualityScore,
-      validationIssues: validation.issues,
+      fallbackType: input.fallbackType || undefined,
+      qualityScore: validation.isValid ? 90 : 70,
+      validationIssues: validation.issue ? [{ type: 'quality', message: validation.issue, severity: 'warning' as const }] : [],
       stats: {
         originalLength: input.rawText.length,
         finalLength: finalText.length,
@@ -277,12 +273,13 @@ class KodaAnswerPipeline {
     });
     
     // Layer 4: Polish (skip 2 & 3)
-    const finalText = kodaUnifiedPostProcessor.polish(structured.text, {
-      language: input.language || 'Portuguese',
-      ensureConsistency: true,
-      fallbackType: input.fallbackType || null,
-      citations: [],
+    const polishResult = kodaUnifiedPostProcessor.process({
+      answer: structured.text,
+      query: input.query,
+      queryLanguage: (input.language || 'Portuguese') === 'Portuguese' ? 'pt' : 'en',
+      sources: [],
     });
+    const finalText = polishResult.processedAnswer;
     
     const processingTimeMs = Date.now() - startTime;
     

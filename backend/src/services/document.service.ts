@@ -1267,7 +1267,7 @@ async function processDocumentWithTimeout(
               // Classify each chunk to identify content type (header, table, etc.)
               // ═══════════════════════════════════════════════════════════════
               console.log('📦 [DocIntel] Classifying chunks...');
-              const { classifyChunk: classifyChunkFn } = await import('./chunkClassifier.service');
+              const { classifyChunk: classifyChunkFn } = await import('./deletedServiceStubs');
 
               chunks = await Promise.all(overlapChunks.map(async (chunk) => {
                 // Classify each chunk

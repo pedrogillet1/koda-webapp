@@ -127,8 +127,8 @@ export async function processChunkIntelligence(
     documentType?: string;
     domain?: string;
   }
-): Promise<import('../chunkClassifier.service').ChunkClassification> {
-  const { classifyChunk } = await import('../chunkClassifier.service');
+): Promise<import('../deletedServiceStubs').ChunkClassification> {
+  const { classifyChunk } = await import('../deletedServiceStubs');
 
   return classifyChunk(chunk.text, {
     documentType: chunk.documentType,

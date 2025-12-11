@@ -373,52 +373,48 @@ export enum RagErrorCode {
 }
 
 // ============================================================================
-// EXPORTS
+// LEGACY HANDLER TYPES (for backward compatibility)
 // ============================================================================
 
-export default {
-  // Answer types
-  KodaAnswer,
-  Citation,
-  Analytics,
-  DocumentSummary,
-  AnswerMetadata,
-  
-  // Classification types
-  QuestionType,
-  Domain,
-  RagMode,
-  MemoryPattern,
-  ClassificationResult,
-  
-  // Conversation types
-  ConversationState,
-  ConversationFilters,
-  UserPreferences,
-  
-  // Retrieval types
-  RetrievalOptions,
-  RetrievedChunk,
-  ChunkMetadata,
-  
-  // Bold types
-  BoldCandidate,
-  BoldType,
-  BoldEnforcementResult,
-  BoldChange,
-  
-  // Citation types
-  CitationMarker,
-  CitationParsingResult,
-  
-  // Analytics types
-  DocumentSummaryResponse,
-  RecentDocumentsResponse,
-  SearchDocumentsResponse,
-  DocumentTypesResponse,
-  DocumentTypeInfo,
-  
-  // Error types
-  RagError,
-  RagErrorCode,
-};
+/**
+ * Action type for handlers
+ */
+export type ActionType =
+  | 'answer'           // Standard answer response
+  | 'navigate'         // Navigation action
+  | 'list_documents'   // List documents
+  | 'show_folder'      // Show folder contents
+  | 'search'           // Search results
+  | 'analytics';       // Analytics response
+
+/**
+ * RAG Response type for handlers
+ */
+export interface RAGResponse {
+  success: boolean;
+  action?: ActionType;
+  answer?: string;
+  citations?: Citation[];
+  documents?: DocumentSummary[];
+  metadata?: Record<string, any>;
+  error?: string;
+}
+
+/**
+ * Enhanced chunk metadata - extended metadata for chunks
+ */
+export interface EnhancedChunkMetadata extends ChunkMetadata {
+  pageNumber?: number;       // PDF page number
+  slideNumber?: number;      // PPTX slide number
+  cellReference?: string;    // Excel cell reference (e.g., "A1")
+  sheetName?: string;        // Excel sheet name
+  section?: string;          // Document section
+  heading?: string;          // Nearest heading
+  documentId?: string;       // Document ID
+  chunkType?: 'text' | 'table' | 'code' | 'image';
+}
+
+// ============================================================================
+// NOTE: All types are exported inline via 'export interface/type' declarations
+// Use named imports: import { KodaAnswer, Citation, ... } from './rag.types'
+// ============================================================================

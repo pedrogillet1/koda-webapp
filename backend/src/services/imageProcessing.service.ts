@@ -1,28 +1,74 @@
-/** Image Processing Service - Minimal Stub */
-class ImageProcessingService {
-  async processImage(image: Buffer) { return image; }
-  async resize(image: Buffer, width: number, height: number) { return image; }
-  async generateThumbnail(image: Buffer) { return image; }
-  async extractText(image: Buffer) { return ''; }
+/**
+ * Image Processing Service Stub
+ *
+ * This service was removed during cleanup. This stub provides no-op implementations
+ * to maintain backward compatibility.
+ *
+ * TODO: Remove usages of this service from document.queue.ts
+ */
+
+/**
+ * Process an image file (stub - returns empty result)
+ */
+export async function processImage(_filePath: string): Promise<{
+  text: string;
+  confidence: number;
+}> {
+  console.warn('[IMAGE PROCESSING STUB] processImage called - service is disabled');
+  return {
+    text: '',
+    confidence: 0,
+  };
 }
 
-export const isImage = (filename: string) => {
-  const ext = filename.split('.').pop()?.toLowerCase();
-  return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext || '');
-};
+/**
+ * Extract text from image using OCR (stub - returns empty string)
+ */
+export async function extractTextFromImage(_imageBuffer: Buffer): Promise<string> {
+  console.warn('[IMAGE PROCESSING STUB] extractTextFromImage called - service is disabled');
+  return '';
+}
 
-export const isPDF = (filename: string) => {
-  return filename.toLowerCase().endsWith('.pdf');
-};
+/**
+ * Resize image (stub - returns original buffer)
+ */
+export async function resizeImage(imageBuffer: Buffer, _options?: {
+  width?: number;
+  height?: number;
+  quality?: number;
+}): Promise<Buffer> {
+  console.warn('[IMAGE PROCESSING STUB] resizeImage called - service is disabled');
+  return imageBuffer;
+}
 
-export const generateAndUploadThumbnail = async (fileUrl: string, fileId: string) => {
-  // Stub: Would generate and upload thumbnail
-  return null;
-};
+/**
+ * Generate thumbnail (stub - returns original buffer)
+ */
+export async function generateThumbnail(imageBuffer: Buffer, _size?: number): Promise<Buffer> {
+  console.warn('[IMAGE PROCESSING STUB] generateThumbnail called - service is disabled');
+  return imageBuffer;
+}
 
-export const generatePDFThumbnail = async (fileUrl: string) => {
-  // Stub: Would generate PDF thumbnail
-  return null;
-};
+/**
+ * Get image metadata (stub - returns empty metadata)
+ */
+export async function getImageMetadata(_imageBuffer: Buffer): Promise<{
+  width: number;
+  height: number;
+  format: string;
+}> {
+  console.warn('[IMAGE PROCESSING STUB] getImageMetadata called - service is disabled');
+  return {
+    width: 0,
+    height: 0,
+    format: 'unknown',
+  };
+}
 
-export default new ImageProcessingService();
+export default {
+  processImage,
+  extractTextFromImage,
+  resizeImage,
+  generateThumbnail,
+  getImageMetadata,
+};

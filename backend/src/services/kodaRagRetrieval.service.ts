@@ -262,8 +262,11 @@ class KodaRagRetrievalService {
       // Query Pinecone using the query method
       const results = await pineconeService.query(
         embedding.embedding,
-        topK * 2, // Get more for filtering
-        filter
+        {
+          userId,
+          topK: topK * 2, // Get more for filtering
+          documentIds: documentIds && documentIds.length > 0 ? documentIds : undefined
+        }
       );
 
       // Transform to RetrievedChunk format
@@ -302,14 +305,13 @@ class KodaRagRetrievalService {
   ): Promise<RetrievedChunk[]> {
     try {
       // Import BM25 service dynamically (correct path)
-      const { default: bm25Service } = await import('./rag/retrieval/bm25-retrieval.service');
+      const { bm25RetrievalService } = await import('./rag/retrieval/bm25-retrieval.service');
 
-      const results = await bm25Service.search({
+      const results = await bm25RetrievalService.search(
         query,
         userId,
-        topK: topK * 2,
-        documentIds,
-      });
+        { topK: topK * 2, documentIds }
+      );
 
       return results.map((r: any) => ({
         id: r.id,
