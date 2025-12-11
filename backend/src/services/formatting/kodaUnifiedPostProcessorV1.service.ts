@@ -11,7 +11,7 @@
  */
 
 import type { FormattingContext } from '../../types/ragV1.types';
-import { kodaFallbackEngineV1 } from '../core/kodaFallbackEngineV1.service';
+import { kodaFallbackEngineV2 } from '../core/kodaFallbackEngineV2.service';
 
 class KodaUnifiedPostProcessorV1 {
   async process(text: string, context: FormattingContext): Promise<string> {
@@ -40,19 +40,19 @@ class KodaUnifiedPostProcessorV1 {
 
   private replaceFallbackMarkers(text: string, context: FormattingContext): string {
     // Check if text contains fallback markers
-    if (!kodaFallbackEngineV1.hasFallbackMarker(text)) {
+    if (!kodaFallbackEngineV2.hasFallbackMarker(text)) {
       return text;
     }
 
     // Extract fallback type
-    const fallbackType = kodaFallbackEngineV1.extractFallbackTypeFromMarker(text);
+    const fallbackType = kodaFallbackEngineV2.extractFallbackTypeFromMarker(text);
 
     if (!fallbackType) {
       return text;
     }
 
     // Replace with actual template
-    return kodaFallbackEngineV1.replaceFallbackMarker(
+    return kodaFallbackEngineV2.replaceFallbackMarker(
       text,
       fallbackType,
       context.intent?.targetDocId ? 'Document Title' : undefined

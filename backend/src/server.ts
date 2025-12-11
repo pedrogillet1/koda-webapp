@@ -1,7 +1,7 @@
 /**
- * KODA Backend Server V1
+ * KODA Backend Server V2
  *
- * Clean server startup with V1 RAG pipeline
+ * Clean server startup with V2 RAG pipeline
  */
 
 import { createServer } from 'http';
@@ -12,7 +12,6 @@ import jwt from 'jsonwebtoken';
 import { createSecureServer, createHTTPRedirectServer, getPortConfig, checkCertificateExpiry } from './config/ssl.config';
 import prisma from './config/database';
 import websocketService from './services/websocket.service';
-import { ragServiceV1 } from './services/core/ragV1.service';
 import chatService from './services/chat.service';
 import { startDocumentWorker, stopDocumentWorker } from './queues/document.queue';
 
@@ -180,7 +179,7 @@ async function startServer() {
       console.warn('[Server] Document queue worker failed to start:', queueError);
     }
 
-    console.log('[Server] V1 RAG Pipeline initialized');
+    console.log('[Server] V2 RAG Pipeline initialized');
   } catch (error) {
     console.error('[Server] Failed to start:', error);
     process.exit(1);
