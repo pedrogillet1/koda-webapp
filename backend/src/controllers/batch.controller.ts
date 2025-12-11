@@ -1,3 +1,4 @@
+/// <reference path="../types/express.d.ts" />
 import { Request, Response } from 'express';
 import prisma from '../config/database';
 import redis from '../config/redis';

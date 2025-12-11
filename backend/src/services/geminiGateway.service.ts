@@ -570,4 +570,4 @@ class GeminiGateway {
 const geminiGateway = GeminiGateway.getInstance();
 
 export default geminiGateway;
-export { GeminiGateway };
+export { geminiGateway, GeminiGateway };

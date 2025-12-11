@@ -8,16 +8,18 @@
  * - Add closing sentence (if appropriate)
  * - Strip artifacts (debug markers)
  * - Final validation
+ *
+ * NOTE: This is legacy V1 code. Fallback marker replacement has been
+ * moved to the main formatting pipeline.
  */
 
 import type { FormattingContext } from '../../types/ragV1.types';
-import { kodaFallbackEngineV2 } from '../core/kodaFallbackEngineV2.service';
 
 class KodaUnifiedPostProcessorV1 {
   async process(text: string, context: FormattingContext): Promise<string> {
     let result = text;
 
-    // 1. Replace fallback markers
+    // 1. Replace fallback markers (simplified - V2 engine removed)
     result = this.replaceFallbackMarkers(result, context);
 
     // 2. Fix Markdown
@@ -38,25 +40,10 @@ class KodaUnifiedPostProcessorV1 {
     return result;
   }
 
-  private replaceFallbackMarkers(text: string, context: FormattingContext): string {
-    // Check if text contains fallback markers
-    if (!kodaFallbackEngineV2.hasFallbackMarker(text)) {
-      return text;
-    }
-
-    // Extract fallback type
-    const fallbackType = kodaFallbackEngineV2.extractFallbackTypeFromMarker(text);
-
-    if (!fallbackType) {
-      return text;
-    }
-
-    // Replace with actual template
-    return kodaFallbackEngineV2.replaceFallbackMarker(
-      text,
-      fallbackType,
-      context.intent?.targetDocId ? 'Document Title' : undefined
-    );
+  private replaceFallbackMarkers(text: string, _context: FormattingContext): string {
+    // Simple fallback marker replacement (V2 engine removed)
+    // Just strip any remaining fallback markers
+    return text.replace(/\[FALLBACK_[A-Z_]+\]/g, '');
   }
 
   private fixMarkdown(text: string): string {

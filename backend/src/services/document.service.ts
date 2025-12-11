@@ -14,6 +14,7 @@ import pptxProcessorService from './pptxProcessor.service';
 import fileValidator from './fileValidator.service';
 import { invalidateUserCache } from '../controllers/batch.controller';
 import { invalidateFileListingCache } from './rag.service';
+import { addDocumentJob } from '../queues/document.queue';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -2425,6 +2426,20 @@ async function processDocumentAsync(
       where: { id: documentId },
       data: { status: 'completed' },
     });
+
+    // Queue document for embedding generation (async - doesn't block upload)
+    try {
+      await addDocumentJob({
+        documentId,
+        userId,
+        filename,
+        mimeType,
+      });
+      console.log(`[Upload] Queued document ${documentId} for embedding generation`);
+    } catch (queueError) {
+      console.error(`[Upload] Failed to queue document for embeddings:`, queueError);
+      // Don't fail the upload if queuing fails - embeddings can be generated later
+    }
 
     // Stage 9: Complete (100%)
     emitProgress('complete', 100, 'Processing complete!');

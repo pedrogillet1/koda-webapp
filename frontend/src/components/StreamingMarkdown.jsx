@@ -13,6 +13,12 @@ import {
   parseSimpleDocMarkers,
   parseSeeAllMarkers
 } from '../utils/inlineDocumentParser';
+// V3 Marker Parser - for new {{DOC::id=...::name="..."}} format
+import {
+  hasMarkers as hasV3Markers,
+  parseDocumentMarkers as parseV3DocMarkers,
+  parseLoadMoreMarkers as parseV3LoadMoreMarkers
+} from '../utils/kodaMarkerParser';
 
 /**
  * ✨ StreamingMarkdown Component (with Koda Markdown Contract)
@@ -290,6 +296,24 @@ const StreamingMarkdown = ({
     seeAll.forEach(marker => {
       cleaned = cleaned.replace(marker.marker, `**${marker.linkText}**`);
     });
+
+    // ============================================================
+    // V3: Parse new {{DOC::id=...::name="..."}} marker format
+    // ============================================================
+    if (hasV3Markers(cleaned)) {
+      const v3Docs = parseV3DocMarkers(cleaned);
+      v3Docs.forEach(doc => {
+        // Replace V3 marker with bold text format for existing handler
+        const markerPattern = /\{\{DOC::[^}]+\}\}/g;
+        cleaned = cleaned.replace(markerPattern, `**${doc.filename}**`);
+      });
+
+      const v3LoadMore = parseV3LoadMoreMarkers(cleaned);
+      v3LoadMore.forEach(lm => {
+        const pattern = /\{\{LOADMORE::[^}]+\}\}/g;
+        cleaned = cleaned.replace(pattern, `**See all ${lm.totalCount} documents**`);
+      });
+    }
 
     // ============================================================
     // FIX: Convert backtick+bold document citations to just bold

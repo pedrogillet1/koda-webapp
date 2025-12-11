@@ -13,7 +13,7 @@ import {
   completeMultipartUpload,
   abortMultipartUpload,
 } from '../services/s3Storage.service';
-import { retryDocument } from '../services/document.service';
+import { addDocumentJob } from '../queues/document.queue';
 import { emitDocumentEvent } from '../services/websocket.service';
 
 /**
@@ -46,10 +46,10 @@ export const initMultipartUpload = async (req: Request, res: Response): Promise<
 
     console.log(`📤 [Multipart] Initializing upload for "${fileName}" (${(fileSize / 1024 / 1024).toFixed(2)}MB)`);
 
-    // Generate unique storage key
-    const timestamp = Date.now();
-    const randomSuffix = Math.random().toString(36).substring(2, 15);
-    const storageKey = `${userId}/${timestamp}-${randomSuffix}-${fileName}`;
+    // Generate unique storage key (WITHOUT filename to avoid S3 signature issues with special chars)
+    // This matches the regular upload flow pattern: `${userId}/${uuid}-${timestamp}`
+    const crypto = await import('crypto');
+    const storageKey = `${userId}/${crypto.randomUUID()}-${Date.now()}`;
 
     // Calculate number of parts
     const chunkSize = UPLOAD_CONFIG.CHUNK_SIZE_BYTES;
@@ -135,10 +135,24 @@ export const completeMultipartUploadHandler = async (req: Request, res: Response
     // Complete S3 multipart upload
     await completeMultipartUpload(storageKey, uploadId, parts);
 
-    // Trigger document processing (this sets status to 'processing' and starts async processing)
-    await retryDocument(documentId, userId);
+    // Update document status to 'completed' (same as regular upload flow)
+    await prisma.document.update({
+      where: { id: documentId },
+      data: { status: 'completed' },
+    });
 
-    console.log(`✅ [Multipart] Upload completed and processing started: ${documentId}`);
+    // Queue document for embedding generation via BullMQ (same as regular upload flow)
+    try {
+      await addDocumentJob({
+        documentId,
+        userId,
+        filename: document.filename,
+        mimeType: document.mimeType,
+      });
+      console.log(`✅ [Multipart] Upload completed and queued for embedding: ${documentId}`);
+    } catch (queueError) {
+      console.error(`⚠️ [Multipart] Failed to queue document for embeddings (non-critical):`, queueError);
+    }
 
     // Emit WebSocket event
     emitDocumentEvent(userId, 'updated');
