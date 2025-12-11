@@ -561,3 +561,134 @@
 /* ============================================
    END OF MASTER STYLES
    ============================================ */
+
+/* ============================================
+   18. INLINE DOCUMENT BUTTON V3
+   ============================================ */
+
+/* Base styles for V3 inline document buttons */
+.inline-document-button {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 2px 8px !important;
+  margin: 0 2px !important;
+  background-color: #F9FAFB !important;
+  border: 1px solid #E5E7EB !important;
+  border-radius: 12px !important;
+  font-size: 0.9em !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-weight: 600 !important;
+  color: #303030 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  vertical-align: middle !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+.inline-document-button:hover {
+  background-color: #F3F4F6 !important;
+  border-color: #D1D5DB !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  transform: translateY(-1px) !important;
+}
+
+.inline-document-button:active {
+  transform: translateY(0) !important;
+}
+
+.inline-document-icon {
+  font-size: 1.1em !important;
+  line-height: 1 !important;
+}
+
+.inline-document-name {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 200px !important;
+}
+
+/* CONTEXT-SPECIFIC STYLES: In lists - Bold only, NO underline */
+.inline-document-button--list .inline-document-name {
+  text-decoration: none !important;
+}
+
+/* CONTEXT-SPECIFIC STYLES: In text - Bold + underlined ALWAYS */
+.inline-document-button--text .inline-document-name {
+  text-decoration: underline !important;
+}
+
+/* ============================================
+   19. LOAD MORE BUTTON V3
+   ============================================ */
+
+.load-more-container {
+  display: block !important;
+  margin: 16px 0 !important;
+  text-align: center !important;
+}
+
+.load-more-button {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 12px 24px !important;
+  background-color: #f8f8f8 !important;
+  border: 2px solid #e0e0e0 !important;
+  border-radius: 8px !important;
+  font-size: 0.95em !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  color: #333 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.load-more-button:hover {
+  background-color: #e8e8e8 !important;
+  border-color: #c0c0c0 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+.load-more-button:active {
+  transform: translateY(0) !important;
+  box-shadow: none !important;
+}
+
+.load-more-icon {
+  font-size: 1.2em !important;
+  line-height: 1 !important;
+}
+
+.load-more-text {
+  font-weight: 600 !important;
+}
+
+.load-more-count {
+  font-size: 0.9em !important;
+  color: #666 !important;
+  font-weight: 400 !important;
+}
+
+@media (max-width: 768px) {
+  .inline-document-button {
+    font-size: 0.85em !important;
+    padding: 2px 6px !important;
+  }
+
+  .inline-document-name {
+    max-width: 150px !important;
+  }
+
+  .load-more-button {
+    flex-direction: column !important;
+    gap: 4px !important;
+    padding: 10px 20px !important;
+    font-size: 0.9em !important;
+  }
+
+  .load-more-count {
+    font-size: 0.85em !important;
+  }
+}
