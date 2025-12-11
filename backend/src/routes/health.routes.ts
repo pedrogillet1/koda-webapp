@@ -36,7 +36,7 @@ router.get('/health/stuck-documents', async (req, res) => {
     const STUCK_THRESHOLD = 10 * 60 * 1000; // 10 minutes
     const stuckCutoff = new Date(Date.now() - STUCK_THRESHOLD);
 
-    const stuckDocuments = await prisma.documents.findMany({
+    const stuckDocuments = await prisma.document.findMany({
       where: {
         status: 'processing',
         updatedAt: {
@@ -80,7 +80,7 @@ router.get('/health/stuck-documents', async (req, res) => {
  */
 router.get('/health/document-stats', async (req, res) => {
   try {
-    const statusCounts = await prisma.documents.groupBy({
+    const statusCounts = await prisma.document.groupBy({
       by: ['status'],
       _count: true
     });

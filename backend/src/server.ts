@@ -1,48 +1,46 @@
-// KODA Backend Server
+/**
+ * KODA Backend Server V1
+ *
+ * Clean server startup with V1 RAG pipeline
+ */
+
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import app from './app';
 import { config } from './config/env';
-import './queues/document.queue'; // Initialize background workers
 import jwt from 'jsonwebtoken';
 import { createSecureServer, createHTTPRedirectServer, getPortConfig, checkCertificateExpiry } from './config/ssl.config';
-
-// ✅ CRITICAL: Global error handlers to prevent server crashes
-process.on('uncaughtException', (error: Error) => {
-  console.error('❌ UNCAUGHT EXCEPTION (server will continue):', error.message);
-  console.error(error.stack);
-  // Don't exit - let the server continue running
-});
-
-process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
-  console.error('❌ UNHANDLED REJECTION (server will continue):', reason);
-  // Don't exit - let the server continue running
-});
-
-import { startReminderScheduler } from './jobs/reminder.scheduler';
-import { startOrphanCleanupScheduler } from './jobs/orphanCleanup.scheduler';
-import { startAnalyticsScheduler } from './jobs/analytics.scheduler';
-import { rbacService } from './services/securityStubs.service';
 import prisma from './config/database';
 import websocketService from './services/websocket.service';
-import { initializePinecone } from './services/rag.service';
-import sandboxManager from './services/calculation/sandboxManager.service';
+import { ragServiceV1 } from './services/core/ragV1.service';
+import chatService from './services/chat.service';
+
+// ============================================================================
+// Global Error Handlers
+// ============================================================================
+
+process.on('uncaughtException', (error: Error) => {
+  console.error('UNCAUGHT EXCEPTION:', error.message);
+  console.error(error.stack);
+});
+
+process.on('unhandledRejection', (reason: any) => {
+  console.error('UNHANDLED REJECTION:', reason);
+});
+
+// ============================================================================
+// Server Setup
+// ============================================================================
 
 const portConfig = getPortConfig();
-
-// Create HTTPS server (or HTTP in development)
 const httpServer = createSecureServer(app);
-
-// Create HTTP to HTTPS redirect server (production only)
 const redirectServer = createHTTPRedirectServer();
 
-// Initialize Socket.IO with CORS configuration
+// Initialize Socket.IO
 export const io = new Server(httpServer, {
   cors: {
     origin: (origin, callback) => {
-      // Allow configured frontend URL, production domain, localhost, or no origin (same-origin)
       const allowedOrigins = [config.FRONTEND_URL, 'https://getkoda.ai', 'http://localhost:3000'];
-
       if (!origin || allowedOrigins.includes(origin || '')) {
         callback(null, origin || '*');
       } else {
@@ -54,557 +52,132 @@ export const io = new Server(httpServer, {
     allowedHeaders: ['Content-Type', 'Authorization'],
   },
   transports: ['websocket', 'polling'],
-  allowEIO3: true, // Allow Engine.IO v3 clients
   pingTimeout: 60000,
   pingInterval: 25000,
 });
 
-// Initialize WebSocket service with Socket.IO instance
-websocketService.initialize(io);
+// ============================================================================
+// Socket.IO Authentication
+// ============================================================================
 
-// WebSocket authentication middleware
 io.use((socket, next) => {
-  const token = socket.handshake.auth.token;
-
+  const token = socket.handshake.auth?.token;
   if (!token) {
-    return next(new Error('Authentication error: No token provided'));
+    return next(new Error('Authentication required'));
   }
 
   try {
-    const decoded = jwt.verify(token, config.JWT_ACCESS_SECRET) as { userId: string; email: string };
-    socket.data.userId = decoded.userId; // Store userId in socket data
-    socket.data.email = decoded.email;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as { userId: string };
+    socket.data.userId = decoded.userId;
     next();
-  } catch (error) {
-    console.error('❌ WebSocket authentication failed:', error);
-    next(new Error('Authentication error: Invalid token'));
+  } catch (err) {
+    next(new Error('Invalid token'));
   }
 });
 
-// Socket.IO connection handling
+// ============================================================================
+// Socket.IO Event Handlers
+// ============================================================================
+
 io.on('connection', (socket) => {
-  console.log(`🔌 Client connected: ${socket.id} (User: ${socket.data.userId})`);
+  const userId = socket.data.userId;
+  console.log(`[WS] User connected: ${userId}`);
 
-  // ✅ Auto-join user to their user-specific room for title streaming and notifications
-  if (socket.data.userId) {
-    socket.join(`user:${socket.data.userId}`);
-    console.log(`📡 Auto-joined user ${socket.data.userId} to their room`);
-  }
+  // Join user's personal room
+  socket.join(`user:${userId}`);
 
-  socket.on('disconnect', () => {
-    console.log(`🔌 Client disconnected: ${socket.id}`);
-  });
-
-  // Join user-specific room for notifications (legacy - kept for compatibility)
-  socket.on('join-user-room', (userId: string) => {
-    socket.join(`user:${userId}`);
-    console.log(`📡 User ${userId} joined their room`);
-  });
-
-  // KODA Chat: Join conversation room
-  socket.on('join-conversation', (conversationId: string) => {
-    socket.join(`conversation:${conversationId}`);
-    const roomSize = io.sockets.adapter.rooms.get(`conversation:${conversationId}`)?.size || 0;
-    console.log(`💬 Joined conversation: ${conversationId} (${roomSize} clients in room)`);
-  });
-
-  // KODA Chat: Leave conversation room
-  socket.on('leave-conversation', (conversationId: string) => {
-    socket.leave(`conversation:${conversationId}`);
-    console.log(`💬 Left conversation: ${conversationId}`);
-  });
-
-  // KODA Chat: Send message (real-time with STREAMING)
-  socket.on('send-message', async (data: { conversationId: string; content: string; attachedDocumentId?: string }) => {
-    console.log('📨 Received send-message event:', { conversationId: data.conversationId, userId: socket.data.userId, contentLength: data.content?.length, hasAttachment: !!data.attachedDocumentId });
-
+  // Handle chat messages
+  socket.on('send-message', async (data: {
+    conversationId: string;
+    content: string;
+    attachedDocumentId?: string;
+  }) => {
     try {
-      // ✅ SECURITY: Use authenticated userId from socket, NOT from client data
-      const authenticatedUserId = socket.data.userId;
+      const { conversationId, content, attachedDocumentId } = data;
 
-      if (!authenticatedUserId) {
-        console.error('❌ Unauthorized: No user ID in socket');
-        socket.emit('message-error', { error: 'Unauthorized: No user ID in socket' });
-        return;
-      }
+      // Join conversation room
+      socket.join(`conversation:${conversationId}`);
 
-      let conversationId = data.conversationId;
+      // Send acknowledgment
+      socket.emit('message-received', { conversationId });
 
-      // Lazy chat creation: If conversationId is "new", create a new conversation
-      if (conversationId === 'new' || !conversationId) {
-        const { createConversation } = await import('./services/chat.service');
-        const newConversation = await createConversation({
-          userId: authenticatedUserId,
-          title: 'New Chat', // Will be updated with AI-generated title after first message
-        });
-        conversationId = newConversation.id;
-
-        // Notify client of new conversation ID so they can update the URL
-        socket.emit('conversation-created', {
-          conversationId: newConversation.id,
-        });
-
-        // Auto-join the new conversation room
-        socket.join(`conversation:${conversationId}`);
-
-        console.log('🆕 Created new conversation via WebSocket:', conversationId);
-      }
-
-      // ✅ FIX: Emit to BOTH room AND directly to sender socket
-      // This ensures the sender always receives events even if room joining has issues
-      const emitToConversation = (event: string, data: any) => {
-        io.to(`conversation:${conversationId}`).emit(event, data);
-        // Also emit directly to sender socket as fallback
-        socket.emit(event, data);
-      };
-
-      // Emit initial stage immediately
-      emitToConversation('message-stage', {
-        stage: 'thinking',
-        message: 'Thinking...'
-      });
-
-      console.log('🔄 Calling RAG service...');
-      const ragService = await import('./services/rag.service');
-      const { default: prisma } = await import('./config/database');
-
-      // ✅ FIX: Load existing conversation history BEFORE saving new message
-      // This determines if this is the first message (for greeting logic)
-      const existingMessages = await prisma.messages.findMany({
-        where: { conversationId },
-        orderBy: { createdAt: 'asc' },
-        select: { role: true, content: true }
-      });
-
-      // Convert to format expected by RAG service
-      const conversationHistory = existingMessages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }));
-
-      console.log(`📚 [GREETING] Loaded ${conversationHistory.length} existing messages for conversation ${conversationId}`);
-
-      // Save user message first
-      const userMessage = await prisma.messages.create({
-        data: {
+      // Process message
+      const result = await chatService.sendMessageStreaming(
+        {
+          userId,
           conversationId,
-          role: 'user',
-          content: data.content,
-          isDocument: false,
+          content,
+          attachedDocumentId,
         },
-      });
-
-      // ✅ FIX: Create assistant message placeholder BEFORE streaming
-      // This prevents it from disappearing if user refreshes during streaming
-      const assistantMessagePlaceholder = await prisma.messages.create({
-        data: {
-          conversationId,
-          role: 'assistant',
-          content: '', // Empty initially
-          isDocument: false,
-          metadata: JSON.stringify({
-            status: 'streaming',
-            startedAt: new Date().toISOString()
-          }),
-        },
-      });
-
-      // Use NEW Hybrid RAG service with streaming
-      let fullResponse = '';
-
-      const { sources, documentList } = await ragService.generateAnswerStream(
-        authenticatedUserId,
-        data.content,
-        conversationId,
         (chunk: string) => {
-          fullResponse += chunk;
-          // Emit each chunk in real-time - use helper to emit to both room AND sender
-          emitToConversation('message-chunk', {
+          // Stream chunks to client
+          io.to(`conversation:${conversationId}`).emit('message-chunk', {
             chunk,
-            conversationId: conversationId
-          });
-        },
-        data.attachedDocumentId, // Use actual attached document ID
-        conversationHistory, // ✅ FIX: Pass conversation history for greeting logic
-        (stage: string, message: string) => {
-          // Emit stage updates for progress animation - use helper
-          emitToConversation('message-stage', {
-            stage,
-            message
+            conversationId,
           });
         }
       );
 
-      // ✅ CRITICAL: Apply post-processing to fullResponse before saving to database
-      // This ensures consistency between streaming (which processes chunks) and refresh (which loads from DB)
-      const processedAnswer = await ragService.postProcessAnswerExport(fullResponse);
-
-      const result = {
-        answer: processedAnswer,  // Use processed answer instead of raw fullResponse
-        sources: sources,
-        documentList: documentList,  // Include document list for name→ID mapping in frontend
-        expandedQuery: undefined,
-        contextId: undefined,
-        actions: []
-      };
-
-      // ✅ FIX: Update placeholder message with final content instead of creating new one
-      const assistantMessage = await prisma.messages.update({
-        where: { id: assistantMessagePlaceholder.id },
-        data: {
-          content: result.answer,
-          metadata: JSON.stringify({
-            status: 'complete',
-            completedAt: new Date().toISOString(),
-            ragSources: result.sources,
-            expandedQuery: result.expandedQuery,
-            contextId: result.contextId,
-            actions: result.actions || []
-          }),
-        },
-      });
-
-      // Update conversation timestamp
-      await prisma.conversations.update({
-        where: { id: conversationId },
-        data: { updatedAt: new Date() },
-      });
-
-      // Signal streaming complete (chunks already sent in real-time above)
-      console.log('🚀🚀🚀 EMITTING message-complete event to room AND sender:', `conversation:${conversationId}`);
-      console.log('📊 Sources:', result.sources?.length || 0);
-      console.log('📋 DocumentList:', result.documentList?.length || 0);
-      emitToConversation('message-complete', {
-        conversationId: conversationId,
-        sources: result.sources,  // ✅ FIX: Include sources for frontend display
-        documentList: result.documentList  // ✅ NEW: Include document list for name→ID mapping
-      });
-      console.log('✅ message-complete event emitted successfully');
-
-      // Update result to match expected format
-      const formattedResult = {
-        userMessage,
-        assistantMessage,
+      // Send completion
+      io.to(`conversation:${conversationId}`).emit('message-complete', {
+        conversationId,
+        userMessage: result.userMessage,
+        assistantMessage: result.assistantMessage,
         sources: result.sources,
-        expandedQuery: result.expandedQuery,
-        contextId: result.contextId,
-        actions: result.actions || [],
-        uiUpdate: (result as any).uiUpdate // Include UI update instructions from chat actions
-      };
-
-      console.log('✅ RAG service completed, emitting new-message event to room AND sender');
-
-      // Emit the complete message back to ALL clients in the conversation room AND sender
-      emitToConversation('new-message', {
-        conversationId: conversationId, // Include conversationId for frontend tracking
-        userMessage: formattedResult.userMessage,
-        assistantMessage: formattedResult.assistantMessage,
-        sources: formattedResult.sources,
-        expandedQuery: formattedResult.expandedQuery,
-        contextId: formattedResult.contextId,
-        actions: formattedResult.actions,
-        uiUpdate: formattedResult.uiUpdate // Notify frontend to refresh folders/documents
       });
-
-      // If there's a UI update, emit a separate event for immediate action
-      if ((result as any).uiUpdate) {
-        console.log(`📢 Emitting UI update event: ${(result as any).uiUpdate.type}`);
-        emitToConversation('ui-update', {
-          type: (result as any).uiUpdate.type,
-          data: (result as any).uiUpdate.data
-        });
-      }
-
-      // ✅ NEW: Auto-generate animated title on FIRST message
-      // conversationHistory was loaded BEFORE the user message was saved, so length === 0 means first message
-      const userMessageCount = conversationHistory.filter(m => m.role === 'user').length;
-      if (userMessageCount === 0) {
-        console.log('🏷️ [TITLE] Triggering animated title generation for first message via WebSocket');
-
-        // Capture values for closure
-        const userContent = data.content;
-        const assistantContent = fullResponse;
-        const convId = conversationId;
-        const userId = authenticatedUserId;
-
-        // Fire-and-forget title generation (don't block response)
-        (async () => {
-          try {
-            const { generateChatTitleOnly } = await import('./services/titleGeneration.service');
-            const { detectLanguage } = await import('./services/languageDetection.service');
-
-            // Detect language from user message
-            const detectedLang = detectLanguage(userContent) || 'pt';
-
-            // Emit title generation start
-            io.to(`user:${userId}`).emit('title:generating:start', {
-              conversationId: convId,
-            });
-            console.log(`📡 [TITLE-STREAM] Started generating title for ${convId}`);
-
-            // Generate title using Gemini
-            const generatedTitle = await generateChatTitleOnly({
-              userMessage: userContent.slice(0, 500),
-              assistantPreview: assistantContent.slice(0, 300),
-              language: detectedLang
-            });
-
-            const cleanTitle = generatedTitle.replace(/['"]/g, '').trim().substring(0, 100) || 'New Chat';
-
-            // Emit the full title as chunks for animation effect
-            const words = cleanTitle.split(' ');
-            for (const word of words) {
-              io.to(`user:${userId}`).emit('title:generating:chunk', {
-                conversationId: convId,
-                chunk: word + ' ',
-              });
-              await new Promise(resolve => setTimeout(resolve, 50)); // Small delay for animation
-            }
-
-            // Update database
-            await prisma.conversations.update({
-              where: { id: convId },
-              data: { title: cleanTitle, updatedAt: new Date() },
-            });
-
-            // Emit completion
-            io.to(`user:${userId}`).emit('title:generating:complete', {
-              conversationId: convId,
-              title: cleanTitle,
-              updatedAt: new Date(),
-            });
-
-            console.log(`✅ [TITLE-STREAM] Generated title: "${cleanTitle}"`);
-          } catch (err) {
-            console.error('❌ Error generating title:', err);
-          }
-        })();
-      }
-
-      console.log('✅ new-message event emitted successfully');
     } catch (error: any) {
-      console.error('❌ Error in send-message handler:', error);
-      console.error('❌ Error stack:', error.stack);
+      console.error('[WS] Message error:', error);
       socket.emit('message-error', { error: error.message });
     }
   });
+
+  // Handle conversation join
+  socket.on('join-conversation', (conversationId: string) => {
+    socket.join(`conversation:${conversationId}`);
+  });
+
+  // Handle disconnect
+  socket.on('disconnect', () => {
+    console.log(`[WS] User disconnected: ${userId}`);
+  });
 });
 
-// Check certificate expiry on startup
-checkCertificateExpiry();
+// ============================================================================
+// Start Server
+// ============================================================================
 
-// Start HTTPS server (or HTTP in development)
-httpServer.listen(portConfig.httpsPort, () => {
-  const protocol = portConfig.useSSL ? 'https' : 'http';
-  const port = portConfig.httpsPort;
+async function startServer() {
+  try {
+    // Test database connection
+    await prisma.$connect();
+    console.log('[Server] Database connected');
 
-  console.log(`🚀 Server is running on ${protocol}://localhost:${port}`);
-  console.log(`📝 Environment: ${config.NODE_ENV}`);
-  console.log(`🔗 Health check: ${protocol}://localhost:${port}/health`);
-  console.log(`⚙️  Background workers initialized`);
-  console.log(`🔌 WebSocket server ready`);
+    // Initialize WebSocket service
+    websocketService.initialize(io);
 
-  if (portConfig.useSSL) {
-    console.log(`🔒 SSL/HTTPS enabled - secure connection active`);
-  } else {
-    console.log(`⚠️  HTTP mode - SSL/HTTPS not enabled (development only)`);
-  }
+    // Start HTTPS server
+    httpServer.listen(portConfig.httpsPort, () => {
+      console.log(`[Server] Running on port ${portConfig.httpsPort}`);
+      console.log(`[Server] Environment: ${config.NODE_ENV}`);
+    });
 
-  // Start reminder scheduler
-  startReminderScheduler();
-
-  // Start orphan cleanup scheduler (weekly cleanup of orphaned data)
-  startOrphanCleanupScheduler();
-
-  // Start analytics aggregation scheduler (daily aggregation)
-  startAnalyticsScheduler();
-
-  // ⚡ PERFORMANCE FIX: Pre-warm Pinecone connection at startup
-  // REASON: First Pinecone query takes 2832ms (cold start), subsequent: 184ms (warm)
-  // IMPACT: Saves ~2.6 seconds on first user query
-  (async () => {
-    console.log('🔥 [STARTUP] Pre-warming Pinecone connection...');
-    try {
-      await initializePinecone();
-      console.log('✅ [STARTUP] Pinecone connection pre-warmed and ready');
-    } catch (error) {
-      console.error('⚠️  [STARTUP] Failed to pre-warm Pinecone (will initialize on first request):', error);
-    }
-
-    // Initialize Python sandbox for calculations
-    console.log('🔧 [STARTUP] Initializing Python sandbox...');
-    try {
-      await sandboxManager.initialize();
-      console.log('✅ [STARTUP] Python sandbox initialized and ready');
-    } catch (error) {
-      console.error('⚠️  [STARTUP] Failed to initialize Python sandbox:', error);
-    }
-
-    // Pre-load domain skill packs and knowledge bases
-    console.log('📚 [STARTUP] Pre-loading domain skill packs...');
-    try {
-      const { preloadAllSkillPacks, validateSkillPacks } = await import('./services/skillPackLoader.service');
-      const { preloadKnowledgeBase } = await import('./services/appHelpEngine.service');
-
-      // Load skill packs for all domains
-      preloadAllSkillPacks();
-      const validation = validateSkillPacks();
-      if (validation.valid) {
-        console.log('✅ [STARTUP] All domain skill packs loaded and validated');
-      } else {
-        console.warn('⚠️  [STARTUP] Some skill packs failed validation:', validation.errors);
-      }
-
-      // Load app help knowledge base
-      preloadKnowledgeBase();
-      console.log('✅ [STARTUP] App help knowledge base loaded');
-    } catch (error) {
-      console.error('⚠️  [STARTUP] Failed to pre-load skill packs:', error);
-    }
-  })();
-
-  // ═══════════════════════════════════════════════════════════════
-  // START BACKGROUND DOCUMENT PROCESSOR
-  // ═══════════════════════════════════════════════════════════════
-  // Process pending documents every 30 seconds
-  const PROCESSING_INTERVAL = 30000; // 30 seconds
-  let isProcessing = false;
-
-  async function processPendingDocuments() {
-    if (isProcessing) {
-      console.log('⏳ Document processor already running, skipping...');
-      return;
-    }
-
-    // Guard: Wait for Prisma to be ready
-    if (!prisma?.documents) {
-      console.log('⏳ Waiting for Prisma to initialize...');
-      return;
-    }
-
-    try {
-      isProcessing = true;
-
-      // Find pending documents OR documents stuck in processing for >3 minutes
-      const STUCK_THRESHOLD = 3 * 60 * 1000; // 3 minutes
-      const stuckCutoff = new Date(Date.now() - STUCK_THRESHOLD);
-
-      const pendingDocs = await prisma.documents.findMany({
-        where: {
-          OR: [
-            // Pick up pending documents immediately
-            { status: 'pending' },
-            // Only pick up processing documents that are stuck (>3 min old)
-            {
-              status: 'processing',
-              updatedAt: {
-                lt: stuckCutoff
-              }
-            }
-          ]
-        },
-        orderBy: { createdAt: 'asc' },
-        take: 5, // Process 5 at a time
+    // Start HTTP redirect (production only)
+    if (redirectServer && config.NODE_ENV === 'production' && portConfig.httpPort) {
+      redirectServer.listen(portConfig.httpPort, () => {
+        console.log(`[Server] HTTP redirect on port ${portConfig.httpPort}`);
       });
-
-      if (pendingDocs.length > 0) {
-        console.log(`\n📋 Found ${pendingDocs.length} pending documents to process`);
-
-        for (const doc of pendingDocs) {
-          try {
-            console.log(`🔄 Processing document: ${doc.filename} (${doc.id})`);
-
-            // Update status to processing
-            await prisma.documents.update({
-              where: { id: doc.id },
-              data: { status: 'processing' },
-            });
-
-            // Download file from GCS
-            const { downloadFile } = await import('./config/storage');
-            const downloadedBuffer = await downloadFile(doc.encryptedFilename);
-
-            // Decrypt file if encrypted, otherwise use as-is
-            let fileBuffer: Buffer;
-            if (doc.isEncrypted) {
-              const encryptionService = await import('./services/encryption.service');
-              fileBuffer = encryptionService.default.decryptFile(
-                downloadedBuffer,
-                `document-${doc.userId}`
-              );
-            } else {
-              // File is not encrypted, use directly
-              fileBuffer = downloadedBuffer;
-            }
-
-            // Get thumbnail URL if exists
-            const metadata = await prisma.document_metadata.findUnique({
-              where: { documentId: doc.id },
-            });
-
-            // Import and call the processing function
-            const documentService = await import('./services/document.service');
-            await documentService.processDocumentInBackground(
-              doc.id,
-              fileBuffer,
-              doc.filename,
-              doc.mimeType,
-              doc.userId,
-              metadata?.thumbnailUrl || null
-            );
-
-            console.log(`✅ Successfully processed: ${doc.filename}`);
-          } catch (error) {
-            console.error(`❌ Failed to process document ${doc.filename}:`, error);
-
-            // Mark as failed
-            await prisma.documents.update({
-              where: { id: doc.id },
-              data: { status: 'failed' },
-            });
-          }
-        }
-      }
-    } catch (error) {
-      console.error('❌ Error in background document processor:', error);
-    } finally {
-      isProcessing = false;
     }
+
+    // Check SSL certificate expiry
+    checkCertificateExpiry();
+
+    console.log('[Server] V1 RAG Pipeline initialized');
+  } catch (error) {
+    console.error('[Server] Failed to start:', error);
+    process.exit(1);
   }
-
-  // Start the background processor
-  console.log(`🔄 Starting background document processor (polling every ${PROCESSING_INTERVAL/1000}s)`);
-  setInterval(processPendingDocuments, PROCESSING_INTERVAL);
-
-  // Process immediately on startup
-  processPendingDocuments().catch(err => {
-    console.error('❌ Error in initial document processing:', err);
-  });
-
-  // Initialize RBAC system roles
-  rbacService.initializeSystemRoles().catch(err => {
-    console.error('❌ Failed to initialize RBAC system roles:', err);
-  });
-});
-
-// Start HTTP redirect server (production only)
-if (redirectServer && portConfig.httpPort) {
-  redirectServer.listen(portConfig.httpPort, () => {
-    console.log(`↪️  HTTP redirect server running on port ${portConfig.httpPort}`);
-    console.log(`↪️  All HTTP traffic will be redirected to HTTPS`);
-  });
 }
 
- 
+startServer();
 
-
-
-
-
-
- 
- 
-
-
-
-
+export default httpServer;

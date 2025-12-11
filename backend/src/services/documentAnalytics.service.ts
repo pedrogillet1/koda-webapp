@@ -2,18 +2,23 @@
  * ============================================================================
  * DOCUMENT ANALYTICS SERVICE
  * ============================================================================
- * 
+ *
  * Handles all metadata/analytics questions about documents.
  * NO RAG, NO LLM - just fast DB queries.
- * 
+ *
  * Examples:
  * - "Quantos documentos eu tenho?"
  * - "Quantos arquivos são PDF e quantos são DOCX?"
  * - "Liste os 5 documentos mais recentes"
  * - "Quais documentos falam sobre Guarda Bens no título?"
- * 
- * @version 2.0.0
+ *
+ * @version 2.1.0
  * @date 2024-12-10
+ *
+ * NOTE: Updated to use correct Prisma schema fields:
+ * - status (not deletedAt) - use status: { not: 'deleted' }
+ * - createdAt (not uploadedAt)
+ * - displayTitle (not title)
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -77,12 +82,12 @@ function getMimeTypeIcon(mimeType: string): string {
 function mapDocumentToSummary(doc: any): DocumentSummary {
   return {
     id: doc.id,
-    title: doc.title || doc.filename,
+    title: doc.displayTitle || doc.filename,
     filename: doc.filename,
     mimeType: doc.mimeType,
-    folderName: doc.folderName || doc.folder?.name,
-    uploadedAt: doc.uploadedAt || doc.createdAt,
-    size: doc.size,
+    folderName: doc.folder?.name,
+    uploadedAt: doc.createdAt,
+    size: doc.fileSize,
   };
 }
 
@@ -93,7 +98,7 @@ function mapDocumentToSummary(doc: any): DocumentSummary {
 class DocumentAnalyticsService {
   /**
    * Get document summary: total count + counts by type
-   * 
+   *
    * Example response:
    * {
    *   total: 50,
@@ -103,29 +108,29 @@ class DocumentAnalyticsService {
    */
   async getDocumentSummary(userId: string): Promise<DocumentSummaryResponse> {
     try {
-      // Total count
+      // Total count (exclude deleted documents)
       const total = await prisma.document.count({
-        where: { userId, deletedAt: null },
+        where: { userId, status: { not: 'deleted' } },
       });
 
       // Count by mime type
       const byTypeRaw = await prisma.document.groupBy({
         by: ['mimeType'],
-        where: { userId, deletedAt: null },
-        _count: true,
+        where: { userId, status: { not: 'deleted' } },
+        _count: { _all: true },
       });
 
       const byType: Record<string, number> = {};
       byTypeRaw.forEach((item) => {
         const label = getMimeTypeLabel(item.mimeType);
-        byType[label] = item._count;
+        byType[label] = item._count._all;
       });
 
       // Count by folder (optional)
       const byFolderRaw = await prisma.document.groupBy({
         by: ['folderId'],
-        where: { userId, deletedAt: null, folderId: { not: null } },
-        _count: true,
+        where: { userId, status: { not: 'deleted' }, folderId: { not: null } },
+        _count: { _all: true },
       });
 
       const byFolder: Record<string, number> = {};
@@ -136,7 +141,7 @@ class DocumentAnalyticsService {
             select: { name: true },
           });
           if (folder) {
-            byFolder[folder.name] = item._count;
+            byFolder[folder.name] = item._count._all;
           }
         }
       }
@@ -154,7 +159,7 @@ class DocumentAnalyticsService {
 
   /**
    * Get recent documents
-   * 
+   *
    * Example response:
    * {
    *   documents: [
@@ -171,8 +176,8 @@ class DocumentAnalyticsService {
   ): Promise<RecentDocumentsResponse> {
     try {
       const documents = await prisma.document.findMany({
-        where: { userId, deletedAt: null },
-        orderBy: { uploadedAt: 'desc' },
+        where: { userId, status: { not: 'deleted' } },
+        orderBy: { createdAt: 'desc' },
         take: limit,
         include: {
           folder: {
@@ -182,7 +187,7 @@ class DocumentAnalyticsService {
       });
 
       const total = await prisma.document.count({
-        where: { userId, deletedAt: null },
+        where: { userId, status: { not: 'deleted' } },
       });
 
       return {
@@ -198,9 +203,9 @@ class DocumentAnalyticsService {
 
   /**
    * Search documents by title/filename
-   * 
+   *
    * Example: titleContains = "Guarda Bens"
-   * Returns all documents with "Guarda Bens" in title or filename
+   * Returns all documents with "Guarda Bens" in displayTitle or filename
    */
   async searchDocuments(
     userId: string,
@@ -211,13 +216,13 @@ class DocumentAnalyticsService {
       const documents = await prisma.document.findMany({
         where: {
           userId,
-          deletedAt: null,
+          status: { not: 'deleted' },
           OR: [
-            { title: { contains: titleContains, mode: 'insensitive' } },
+            { displayTitle: { contains: titleContains, mode: 'insensitive' } },
             { filename: { contains: titleContains, mode: 'insensitive' } },
           ],
         },
-        orderBy: { uploadedAt: 'desc' },
+        orderBy: { createdAt: 'desc' },
         take: limit,
         include: {
           folder: {
@@ -239,7 +244,7 @@ class DocumentAnalyticsService {
 
   /**
    * Get document types with counts
-   * 
+   *
    * Example response:
    * {
    *   types: [
@@ -253,14 +258,14 @@ class DocumentAnalyticsService {
     try {
       const byTypeRaw = await prisma.document.groupBy({
         by: ['mimeType'],
-        where: { userId, deletedAt: null },
-        _count: true,
+        where: { userId, status: { not: 'deleted' } },
+        _count: { _all: true },
       });
 
       const types: DocumentTypeInfo[] = byTypeRaw.map((item) => ({
         mimeType: item.mimeType,
         label: getMimeTypeLabel(item.mimeType),
-        count: item._count,
+        count: item._count._all,
         icon: getMimeTypeIcon(item.mimeType),
       }));
 
@@ -301,10 +306,10 @@ class DocumentAnalyticsService {
       const documents = await prisma.document.findMany({
         where: {
           userId,
-          deletedAt: null,
+          status: { not: 'deleted' },
           folderId: folder.id,
         },
-        orderBy: { uploadedAt: 'desc' },
+        orderBy: { createdAt: 'desc' },
         take: limit,
         include: {
           folder: {
@@ -349,10 +354,10 @@ class DocumentAnalyticsService {
       const documents = await prisma.document.findMany({
         where: {
           userId,
-          deletedAt: null,
+          status: { not: 'deleted' },
           mimeType,
         },
-        orderBy: { uploadedAt: 'desc' },
+        orderBy: { createdAt: 'desc' },
         take: limit,
         include: {
           folder: {
@@ -374,7 +379,7 @@ class DocumentAnalyticsService {
 
   /**
    * Format analytics result for LLM (optional phrasing)
-   * 
+   *
    * Takes structured data and creates a concise text summary
    * that can be sent to Gemini for natural language phrasing.
    */

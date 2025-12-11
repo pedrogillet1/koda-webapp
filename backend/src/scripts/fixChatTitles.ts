@@ -11,7 +11,7 @@ async function fixChatTitles() {
 
   try {
     // Find all conversations with "New Chat" title that have messages
-    const conversationsToFix = await prisma.conversations.findMany({
+    const conversationsToFix = await prisma.conversation.findMany({
       where: {
         title: 'New Chat',
       },
@@ -57,7 +57,7 @@ async function fixChatTitles() {
         );
 
         // Update conversation title
-        await prisma.conversations.update({
+        await prisma.conversation.update({
           where: { id: conversation.id },
           data: { title: newTitle },
         });

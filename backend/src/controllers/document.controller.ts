@@ -591,7 +591,7 @@ export const updateEncryptionMetadata = async (req: Request, res: Response): Pro
     const prisma = (await import('../config/database')).default;
 
     // Verify document belongs to user
-    const document = await prisma.documents.findUnique({
+    const document = await prisma.document.findUnique({
       where: { id },
       select: { userId: true, id: true }
     });
@@ -607,7 +607,7 @@ export const updateEncryptionMetadata = async (req: Request, res: Response): Pro
     }
 
     // Update document with encryption metadata
-    const updatedDocument = await prisma.documents.update({
+    const updatedDocument = await prisma.document.update({
       where: { id },
       data: {
         isEncrypted: isEncrypted || false,
@@ -659,7 +659,7 @@ export const updateMarkdown = async (req: Request, res: Response): Promise<void>
     const prisma = (await import('../config/database')).default;
 
     // Verify document belongs to user
-    const document = await prisma.documents.findUnique({
+    const document = await prisma.document.findUnique({
       where: { id },
       select: { userId: true, id: true }
     });
@@ -675,7 +675,7 @@ export const updateMarkdown = async (req: Request, res: Response): Promise<void>
     }
 
     // Update markdown content in metadata
-    const updatedMetadata = await prisma.document_metadata.upsert({
+    const updatedMetadata = await prisma.documentMetadata.upsert({
       where: { documentId: id },
       update: { markdownContent },
       create: {
@@ -871,7 +871,7 @@ export const shareDocument = async (req: Request, res: Response): Promise<void> 
 
     // Get document and user info
     const prisma = (await import('../config/database')).default;
-    const document = await prisma.documents.findUnique({
+    const document = await prisma.document.findUnique({
       where: { id },
     });
 
@@ -885,7 +885,7 @@ export const shareDocument = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const user = await prisma.users.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: req.user.id },
       select: { firstName: true, lastName: true, email: true }
     });
@@ -980,7 +980,7 @@ export const searchInDocument = async (req: Request, res: Response): Promise<voi
     const prisma = (await import('../config/database')).default;
 
     // Get document with metadata
-    const document = await prisma.documents.findUnique({
+    const document = await prisma.document.findUnique({
       where: { id },
       include: {
         metadata: true,
@@ -1071,7 +1071,7 @@ export const getPPTXSlides = async (req: Request, res: Response): Promise<void> 
     const prisma = (await import('../config/database')).default;
 
     // Get document with metadata
-    const document = await prisma.documents.findUnique({
+    const document = await prisma.document.findUnique({
       where: { id },
       include: {
         metadata: true,

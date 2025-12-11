@@ -10,7 +10,7 @@ const getAllFolderIdsInTree = async (rootFolderId: string): Promise<string[]> =>
   let currentBatch = [rootFolderId];
 
   while (currentBatch.length > 0) {
-    const subfolders = await prisma.folders.findMany({
+    const subfolders = await prisma.folder.findMany({
       where: { parentFolderId: { in: currentBatch } },
       select: { id: true },
     });
@@ -31,7 +31,7 @@ const getAllFolderIdsInTree = async (rootFolderId: string): Promise<string[]> =>
  */
 const countDocumentsRecursively = async (folderId: string): Promise<number> => {
   const allFolderIds = await getAllFolderIdsInTree(folderId);
-  const totalDocuments = await prisma.documents.count({
+  const totalDocuments = await prisma.document.count({
     where: {
       folderId: { in: allFolderIds },
       status: { in: ['completed', 'processing', 'uploading'] } // ✅ FIX: Count ALL document statuses
@@ -111,7 +111,7 @@ export const getInitialData = async (req: Request, res: Response): Promise<void>
     const [documents, folders, recentDocuments] = await Promise.all([
       // Load all documents with joins (no N+1)
       // ✅ FIX: Include 'processing' and 'uploading' documents so they appear in UI immediately
-      prisma.documents.findMany({
+      prisma.document.findMany({
         where: {
           userId,
           status: { in: ['completed', 'processing', 'uploading'] }
@@ -147,7 +147,7 @@ export const getInitialData = async (req: Request, res: Response): Promise<void>
 
       // Load all folders WITH document counts
       // ✅ FIX: Include _count to show proper file counts in categories
-      prisma.folders.findMany({
+      prisma.folder.findMany({
         where: { userId },
         select: {
           id: true,
@@ -169,7 +169,7 @@ export const getInitialData = async (req: Request, res: Response): Promise<void>
 
       // Load recent documents (top 5)
       // ✅ FIX: Include processing/uploading documents in recent list
-      prisma.documents.findMany({
+      prisma.document.findMany({
         where: {
           userId,
           status: { in: ['completed', 'processing', 'uploading'] }
@@ -186,7 +186,7 @@ export const getInitialData = async (req: Request, res: Response): Promise<void>
     // This is orders of magnitude faster than calling countDocumentsRecursively for each folder
 
     // Step 1: Get all document counts grouped by folderId in ONE query
-    const docCounts = await prisma.documents.groupBy({
+    const docCounts = await prisma.document.groupBy({
       by: ['folderId'],
       _count: { id: true },
       where: {
@@ -303,7 +303,7 @@ export const batchUpdateDocuments = async (req: Request, res: Response): Promise
 
     switch (operation) {
       case 'delete':
-        result = await prisma.documents.updateMany({
+        result = await prisma.document.updateMany({
           where: {
             id: { in: documentIds },
             userId, // Security: only update user's own documents
@@ -317,7 +317,7 @@ export const batchUpdateDocuments = async (req: Request, res: Response): Promise
           res.status(400).json({ error: 'folderId is required for move operation' });
           return;
         }
-        result = await prisma.documents.updateMany({
+        result = await prisma.document.updateMany({
           where: {
             id: { in: documentIds },
             userId,
@@ -332,7 +332,7 @@ export const batchUpdateDocuments = async (req: Request, res: Response): Promise
           return;
         }
         // Create document-tag relations for all documents
-        result = await prisma.document_tags.createMany({
+        result = await prisma.documentTag.createMany({
           data: documentIds.map(docId => ({
             documentId: docId,
             tagId: data.tagId,

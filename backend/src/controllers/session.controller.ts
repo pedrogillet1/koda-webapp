@@ -385,7 +385,7 @@ export const saveSessionToLibrary = async (req: Request, res: Response) => {
     // Save each document to permanent storage
     for (const doc of docsToSave) {
       // Create document record
-      const document = await prisma.documents.create({
+      const document = await prisma.document.create({
         data: {
           userId,
           folderId: folderId || null,
@@ -399,7 +399,7 @@ export const saveSessionToLibrary = async (req: Request, res: Response) => {
       });
 
       // Create metadata record
-      await prisma.document_metadata.create({
+      await prisma.documentMetadata.create({
         data: {
           documentId: document.id,
           extractedText: doc.extractedText,

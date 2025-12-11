@@ -248,7 +248,7 @@ class PineconeService {
         const prisma = (await import('../config/database')).default;
 
         try {
-          const validDocuments = await prisma.documents.findMany({
+          const validDocuments = await prisma.document.findMany({
             where: {
               id: { in: documentIds },
               userId: userId,

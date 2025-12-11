@@ -202,7 +202,7 @@ Otherwise, provide a brief summary (2-3 sentences) of the related information.`;
 
     try {
       // Get user's existing documents
-      const documents = await prisma.documents.findMany({
+      const documents = await prisma.document.findMany({
         where: { userId, status: { not: 'deleted' } },
         select: { filename: true, mimeType: true },
         take: 50 // Limit to avoid huge prompts
