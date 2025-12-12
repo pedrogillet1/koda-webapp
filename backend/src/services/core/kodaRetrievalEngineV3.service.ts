@@ -96,7 +96,8 @@ export class KodaRetrievalEngineV3 {
       // with document boosting and context budgeting
       const chunks = await this.performHybridRetrieval(params);
 
-      return chunks.slice(0, maxChunks);
+      // Return all budgeted chunks - NO post-budget truncation
+      return chunks;
     } catch (error) {
       console.error('[KodaRetrievalEngineV3] Retrieval failed:', error);
       return [];
@@ -155,7 +156,8 @@ export class KodaRetrievalEngineV3 {
     try {
       // Try hybrid retrieval first
       const { chunks, usedHybrid, boostMap } = await this.performHybridRetrievalWithFlag(params);
-      return { result: chunks.slice(0, maxChunks), usedHybrid, boostMap };
+      // Return all budgeted chunks - NO post-budget truncation (budget applied in performHybridRetrievalWithFlag)
+      return { result: chunks, usedHybrid, boostMap };
     } catch (error) {
       console.error('[KodaRetrievalEngineV3] Retrieval failed:', error);
       return { result: [], usedHybrid: false, boostMap: {} };
