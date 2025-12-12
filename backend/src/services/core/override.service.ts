@@ -113,4 +113,5 @@ class OverrideService {
 }
 
 export const overrideService = new OverrideService();
+export { OverrideService };
 export default overrideService;

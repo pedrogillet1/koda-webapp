@@ -1017,6 +1017,46 @@ export async function getQuickStats(): Promise<QuickStats> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ANALYTICS TRACKING CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Feature flag to enable/disable analytics tracking stubs.
+ * When false (production), stub methods will throw errors.
+ * When true (default), stubs return mock data with warnings.
+ *
+ * Set ANALYTICS_TRACKING_ENABLED=false in production to catch
+ * unimplemented analytics tracking calls.
+ */
+const ANALYTICS_TRACKING_ENABLED = process.env.ANALYTICS_TRACKING_ENABLED !== 'false';
+
+/**
+ * Custom error for unimplemented analytics features
+ */
+export class AnalyticsStubError extends Error {
+  public readonly isAnalyticsStub = true;
+  public readonly serviceName: string;
+  public readonly methodName: string;
+
+  constructor(serviceName: string, methodName: string) {
+    super(
+      `[ANALYTICS STUB] ${serviceName}.${methodName}() is not implemented. ` +
+      `Set ANALYTICS_TRACKING_ENABLED=true to allow stubs or implement the real service.`
+    );
+    this.name = 'AnalyticsStubError';
+    this.serviceName = serviceName;
+    this.methodName = methodName;
+  }
+}
+
+/**
+ * Helper to log stub warning
+ */
+function logStubWarning(serviceName: string, methodName: string): void {
+  console.warn(`⚠️ [ANALYTICS STUB] ${serviceName}.${methodName}() - returning mock data (not persisted)`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // ANALYTICS CACHE SERVICE (STUBS for backward compatibility)
 // These were from analyticsCache.service.ts which was consolidated
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1065,66 +1105,169 @@ export const analyticsCache = {
 // ═══════════════════════════════════════════════════════════════════════════
 // ANALYTICS AGGREGATION SERVICE (STUBS for backward compatibility)
 // These were from analyticsAggregation.service.ts which was consolidated
+// ⚠️ WARNING: These are stubs - no actual aggregation is performed
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const aggregationService = {
-  aggregateDaily: async () => ({ success: true }),
-  aggregateWeekly: async () => ({ success: true }),
-  aggregateMonthly: async () => ({ success: true }),
-  getAggregatedData: async (_period: string) => ({
-    data: [],
-    period: _period
-  }),
-  aggregateDailyStatsRange: async (_startDate: Date, _endDate: Date) => [] as any[],
-  getPeriodComparison: async (_currentStart: Date, _currentEnd: Date, _previousStart?: Date, _previousEnd?: Date) => ({
-    current: {},
-    previous: {},
-    change: {}
-  }),
-  runDailyAggregationJob: async () => ({ success: true }),
-  runWeeklyAggregationJob: async () => ({ success: true }),
-  runMonthlyAggregationJob: async () => ({ success: true })
+  aggregateDaily: async () => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('aggregationService', 'aggregateDaily');
+    }
+    logStubWarning('aggregationService', 'aggregateDaily');
+    return { success: true, isStub: true };
+  },
+  aggregateWeekly: async () => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('aggregationService', 'aggregateWeekly');
+    }
+    logStubWarning('aggregationService', 'aggregateWeekly');
+    return { success: true, isStub: true };
+  },
+  aggregateMonthly: async () => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('aggregationService', 'aggregateMonthly');
+    }
+    logStubWarning('aggregationService', 'aggregateMonthly');
+    return { success: true, isStub: true };
+  },
+  getAggregatedData: async (_period: string) => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('aggregationService', 'getAggregatedData');
+    }
+    logStubWarning('aggregationService', 'getAggregatedData');
+    return { data: [], period: _period, isStub: true };
+  },
+  aggregateDailyStatsRange: async (_startDate: Date, _endDate: Date) => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('aggregationService', 'aggregateDailyStatsRange');
+    }
+    logStubWarning('aggregationService', 'aggregateDailyStatsRange');
+    return [] as any[];
+  },
+  getPeriodComparison: async (_currentStart: Date, _currentEnd: Date, _previousStart?: Date, _previousEnd?: Date) => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('aggregationService', 'getPeriodComparison');
+    }
+    logStubWarning('aggregationService', 'getPeriodComparison');
+    return { current: {}, previous: {}, change: {}, isStub: true };
+  },
+  runDailyAggregationJob: async () => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('aggregationService', 'runDailyAggregationJob');
+    }
+    logStubWarning('aggregationService', 'runDailyAggregationJob');
+    return { success: true, isStub: true };
+  },
+  runWeeklyAggregationJob: async () => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('aggregationService', 'runWeeklyAggregationJob');
+    }
+    logStubWarning('aggregationService', 'runWeeklyAggregationJob');
+    return { success: true, isStub: true };
+  },
+  runMonthlyAggregationJob: async () => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('aggregationService', 'runMonthlyAggregationJob');
+    }
+    logStubWarning('aggregationService', 'runMonthlyAggregationJob');
+    return { success: true, isStub: true };
+  }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ANALYTICS TRACKING SERVICE (STUBS for backward compatibility)
 // These were from analytics-tracking.service.ts which was consolidated
+// ⚠️ WARNING: These are stubs - no actual tracking data is persisted
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const analyticsTrackingService = {
-  recordFeedback: async (_params: any) => ({ success: true, id: 'stub-feedback-id' }),
-  getRAGPerformanceStats: async (_startDate?: any, _endDate?: any) => ({
-    avgResponseTime: 0,
-    totalQueries: 0,
-    successRate: 100
-  }),
-  getAPIPerformanceStats: async (_startDate?: any, _endDate?: any) => ({
-    avgLatency: 0,
-    totalRequests: 0,
-    errorRate: 0
-  }),
-  getConversationFeedbackStats: async (_conversationId: string) => ({
-    totalFeedback: 0,
-    avgRating: 0
-  }),
-  getFeatureUsageStats: async (_startDate?: any, _endDate?: any) => ({
-    features: [] as any[]
-  }),
-  trackEvent: async (_params: any) => ({ success: true, id: 'stub-event-id' }),
-  getTokenUsageStats: async (_params: any) => ({
-    totalTokens: 0,
-    inputTokens: 0,
-    outputTokens: 0
-  }),
-  getDailyTokenUsage: async (_startDate?: any, _endDate?: any) => [] as any[],
-  getErrorStats: async (_startDate?: any, _endDate?: any) => ({
-    totalErrors: 0,
-    errorsByType: [] as any[]
-  }),
-  getDailyAnalytics: async (_startDate?: any, _endDate?: any) => [] as any[],
-  aggregateDailyAnalytics: async (_date: Date) => ({ success: true }),
-  incrementConversationMessages: (_conversationId: string, _role: string): Promise<void> => Promise.resolve(),
-  recordRAGQuery: (_params: any): Promise<void> => Promise.resolve()
+  recordFeedback: async (_params: any) => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('analyticsTrackingService', 'recordFeedback');
+    }
+    logStubWarning('analyticsTrackingService', 'recordFeedback');
+    return { success: true, id: 'stub-feedback-id', isStub: true };
+  },
+  getRAGPerformanceStats: async (_startDate?: any, _endDate?: any) => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('analyticsTrackingService', 'getRAGPerformanceStats');
+    }
+    logStubWarning('analyticsTrackingService', 'getRAGPerformanceStats');
+    return { avgResponseTime: 0, totalQueries: 0, successRate: 100, isStub: true };
+  },
+  getAPIPerformanceStats: async (_startDate?: any, _endDate?: any) => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('analyticsTrackingService', 'getAPIPerformanceStats');
+    }
+    logStubWarning('analyticsTrackingService', 'getAPIPerformanceStats');
+    return { avgLatency: 0, totalRequests: 0, errorRate: 0, isStub: true };
+  },
+  getConversationFeedbackStats: async (_conversationId: string) => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('analyticsTrackingService', 'getConversationFeedbackStats');
+    }
+    logStubWarning('analyticsTrackingService', 'getConversationFeedbackStats');
+    return { totalFeedback: 0, avgRating: 0, isStub: true };
+  },
+  getFeatureUsageStats: async (_startDate?: any, _endDate?: any) => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('analyticsTrackingService', 'getFeatureUsageStats');
+    }
+    logStubWarning('analyticsTrackingService', 'getFeatureUsageStats');
+    return { features: [] as any[], isStub: true };
+  },
+  trackEvent: async (_params: any) => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('analyticsTrackingService', 'trackEvent');
+    }
+    logStubWarning('analyticsTrackingService', 'trackEvent');
+    return { success: true, id: 'stub-event-id', isStub: true };
+  },
+  getTokenUsageStats: async (_params: any) => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('analyticsTrackingService', 'getTokenUsageStats');
+    }
+    logStubWarning('analyticsTrackingService', 'getTokenUsageStats');
+    return { totalTokens: 0, inputTokens: 0, outputTokens: 0, isStub: true };
+  },
+  getDailyTokenUsage: async (_startDate?: any, _endDate?: any) => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('analyticsTrackingService', 'getDailyTokenUsage');
+    }
+    logStubWarning('analyticsTrackingService', 'getDailyTokenUsage');
+    return [] as any[];
+  },
+  getErrorStats: async (_startDate?: any, _endDate?: any) => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('analyticsTrackingService', 'getErrorStats');
+    }
+    logStubWarning('analyticsTrackingService', 'getErrorStats');
+    return { totalErrors: 0, errorsByType: [] as any[], isStub: true };
+  },
+  getDailyAnalytics: async (_startDate?: any, _endDate?: any) => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('analyticsTrackingService', 'getDailyAnalytics');
+    }
+    logStubWarning('analyticsTrackingService', 'getDailyAnalytics');
+    return [] as any[];
+  },
+  aggregateDailyAnalytics: async (_date: Date) => {
+    if (!ANALYTICS_TRACKING_ENABLED) {
+      throw new AnalyticsStubError('analyticsTrackingService', 'aggregateDailyAnalytics');
+    }
+    logStubWarning('analyticsTrackingService', 'aggregateDailyAnalytics');
+    return { success: true, isStub: true };
+  },
+  incrementConversationMessages: async (_conversationId: string, _role: string): Promise<void> => {
+    logStubWarning('analyticsTrackingService', 'incrementConversationMessages');
+    // This is a fire-and-forget method, so we don't throw even if disabled
+    return Promise.resolve();
+  },
+  recordRAGQuery: async (_params: any): Promise<void> => {
+    logStubWarning('analyticsTrackingService', 'recordRAGQuery');
+    // This is a fire-and-forget method, so we don't throw even if disabled
+    return Promise.resolve();
+  }
 };
 
 export default {

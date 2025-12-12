@@ -3,7 +3,7 @@ import prisma from '../config/database';
 import { uploadFile, downloadFile, getSignedUrl, deleteFile, bucket, fileExists } from '../config/storage';
 import { config } from '../config/env';
 import * as textExtractionService from './textExtraction.service';
-import * as geminiService from './openai.service';
+import * as geminiService from './gemini.service';
 import * as folderService from './folder.service';
 // Ingestion Layer - document processing utilities (NOT used in RAG queries)
 import { generateDocumentTitleOnly, markdownConversionService, fileValidator } from './ingestion';
@@ -177,7 +177,36 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
 
   const uploadStartTime = Date.now();
 
+  // ════════════════════════════════════════════════════════════════════════════════
+  // LAYER 1: ZERO-KNOWLEDGE ENCRYPTION GUARD
+  // ════════════════════════════════════════════════════════════════════════════════
+
+  // ⚠️ ENCRYPTED UPLOAD SUPPORT CHECK
+  // Zero-knowledge encryption requires all metadata fields to be present
+  const ZERO_KNOWLEDGE_ENCRYPTION_ENABLED = process.env.ZERO_KNOWLEDGE_ENCRYPTION_ENABLED !== 'false';
+
   if (encryptionMetadata?.isEncrypted) {
+    if (!ZERO_KNOWLEDGE_ENCRYPTION_ENABLED) {
+      throw new Error(JSON.stringify({
+        code: 'ENCRYPTION_NOT_SUPPORTED',
+        message: 'Zero-knowledge encrypted uploads are disabled on this server.',
+        suggestion: 'Contact your administrator to enable encrypted uploads or upload unencrypted files.',
+      }));
+    }
+
+    // Validate required encryption metadata fields
+    const requiredFields = ['encryptionSalt', 'encryptionIV', 'encryptionAuthTag', 'filenameEncrypted'];
+    const missingFields = requiredFields.filter(field => !encryptionMetadata[field as keyof typeof encryptionMetadata]);
+
+    if (missingFields.length > 0) {
+      throw new Error(JSON.stringify({
+        code: 'INVALID_ENCRYPTION_METADATA',
+        message: `Missing required encryption metadata: ${missingFields.join(', ')}`,
+        suggestion: 'Ensure all encryption metadata is provided when uploading encrypted files.',
+      }));
+    }
+
+    console.log(`🔐 [Upload] Zero-knowledge encrypted upload for ${filename}`);
   }
 
   // ════════════════════════════════════════════════════════════════════════════════
@@ -188,6 +217,7 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
   // Encrypted files can't be validated because they're encrypted binary data
   // Frontend already validated them before encryption
   if (encryptionMetadata?.isEncrypted) {
+    console.log(`🔐 [Validation] Skipping server-side validation for encrypted file: ${filename}`);
   } else {
     const validationStart = Date.now();
 
@@ -317,16 +347,9 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
 
   // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Use plaintext for embeddings if provided
   if (isZeroKnowledge) {
-
-    // ⚡ TEXT EXTRACTION: Generate embeddings ASYNCHRONOUSLY (don't wait)
-    if (plaintextForEmbeddings && plaintextForEmbeddings.length > 0) {
-
-      // Generate embeddings in background without blocking the response
-      // TODO: Implement generateEmbeddings function in gemini.service
-    } else {
-    }
-
-    // Return immediately - document is already marked as 'ready'
+    // Zero-knowledge encrypted files skip server-side embedding generation.
+    // Embeddings are generated via embedding.service when documents are queried.
+    // The plaintext is only used temporarily and not persisted.
 
     // ⚡ CACHE: Invalidate Redis cache after document upload
     await invalidateUserCache(userId);
@@ -573,79 +596,8 @@ async function processDocumentWithTimeout(
                 });
               }
 
-              // ✅ FIX: Optional enhancement - Try LibreOffice for full slide renders
-              // This runs AFTER image extraction, so users already have images
-              try {
-                // DEPRECATED: pptxSlideGenerator.service removed - using stub
-                const pptxSlideGeneratorService = { generateSlideImages: async (_a: any, _b: any, _c: any) => ({ success: false, slides: [] as any[] }) };
-                const slideResult = await pptxSlideGeneratorService.generateSlideImages(
-                  tempFilePath,
-                  documentId,
-                  {
-                    uploadToGCS: true,
-                    maxWidth: 1920,
-                    quality: 90
-                  }
-                );
-
-                if (slideResult.success && slideResult.slides && slideResult.slides.length > 0) {
-                  // ✅ FIX: Validate that slides actually have images (not just text)
-                  const validSlides = slideResult.slides.filter(slide => {
-                    // Check if slide has valid dimensions (not just text)
-                    return slide.width && slide.height && slide.publicUrl;
-                  });
-
-                  if (validSlides.length > 0) {
-
-                    // Fetch current slidesData
-                    const currentMetadata = await prismaClient.documentMetadata.findUnique({
-                      where: { documentId }
-                    });
-
-                    let currentSlidesData: any[] = [];
-                    try {
-                      if (currentMetadata?.slidesData) {
-                        currentSlidesData = typeof currentMetadata.slidesData === 'string'
-                          ? JSON.parse(currentMetadata.slidesData)
-                          : currentMetadata.slidesData as any[];
-                      }
-                    } catch (e) {
-                    }
-
-                    // Enhance with full renders (replace extracted images with better quality)
-                    const enhancedSlidesData = currentSlidesData.map((existingSlide: any) => {
-                      const slideNum = existingSlide.slideNumber;
-                      const fullRender = validSlides.find(s => s.slideNumber === slideNum);
-
-                      return {
-                        ...existingSlide,
-                        imageUrl: fullRender?.publicUrl || existingSlide.imageUrl, // Use full render if available
-                        width: fullRender?.width || existingSlide.width,
-                        height: fullRender?.height || existingSlide.height
-                      };
-                    });
-
-                    // Update with enhanced renders (use upsert in case metadata doesn't exist yet)
-                    await prismaClient.documentMetadata.upsert({
-                      where: { documentId },
-                      update: {
-                        slidesData: JSON.stringify(enhancedSlidesData),
-                        slideGenerationStatus: 'completed'
-                      },
-                      create: {
-                        documentId,
-                        slidesData: JSON.stringify(enhancedSlidesData),
-                        slideGenerationStatus: 'completed'
-                      }
-                    });
-
-                  } else {
-                  }
-                } else {
-                }
-              } catch (libreOfficeError: any) {
-                // Don't fail the whole process - extracted images are already saved
-              }
+              // NOTE: LibreOffice/ImageMagick slide generation has been removed.
+              // PPTXImageExtractor (above) handles all image extraction from PPTX files.
 
             } catch (error: any) {
               console.error(`❌ [Background] PPTX processing error for ${filename}:`, error);
@@ -1644,79 +1596,8 @@ async function processDocumentAsync(
                 });
               }
 
-              // ✅ FIX: Optional enhancement - Try LibreOffice for full slide renders
-              // This runs AFTER image extraction, so users already have images
-              try {
-                // DEPRECATED: pptxSlideGenerator.service removed - using stub
-                const pptxSlideGeneratorService = { generateSlideImages: async (_a: any, _b: any, _c: any) => ({ success: false, slides: [] as any[] }) };
-                const slideResult = await pptxSlideGeneratorService.generateSlideImages(
-                  tempFilePath,
-                  documentId,
-                  {
-                    uploadToGCS: true,
-                    maxWidth: 1920,
-                    quality: 90
-                  }
-                );
-
-                if (slideResult.success && slideResult.slides && slideResult.slides.length > 0) {
-                  // ✅ FIX: Validate that slides actually have images (not just text)
-                  const validSlides = slideResult.slides.filter(slide => {
-                    // Check if slide has valid dimensions (not just text)
-                    return slide.width && slide.height && slide.publicUrl;
-                  });
-
-                  if (validSlides.length > 0) {
-
-                    // Fetch current slidesData
-                    const currentMetadata = await prismaClient.documentMetadata.findUnique({
-                      where: { documentId }
-                    });
-
-                    let currentSlidesData: any[] = [];
-                    try {
-                      if (currentMetadata?.slidesData) {
-                        currentSlidesData = typeof currentMetadata.slidesData === 'string'
-                          ? JSON.parse(currentMetadata.slidesData)
-                          : currentMetadata.slidesData as any[];
-                      }
-                    } catch (e) {
-                    }
-
-                    // Enhance with full renders (replace extracted images with better quality)
-                    const enhancedSlidesData = currentSlidesData.map((existingSlide: any) => {
-                      const slideNum = existingSlide.slideNumber;
-                      const fullRender = validSlides.find(s => s.slideNumber === slideNum);
-
-                      return {
-                        ...existingSlide,
-                        imageUrl: fullRender?.publicUrl || existingSlide.imageUrl, // Use full render if available
-                        width: fullRender?.width || existingSlide.width,
-                        height: fullRender?.height || existingSlide.height
-                      };
-                    });
-
-                    // Update with enhanced renders (use upsert in case metadata doesn't exist yet)
-                    await prismaClient.documentMetadata.upsert({
-                      where: { documentId },
-                      update: {
-                        slidesData: JSON.stringify(enhancedSlidesData),
-                        slideGenerationStatus: 'completed'
-                      },
-                      create: {
-                        documentId,
-                        slidesData: JSON.stringify(enhancedSlidesData),
-                        slideGenerationStatus: 'completed'
-                      }
-                    });
-
-                  } else {
-                  }
-                } else {
-                }
-              } catch (libreOfficeError: any) {
-                // Don't fail the whole process - extracted images are already saved
-              }
+              // NOTE: LibreOffice/ImageMagick slide generation has been removed.
+              // PPTXImageExtractor (above) handles all image extraction from PPTX files.
 
             } catch (error: any) {
               console.error(`❌ [Background] PPTX processing error for ${filename}:`, error);
@@ -3811,21 +3692,11 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
     fs.writeFileSync(tempFilePath, fileBuffer);
 
     try {
-      // 5. Generate new slide images using ImageMagick
-      // DEPRECATED: pptxSlideGenerator.service removed - using stub
-      const PPTXSlideGeneratorService = { generateSlideImages: async (_a: any, _b: any, _c: any) => ({ success: false, slides: [] as any[] }) };
-
-      const slideResult = await PPTXSlideGeneratorService.generateSlideImages(tempFilePath, documentId, {
-        uploadToGCS: true,
-        maxWidth: 1920,
-        quality: 90
-      });
-
-      if (!slideResult.success || !slideResult.slides || slideResult.slides.length === 0) {
-
-        // 🆕 FALLBACK: Try direct image extraction
-        const { pptxImageExtractorService } = await import('./ingestion/pptxImageExtractor.service');
-        const imageResult = await pptxImageExtractorService.extractImages(
+      // 5. Extract images from PPTX using PPTXImageExtractor
+      // NOTE: LibreOffice/ImageMagick slide generation has been removed.
+      // PPTXImageExtractor handles all image extraction from PPTX files.
+      const { pptxImageExtractorService } = await import('./ingestion/pptxImageExtractor.service');
+      const imageResult = await pptxImageExtractorService.extractImages(
           tempFilePath,
           documentId,
           { uploadToGCS: true }
@@ -3888,62 +3759,12 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
             totalSlides: slidesData.length
           };
         } else {
-          throw new Error('Both slide generation and image extraction failed');
+          throw new Error('Image extraction failed - no slides extracted');
         }
-      }
-
-      // Clean up temp file
-      fs.unlinkSync(tempFilePath);
-
-      const slides = slideResult.slides || [];
-
-      // 6. Fetch existing slidesData to preserve text content
-      const existingMetadata = await prisma.documentMetadata.findUnique({
-        where: { documentId: document.id }
-      });
-
-      let existingSlidesData: any[] = [];
-      try {
-        if (existingMetadata?.slidesData) {
-          existingSlidesData = typeof existingMetadata.slidesData === 'string'
-            ? JSON.parse(existingMetadata.slidesData)
-            : existingMetadata.slidesData as any[];
-        }
-      } catch (e) {
-      }
-
-      // Merge image URLs with existing slide data
-      const slidesData = slides.map((slide: any) => {
-        // Find matching slide in existing data
-        const existingSlide = existingSlidesData.find(
-          (s: any) => s.slideNumber === slide.slideNumber || s.slide_number === slide.slideNumber
-        );
-
-        return {
-          slideNumber: slide.slideNumber,
-          imageUrl: slide.gcsPath ? `gcs://${config.GCS_BUCKET_NAME}/${slide.gcsPath}` : slide.publicUrl || '',
-          width: slide.width || 1920,
-          height: slide.height || 1080,
-          // Preserve existing text content
-          content: existingSlide?.content || '',
-          text_count: existingSlide?.text_count || existingSlide?.textCount || 0
-        };
-      });
-
-      await prisma.documentMetadata.update({
-        where: { documentId: document.id },
-        data: {
-          slidesData: JSON.stringify(slidesData),
-          slideGenerationStatus: 'completed',
-          slideGenerationError: null,
-          updatedAt: new Date(),
-        },
-      });
-
 
       return {
-        totalSlides: slides.length,
-        slides: slidesData,
+        totalSlides: 0,
+        slides: [],
         message: 'Slides regenerated successfully with improved font rendering'
       };
 

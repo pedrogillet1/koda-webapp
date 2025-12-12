@@ -9,9 +9,51 @@
  * @requires TWILIO_ACCOUNT_SID - Twilio Account SID
  * @requires TWILIO_AUTH_TOKEN - Twilio Auth Token
  * @requires TWILIO_PHONE_NUMBER - Twilio phone number (sender)
+ *
+ * CONFIGURATION:
+ * - SMS_REQUIRED=true: Throws error if SMS cannot be sent (production recommended)
+ * - SMS_REQUIRED=false: Silently skips SMS when disabled (development only)
  */
 
 import { config } from '../config/env';
+
+// ============================================================================
+// CUSTOM ERRORS
+// ============================================================================
+
+/**
+ * Error thrown when SMS service is disabled but SMS is required
+ */
+export class SMSServiceDisabledError extends Error {
+  public readonly isSMSDisabled = true;
+  public readonly missingConfig: string[];
+
+  constructor(missingConfig: string[]) {
+    super(
+      `SMS service is disabled. Missing configuration: ${missingConfig.join(', ')}. ` +
+      `Set SMS_REQUIRED=false to allow silent skip (INSECURE for production).`
+    );
+    this.name = 'SMSServiceDisabledError';
+    this.missingConfig = missingConfig;
+  }
+}
+
+/**
+ * Result of SMS send attempt
+ */
+export interface SMSSendResult {
+  sent: boolean;
+  disabled: boolean;
+  error?: string;
+  messageId?: string;
+}
+
+/**
+ * Whether SMS is required for operations (default: true in production)
+ * When true, throws SMSServiceDisabledError if SMS cannot be sent
+ * When false, silently returns false (development mode)
+ */
+const SMS_REQUIRED = process.env.SMS_REQUIRED !== 'false';
 
 // Use require to avoid esModuleInterop issues with Twilio
 const twilio = require('twilio');
@@ -102,14 +144,41 @@ export function generateSMSCode(): string {
 // ============================================================================
 
 /**
- * Send an SMS message via Twilio
+ * Get list of missing Twilio configuration items
  */
-async function sendSMS(to: string, body: string): Promise<boolean> {
+function getMissingTwilioConfig(): string[] {
+  const missing: string[] = [];
+  if (!config.TWILIO_ACCOUNT_SID) missing.push('TWILIO_ACCOUNT_SID');
+  if (!config.TWILIO_AUTH_TOKEN) missing.push('TWILIO_AUTH_TOKEN');
+  if (!config.TWILIO_PHONE_NUMBER) missing.push('TWILIO_PHONE_NUMBER');
+  return missing;
+}
+
+/**
+ * Send an SMS message via Twilio
+ *
+ * @throws SMSServiceDisabledError if SMS is disabled and SMS_REQUIRED=true
+ * @returns SMSSendResult with detailed status information
+ */
+async function sendSMS(to: string, body: string): Promise<SMSSendResult> {
   if (!twilioEnabled || !twilioClient) {
-    console.warn('[SMS] Service disabled - message not sent');
-    console.warn(`[SMS] To: ${to}`);
-    console.warn(`[SMS] Body: ${body}`);
-    return false;
+    const missingConfig = getMissingTwilioConfig();
+
+    // If SMS is required, throw an error
+    if (SMS_REQUIRED) {
+      throw new SMSServiceDisabledError(missingConfig);
+    }
+
+    // Otherwise, log warning and return explicit disabled status
+    console.warn(`⚠️ [SMS] Service disabled - message NOT sent (SMS_REQUIRED=false)`);
+    console.warn(`   To: ${to}`);
+    console.warn(`   Missing config: ${missingConfig.join(', ')}`);
+
+    return {
+      sent: false,
+      disabled: true,
+      error: `SMS service disabled. Missing: ${missingConfig.join(', ')}`,
+    };
   }
 
   const formattedNumber = formatPhoneNumber(to);
@@ -131,7 +200,11 @@ async function sendSMS(to: string, body: string): Promise<boolean> {
     console.log(`   To: ${formattedNumber}`);
     console.log(`   Status: ${message.status}`);
 
-    return true;
+    return {
+      sent: true,
+      disabled: false,
+      messageId: message.sid,
+    };
   } catch (error: any) {
     console.error(`❌ [SMS] Failed to send message to ${formattedNumber}:`, error.message);
 
@@ -154,52 +227,72 @@ async function sendSMS(to: string, body: string): Promise<boolean> {
 
 /**
  * Send verification SMS with a 6-digit code
+ *
+ * @throws SMSServiceDisabledError if SMS is disabled and SMS_REQUIRED=true
+ * @returns SMSSendResult with status information
  */
-export async function sendVerificationSMS(phoneNumber: string, code: string): Promise<void> {
+export async function sendVerificationSMS(phoneNumber: string, code: string): Promise<SMSSendResult> {
   const body = `Your KODA verification code is: ${code}\n\nThis code expires in 10 minutes. Do not share this code with anyone.`;
 
-  const sent = await sendSMS(phoneNumber, body);
+  const result = await sendSMS(phoneNumber, body);
 
-  if (!sent && twilioEnabled) {
+  if (!result.sent && !result.disabled) {
     throw new Error('Failed to send verification SMS');
   }
+
+  return result;
 }
 
 /**
  * Send password reset SMS with a 6-digit code
+ *
+ * @throws SMSServiceDisabledError if SMS is disabled and SMS_REQUIRED=true
+ * @returns SMSSendResult with status information
  */
-export async function sendPasswordResetSMS(phoneNumber: string, code: string): Promise<void> {
+export async function sendPasswordResetSMS(phoneNumber: string, code: string): Promise<SMSSendResult> {
   const body = `Your KODA password reset code is: ${code}\n\nThis code expires in 15 minutes. If you didn't request this, please ignore this message.`;
 
-  const sent = await sendSMS(phoneNumber, body);
+  const result = await sendSMS(phoneNumber, body);
 
-  if (!sent && twilioEnabled) {
+  if (!result.sent && !result.disabled) {
     throw new Error('Failed to send password reset SMS');
   }
+
+  return result;
 }
 
 /**
  * Send 2FA verification SMS
+ *
+ * @throws SMSServiceDisabledError if SMS is disabled and SMS_REQUIRED=true
+ * @returns SMSSendResult with status information
  */
-export async function send2FASMS(phoneNumber: string, code: string): Promise<void> {
+export async function send2FASMS(phoneNumber: string, code: string): Promise<SMSSendResult> {
   const body = `Your KODA login code is: ${code}\n\nThis code expires in 5 minutes.`;
 
-  const sent = await sendSMS(phoneNumber, body);
+  const result = await sendSMS(phoneNumber, body);
 
-  if (!sent && twilioEnabled) {
+  if (!result.sent && !result.disabled) {
     throw new Error('Failed to send 2FA SMS');
   }
+
+  return result;
 }
 
 /**
  * Send a custom SMS message
+ *
+ * @throws SMSServiceDisabledError if SMS is disabled and SMS_REQUIRED=true
+ * @returns SMSSendResult with status information
  */
-export async function sendCustomSMS(phoneNumber: string, message: string): Promise<void> {
-  const sent = await sendSMS(phoneNumber, message);
+export async function sendCustomSMS(phoneNumber: string, message: string): Promise<SMSSendResult> {
+  const result = await sendSMS(phoneNumber, message);
 
-  if (!sent && twilioEnabled) {
+  if (!result.sent && !result.disabled) {
     throw new Error('Failed to send SMS');
   }
+
+  return result;
 }
 
 // ============================================================================

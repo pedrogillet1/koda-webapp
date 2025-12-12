@@ -122,4 +122,5 @@ class MultiIntentService {
 }
 
 export const multiIntentService = new MultiIntentService();
+export { MultiIntentService };
 export default multiIntentService;
