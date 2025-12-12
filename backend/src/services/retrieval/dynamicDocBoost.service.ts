@@ -3,9 +3,7 @@
  * Computes boost factors per document based on intent targets, recency, and metadata
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../../config/database';
 import { IntentClassificationV3 } from '../../types/ragV3.types';
 
 /**

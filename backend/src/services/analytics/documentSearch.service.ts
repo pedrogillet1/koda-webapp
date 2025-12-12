@@ -3,9 +3,7 @@
  * Provides fast document search for SEARCH/ANALYTICS intents
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../../config/database';
 import {
   DocumentSearchParams,
   DocumentSearchResult,

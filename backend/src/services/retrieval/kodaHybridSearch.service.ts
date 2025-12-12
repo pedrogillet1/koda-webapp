@@ -5,8 +5,11 @@
  * FIXED:
  * - Chunk ID mismatch (now uses canonical format: documentId-chunkIndex)
  * - SQL injection risk (parameterized queries)
- * - Uses shared Prisma client (injected via constructor)
- * - No singleton export (class only, instantiated in container.ts)
+ * - Uses shared Prisma client from config/database
+ *
+ * NOTE: Currently uses singleton pattern. For proper testability, consider
+ * registering in container.ts and injecting into consumers (e.g., kodaRetrievalEngineV3).
+ * Singleton makes mocking difficult in unit tests.
  */
 
 import prisma from '../../config/database';  // FIXED: Use shared Prisma client
@@ -244,11 +247,9 @@ export class KodaHybridSearchService {
   }
 }
 
-// FIXED: No singleton export - instantiate in container.ts for proper DI
-// This allows for testing and ensures shared Prisma client is used
-
-// Legacy singleton export (DEPRECATED - will be removed in next version)
-// Controllers should get instance from container.ts instead
+// Singleton instance for direct import
+// TODO: For better testability, register in container.ts and inject into consumers
 export const kodaHybridSearchService = new KodaHybridSearchService();
 
+// Export class for DI registration when ready
 export default KodaHybridSearchService;
