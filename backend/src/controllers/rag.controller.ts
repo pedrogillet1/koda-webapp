@@ -284,9 +284,6 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
-    // Send thinking indicator
-    res.write(`data: ${JSON.stringify({ type: 'thinking', message: 'Processing...' })}\n\n`);
-
     // Ensure conversation exists
     await ensureConversationExists(conversationId, userId);
 
@@ -297,17 +294,61 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       conversationId,
     };
 
-    // Get response
-    const response = await getOrchestrator().orchestrate(request);
+    // TRUE STREAMING: Use orchestrator's async generator
+    const stream = getOrchestrator().orchestrateStream(request);
 
-    // Stream the response in chunks
-    const words = response.answer.split(' ');
-    for (let i = 0; i < words.length; i += 5) {
-      const chunk = words.slice(i, i + 5).join(' ') + ' ';
-      res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
+    let fullAnswer = '';
+    let streamResult: any;
+
+    // Handle client disconnect (abort)
+    let aborted = false;
+    req.on('close', () => {
+      aborted = true;
+      console.log('[RAG V3] Client disconnected, aborting stream');
+    });
+
+    // FIXED: Consume generator ONCE using manual iteration to capture return value
+    // (for await doesn't give access to return value after completion)
+    let iterResult = await stream.next();
+    while (!iterResult.done) {
+      // Check for abort
+      if (aborted) {
+        console.log('[RAG V3] Stream aborted by client');
+        break;
+      }
+
+      const event = iterResult.value;
+
+      // Write each event immediately to SSE
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+
+      // Accumulate content for saving
+      if (event.type === 'content') {
+        fullAnswer += (event as any).content;
+      }
+
+      // Capture result data from done event if emitted
+      if (event.type === 'done' && (event as any).fullAnswer) {
+        fullAnswer = (event as any).fullAnswer;
+      }
+
+      // Get next iteration
+      iterResult = await stream.next();
     }
 
-    // Save messages
+    // Capture the generator return value (when done: true)
+    if (iterResult.done && iterResult.value) {
+      streamResult = iterResult.value;
+      fullAnswer = streamResult.fullAnswer || fullAnswer;
+    }
+
+    // Don't save if aborted
+    if (aborted) {
+      res.end();
+      return;
+    }
+
+    // Save messages to database
     const userMessage = await prisma.message.create({
       data: {
         conversationId,
@@ -320,17 +361,23 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       data: {
         conversationId,
         role: 'assistant',
-        content: response.answer,
+        content: fullAnswer,
+        metadata: JSON.stringify({
+          primaryIntent: streamResult?.intent,
+          confidence: streamResult?.confidence,
+          processingTime: streamResult?.processingTime,
+        }),
       },
     });
 
-    // Send done event
+    // Send done event with message IDs
     res.write(
       `data: ${JSON.stringify({
         type: 'done',
         messageId: userMessage.id,
         assistantMessageId: assistantMessage.id,
         conversationId,
+        processingTime: streamResult?.processingTime,
       })}\n\n`
     );
 

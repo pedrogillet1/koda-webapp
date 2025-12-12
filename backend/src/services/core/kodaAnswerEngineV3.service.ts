@@ -14,8 +14,6 @@
  * Performance: Optimized for low latency with streaming
  */
 
-import { Writable } from 'stream';
-
 import type {
   IntentClassificationV3,
   RetrievedChunk,
@@ -24,6 +22,12 @@ import type {
 } from '../../types/ragV3.types';
 
 import geminiGateway from '../geminiGateway.service';
+
+import type {
+  StreamEvent,
+  ContentEvent,
+  StreamingResult,
+} from '../../types/streaming.types';
 
 type LanguageCode = 'en' | 'pt' | 'es';
 
@@ -48,10 +52,6 @@ export interface AnswerWithDocsParams {
   documents: any[];
   context?: any;
   language: LanguageCode;
-}
-
-export interface StreamAnswerParams extends AnswerParams {
-  stream: Writable;
 }
 
 export interface AnswerResult {
@@ -223,28 +223,152 @@ export class KodaAnswerEngineV3 {
   }
 
   /**
-   * Stream an answer to a writable stream.
+   * TRUE STREAMING: Generate answer with documents using AsyncGenerator.
+   * Yields ContentEvent chunks in real-time as tokens arrive from LLM.
+   *
+   * FIXED: Uses geminiGateway.streamText() directly instead of callback queue.
+   * TTFT (Time To First Token) should be <300-800ms with this method.
    */
-  public async streamAnswer(params: StreamAnswerParams): Promise<void> {
-    const { stream, query, language, chitchatMode, metaMode } = params;
+  public async *streamAnswerWithDocsAsync(
+    params: AnswerWithDocsParams
+  ): AsyncGenerator<StreamEvent, StreamingResult, unknown> {
+    const { query, documents, language, intent } = params;
     const lang = language || 'en';
+    const startTime = Date.now();
 
-    let response: string;
-
-    if (metaMode) {
-      response = META_AI_RESPONSES[lang] || META_AI_RESPONSES.en;
-    } else if (chitchatMode) {
-      response = this.generateChitchatResponse(query, lang);
-    } else {
-      response = META_AI_RESPONSES[lang] || META_AI_RESPONSES.en;
+    // 🛡️ GUARD: Handle empty documents case early with language-aware fallback
+    if (!documents || documents.length === 0) {
+      const noDocsMsg = this.getNoDocsMessage(lang);
+      yield { type: 'content', content: noDocsMsg } as ContentEvent;
+      yield {
+        type: 'metadata',
+        processingTime: Date.now() - startTime,
+        documentsUsed: 0,
+      } as StreamEvent;
+      yield {
+        type: 'done',
+        fullAnswer: noDocsMsg,
+      } as StreamEvent;
+      return {
+        fullAnswer: noDocsMsg,
+        intent: intent.primaryIntent || 'DOC_QA',
+        confidence: 0,
+        documentsUsed: 0,
+        processingTime: Date.now() - startTime,
+      };
     }
 
-    // Simulate streaming by writing in chunks
-    const words = response.split(' ');
-    for (let i = 0; i < words.length; i++) {
-      stream.write(words[i] + (i < words.length - 1 ? ' ' : ''));
-      await this.delay(20); // Small delay between words
+    // Build context and prompts (respect retrieval budgeting - no re-truncation)
+    const context = this.buildContext(documents);
+    const systemPrompt = this.buildSystemPrompt(intent, lang);
+    const userPrompt = this.buildUserPrompt(query, context, lang);
+    const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
+
+    console.log(`[KodaAnswerEngineV3] TRUE STREAMING: Starting for query: "${query.substring(0, 50)}..."`);
+
+    // Accumulate full answer for final result
+    let fullAnswer = '';
+    let tokensUsed: number | undefined;
+    let finishReason: string | undefined;
+
+    try {
+      // TRUE STREAMING: Use geminiGateway.streamText() AsyncGenerator directly
+      const streamGen = geminiGateway.streamText({
+        prompt: fullPrompt,
+        config: {
+          temperature: 0.3,
+          maxOutputTokens: 2000,
+        },
+      });
+
+      // Yield content chunks as they arrive from LLM
+      let iterResult = await streamGen.next();
+      while (!iterResult.done) {
+        const chunk = iterResult.value as string;
+        fullAnswer += chunk;
+        yield { type: 'content', content: chunk } as ContentEvent;
+        iterResult = await streamGen.next();
+      }
+
+      // Get final metadata from generator return value
+      const finalResult = iterResult.value;
+      if (finalResult) {
+        tokensUsed = finalResult.totalTokens;
+        finishReason = finalResult.finishReason;
+      }
+
+      const processingTime = Date.now() - startTime;
+      console.log(`[KodaAnswerEngineV3] TRUE STREAMING: Complete in ${processingTime}ms, ${fullAnswer.length} chars`);
+
+      // Detect truncation
+      const wasTruncated = this.detectTruncation(fullAnswer, finishReason);
+
+      // Calculate confidence based on document scores
+      const avgScore = documents.reduce((sum, doc) => sum + (doc.score || 0.5), 0) / documents.length;
+      let confidence = Math.min(avgScore * 1.2, 1.0);
+      if (wasTruncated) {
+        confidence *= 0.7;
+      }
+
+      // Emit metadata event
+      yield {
+        type: 'metadata',
+        processingTime,
+        tokensUsed,
+        documentsUsed: documents.length,
+      } as StreamEvent;
+
+      // Emit done event with full answer for saving
+      yield {
+        type: 'done',
+        fullAnswer,
+      } as StreamEvent;
+
+      return {
+        fullAnswer,
+        intent: intent.primaryIntent || 'DOC_QA',
+        confidence,
+        documentsUsed: documents.length,
+        tokensUsed,
+        processingTime,
+        wasTruncated,
+      };
+    } catch (error) {
+      console.error('[KodaAnswerEngineV3] TRUE STREAMING error:', error);
+
+      // Yield error fallback with language-aware message
+      const fallbackMsg = this.getStreamingErrorMessage(lang);
+      if (fullAnswer.length === 0) {
+        yield { type: 'content', content: fallbackMsg } as ContentEvent;
+        fullAnswer = fallbackMsg;
+      }
+
+      // Emit error event
+      yield {
+        type: 'error',
+        error: (error as Error).message,
+      } as StreamEvent;
+
+      return {
+        fullAnswer,
+        intent: intent.primaryIntent || 'DOC_QA',
+        confidence: 0.3,
+        documentsUsed: documents.length,
+        processingTime: Date.now() - startTime,
+      };
     }
+  }
+
+  /**
+   * Get streaming error message.
+   */
+  private getStreamingErrorMessage(lang: LanguageCode): string {
+    const messages: Record<LanguageCode, string> = {
+      en: "I encountered an issue while generating the response. Please try again.",
+      pt: "Encontrei um problema ao gerar a resposta. Por favor, tente novamente.",
+      es: "Encontré un problema al generar la respuesta. Por favor, inténtalo de nuevo.",
+    };
+    return messages[lang] || messages.en;
   }
 
   /**
@@ -480,13 +604,6 @@ ${query}`;
       es: "No encontré información relevante en tus documentos. Intenta reformular tu pregunta o verifica si el documento fue subido.",
     };
     return messages[lang] || messages.en;
-  }
-
-  /**
-   * Delay helper for streaming simulation.
-   */
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**

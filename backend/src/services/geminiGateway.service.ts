@@ -389,6 +389,109 @@ class GeminiGateway {
 
   /**
    * =============================================================================
+   * MAIN API: True AsyncGenerator Streaming (Yields Tokens)
+   * =============================================================================
+   *
+   * TRUE STREAMING: Yields each token as it arrives from Gemini.
+   * Use this for real-time streaming to the browser via SSE.
+   * TTFT (Time To First Token) should be <500ms with proper network conditions.
+   */
+  public async *streamText(
+    request: Omit<GeminiRequest, 'onChunk'>
+  ): AsyncGenerator<string, GeminiResponse, unknown> {
+    const startTime = Date.now();
+    const model = request.model || DEFAULT_MODEL;
+
+    console.log(`🚀 [GEMINI-GATEWAY] streamText AsyncGenerator (model: ${model})`);
+
+    for (let attempt = 0; attempt < RETRY_CONFIG.maxAttempts; attempt++) {
+      try {
+        const geminiModel = this.getModel(
+          model,
+          request.systemInstruction,
+          request.config,
+          request.safetySettings
+        );
+
+        let streamResult;
+        if (request.history && request.history.length > 0) {
+          const chat = geminiModel.startChat({ history: request.history });
+          streamResult = await chat.sendMessageStream(request.prompt);
+        } else {
+          streamResult = await geminiModel.generateContentStream(request.prompt);
+        }
+
+        let fullText = '';
+        let chunkCount = 0;
+        let firstChunkTime: number | null = null;
+
+        // Yield each chunk as it arrives - TRUE STREAMING
+        for await (const chunk of streamResult.stream) {
+          let chunkText = chunk.text();
+
+          // UTF-8 fix for mojibake
+          if (chunkText && /Ã[£¡©²³¢§¨ª«¬­´µ¶·¸¹º»¼½¾¿àáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ]/.test(chunkText)) {
+            try {
+              const decoded = Buffer.from(chunkText, 'latin1').toString('utf8');
+              if (decoded && !decoded.includes('�')) {
+                chunkText = decoded;
+              }
+            } catch { /* Keep original */ }
+          }
+
+          fullText += chunkText;
+          chunkCount++;
+
+          if (!firstChunkTime) {
+            firstChunkTime = Date.now() - startTime;
+            console.log(`⚡ [GEMINI-GATEWAY] streamText first token in ${firstChunkTime}ms (TTFT)`);
+          }
+
+          // YIELD the token immediately to the consumer
+          yield chunkText;
+        }
+
+        const latencyMs = Date.now() - startTime;
+
+        // Get final response for metadata
+        const finalResponse = await streamResult.response;
+        const usageMetadata = finalResponse.usageMetadata;
+        const totalTokens = usageMetadata?.totalTokenCount;
+
+        this.updateStats(latencyMs, true, totalTokens);
+
+        console.log(`✅ [GEMINI-GATEWAY] streamText complete: ${fullText.length} chars, ${chunkCount} chunks, ${latencyMs}ms`);
+
+        // Return final result (accessible via generator.return() or final iteration)
+        return {
+          text: fullText,
+          promptTokens: usageMetadata?.promptTokenCount,
+          completionTokens: usageMetadata?.candidatesTokenCount,
+          totalTokens,
+          model,
+          finishReason: finalResponse.candidates?.[0]?.finishReason,
+        };
+      } catch (error: any) {
+        const isRetryable = this.isRetryableError(error);
+        console.warn(`⚠️ [GEMINI-GATEWAY] streamText attempt ${attempt + 1} failed: ${error.message}`);
+
+        if (!isRetryable || attempt === RETRY_CONFIG.maxAttempts - 1) {
+          this.updateStats(Date.now() - startTime, false);
+          console.error(`❌ [GEMINI-GATEWAY] streamText all retries exhausted`);
+          throw this.wrapError(error);
+        }
+
+        const delay = this.getRetryDelay(attempt);
+        console.log(`⏳ [GEMINI-GATEWAY] Retrying streamText in ${delay}ms...`);
+        await this.sleep(delay);
+      }
+    }
+
+    throw new Error('Unexpected: All streamText retries exhausted without throwing');
+  }
+
+  /**
+   * =============================================================================
    * CONVENIENCE METHODS
    * =============================================================================
    */

@@ -253,14 +253,25 @@ async function sendMessageStreaming(
     context: attachedDocumentId ? { attachedDocumentIds: [attachedDocumentId] } : undefined,
   };
 
-  // Get AI response via V3 orchestrator
-  const response = await getOrchestrator().orchestrate(request);
+  // TRUE STREAMING: Use orchestrator's async generator
+  const stream = getOrchestrator().orchestrateStream(request);
 
-  // Stream the response in chunks
-  const words = response.answer.split(' ');
-  for (let i = 0; i < words.length; i += 3) {
-    const chunk = words.slice(i, i + 3).join(' ') + ' ';
-    onChunk(chunk);
+  let fullAnswer = '';
+  let streamResult: any;
+
+  // Forward content chunks to callback in real-time
+  for await (const event of stream) {
+    if (event.type === 'content') {
+      fullAnswer += event.content;
+      onChunk(event.content);  // Forward to callback immediately
+    }
+  }
+
+  // Get the final result from the generator
+  const finalNext = await stream.next();
+  if (finalNext.done && finalNext.value) {
+    streamResult = finalNext.value;
+    fullAnswer = streamResult.fullAnswer || fullAnswer;
   }
 
   // Save assistant message
@@ -268,7 +279,11 @@ async function sendMessageStreaming(
     data: {
       conversationId,
       role: 'assistant',
-      content: response.answer,
+      content: fullAnswer,
+      metadata: JSON.stringify({
+        primaryIntent: streamResult?.intent,
+        confidence: streamResult?.confidence,
+      }),
     },
   });
 

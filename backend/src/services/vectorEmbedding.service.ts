@@ -185,6 +185,48 @@ export const storeDocumentEmbeddings = async (
         console.warn(`⚠️ [vectorEmbedding] PostgreSQL backup failed (non-critical): ${pgError.message}`);
       }
 
+      // ═══════════════════════════════════════════════════════════════════════════
+      // STEP 7: Store in DocumentChunk table (PostgreSQL for BM25 keyword search)
+      // CRITICAL: This enables hybrid retrieval (vector + BM25 keyword search)
+      // ═══════════════════════════════════════════════════════════════════════════
+      try {
+        // Delete existing chunks for this document
+        await prisma.documentChunk.deleteMany({
+          where: { documentId },
+        });
+
+        // Prepare chunk records for BM25 table
+        const chunkRecords = chunks.map((chunk, index) => {
+          const chunkIndex = chunk.chunkIndex ?? chunk.pageNumber ?? index;
+          const text = chunk.content || chunk.text || '';
+          const page = chunk.pageNumber ?? chunk.metadata?.pageNumber ?? null;
+
+          return {
+            documentId,
+            chunkIndex,
+            text,
+            page,
+            startChar: chunk.metadata?.startChar ?? null,
+            endChar: chunk.metadata?.endChar ?? null,
+          };
+        });
+
+        // Insert chunks in batches
+        const CHUNK_BATCH_SIZE = 100;
+        for (let i = 0; i < chunkRecords.length; i += CHUNK_BATCH_SIZE) {
+          const batch = chunkRecords.slice(i, i + CHUNK_BATCH_SIZE);
+          await prisma.documentChunk.createMany({
+            data: batch,
+            skipDuplicates: true,
+          });
+        }
+
+        console.log(`✅ [vectorEmbedding] Stored ${chunkRecords.length} chunks in PostgreSQL (BM25 keyword search)`);
+      } catch (chunkError: any) {
+        // Log warning but don't fail - Pinecone is the primary source
+        console.warn(`⚠️ [vectorEmbedding] DocumentChunk storage failed (BM25 may not work): ${chunkError.message}`);
+      }
+
       // Success! Break out of retry loop
       return;
 

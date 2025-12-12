@@ -127,7 +127,8 @@ export class KodaHybridSearchService {
   }
 
   /**
-   * Perform BM25 full-text search on chunks table using Postgres full-text search.
+   * Perform BM25 full-text search on document_chunks table using Postgres full-text search.
+   * FIXED: Uses correct table name (document_chunks), columns (text, page), and JOINs with documents for userId.
    */
   private async bm25Search(
     userId: string,
@@ -142,21 +143,23 @@ export class KodaHybridSearchService {
       let docFilter = '';
       if (filters.documentIds && filters.documentIds.length > 0) {
         const docIdList = filters.documentIds.map(id => `'${id}'`).join(',');
-        docFilter = `AND "documentId" IN (${docIdList})`;
+        docFilter = `AND dc."documentId" IN (${docIdList})`;
       }
 
-      // Raw SQL query using BM25-like ranking with Postgres full-text search
+      // FIXED SQL: Uses document_chunks table, text column, page column, JOIN with documents
       const rawQuery = `
         SELECT
-          id as "chunkId",
-          "documentId",
-          content,
-          "pageNumber",
-          ts_rank_cd(to_tsvector('simple', content), plainto_tsquery('simple', $1)) AS bm25_score
-        FROM chunks
-        WHERE "userId" = $2
+          dc.id as "chunkId",
+          dc."documentId",
+          dc.text as content,
+          dc.page as "pageNumber",
+          d.filename as "documentName",
+          ts_rank_cd(to_tsvector('simple', dc.text), plainto_tsquery('simple', $1)) AS bm25_score
+        FROM document_chunks dc
+        INNER JOIN documents d ON dc."documentId" = d.id
+        WHERE d."userId" = $2
           ${docFilter}
-          AND to_tsvector('simple', content) @@ plainto_tsquery('simple', $1)
+          AND to_tsvector('simple', dc.text) @@ plainto_tsquery('simple', $1)
         ORDER BY bm25_score DESC
         LIMIT $3
       `;
@@ -167,7 +170,7 @@ export class KodaHybridSearchService {
       const chunks: RetrievedChunk[] = results.map((row) => ({
         chunkId: row.chunkId,
         documentId: row.documentId,
-        documentName: '',
+        documentName: row.documentName || '',
         content: row.content,
         pageNumber: row.pageNumber ?? undefined,
         score: parseFloat(row.bm25_score) || 0,

@@ -7,20 +7,125 @@
  * Based on: pasted_content_21.txt Layer 5 and pasted_content_22.txt Section 2 specifications
  */
 
-import { KodaIntentEngineV3, kodaIntentEngineV3 } from './kodaIntentEngineV3.service';
-import { FallbackConfigService, fallbackConfigService } from './fallbackConfig.service';
-import { KodaProductHelpServiceV3, kodaProductHelpServiceV3 } from './kodaProductHelpV3.service';
-import { KodaFormattingPipelineV3Service, kodaFormattingPipelineV3 } from './kodaFormattingPipelineV3.service';
+import { KodaIntentEngineV3 } from './kodaIntentEngineV3.service';
+import { FallbackConfigService } from './fallbackConfig.service';
+import { KodaProductHelpServiceV3 } from './kodaProductHelpV3.service';
+import { KodaFormattingPipelineV3Service } from './kodaFormattingPipelineV3.service';
 import KodaRetrievalEngineV3 from './kodaRetrievalEngineV3.service';
 import KodaAnswerEngineV3 from './kodaAnswerEngineV3.service';
 import prisma from '../../config/database';
-// Services are now injected via container.ts - no direct imports needed
+
+// Service types for DI - these are injected via container.ts
+import { UserPreferencesService } from '../user/userPreferences.service';
+import { ConversationMemoryService } from '../memory/conversationMemory.service';
+import { FeedbackLoggerService } from '../analytics/feedbackLogger.service';
+import { AnalyticsEngineService } from '../analytics/analyticsEngine.service';
+import { DocumentSearchService } from '../analytics/documentSearch.service';
 import {
   IntentName,
   LanguageCode,
   PredictedIntent,
   IntentHandlerResponse,
 } from '../../types/intentV3.types';
+
+import {
+  IntentDomain,
+  QuestionType,
+  QueryScope,
+} from '../../types/ragV3.types';
+
+import type {
+  IntentClassificationV3,
+  DocumentTarget,
+} from '../../types/ragV3.types';
+
+import type {
+  StreamEvent,
+  ContentEvent,
+  StreamingResult,
+  StreamGenerator,
+} from '../../types/streaming.types';
+
+// ============================================================================
+// INTENT TYPE ADAPTER
+// ============================================================================
+
+/**
+ * Convert PredictedIntent (from intent engine) to IntentClassificationV3 (for RAG services)
+ * This bridges the gap between the lightweight intent classification and the full RAG type.
+ */
+function adaptPredictedIntent(predicted: PredictedIntent, request: OrchestratorRequest): IntentClassificationV3 {
+  const intent = predicted.primaryIntent;
+
+  // Determine domain based on intent (using enum values)
+  const getDomain = (): IntentDomain => {
+    if (intent.startsWith('DOC_')) return IntentDomain.DOCUMENTS;
+    if (intent.startsWith('PRODUCT_')) return IntentDomain.PRODUCT;
+    if (intent.startsWith('ONBOARDING_')) return IntentDomain.ONBOARDING;
+    if (intent === 'CHITCHAT') return IntentDomain.CHITCHAT;
+    return IntentDomain.GENERAL; // Default for general queries
+  };
+
+  // Determine question type based on intent (using enum values)
+  const getQuestionType = (): QuestionType => {
+    switch (intent) {
+      case 'DOC_QA': return QuestionType.OTHER;
+      case 'DOC_ANALYTICS': return QuestionType.LIST;
+      case 'DOC_SUMMARIZE': return QuestionType.SUMMARY;
+      case 'DOC_SEARCH': return QuestionType.LIST;
+      case 'REASONING_TASK': return QuestionType.WHY;
+      case 'TEXT_TRANSFORM': return QuestionType.EXTRACT;
+      default: return QuestionType.OTHER;
+    }
+  };
+
+  // Determine scope based on context (using enum values)
+  const getScope = (): QueryScope => {
+    if (request.context?.attachedDocumentIds?.length === 1) return QueryScope.SINGLE_DOC;
+    if (request.context?.attachedDocumentIds?.length > 1) return QueryScope.MULTI_DOC;
+    return QueryScope.ALL_DOCS;
+  };
+
+  // Determine document target (returns interface object)
+  const getTarget = (): DocumentTarget => {
+    if (request.context?.attachedDocumentIds?.length > 0) {
+      return {
+        type: 'BY_ID',
+        documentIds: request.context.attachedDocumentIds,
+      };
+    }
+    return { type: 'NONE' };
+  };
+
+  // Determine if RAG is required
+  const requiresRAG = [
+    'DOC_QA', 'DOC_ANALYTICS', 'DOC_SEARCH', 'DOC_SUMMARIZE', 'DOC_MANAGEMENT'
+  ].includes(intent);
+
+  // Determine if product help is required
+  const requiresProductHelp = ['PRODUCT_HELP', 'ONBOARDING_HELP', 'FEATURE_REQUEST'].includes(intent);
+
+  return {
+    primaryIntent: intent,
+    domain: getDomain(),
+    questionType: getQuestionType(),
+    scope: getScope(),
+    language: predicted.language,
+    requiresRAG,
+    requiresProductHelp,
+    target: getTarget(),
+    documentTargets: request.context?.attachedDocumentIds || [],
+    rawQuery: request.text,
+    confidence: predicted.confidence,
+    matchedPattern: predicted.matchedPattern,
+    matchedKeywords: predicted.matchedKeywords,
+    metadata: {
+      queryLength: request.text.length,
+      hasContext: !!request.context,
+      classificationTimeMs: 0, // Not tracked at this level
+    },
+  };
+}
 
 export interface OrchestratorRequest {
   text: string;
@@ -38,52 +143,61 @@ interface HandlerContext {
 }
 
 export class KodaOrchestratorV3 {
+  // Core services - REQUIRED
   private readonly intentEngine: KodaIntentEngineV3;
   private readonly fallbackConfig: FallbackConfigService;
   private readonly productHelp: KodaProductHelpServiceV3;
   private readonly formattingPipeline: KodaFormattingPipelineV3Service;
-  private readonly logger: any;
+  private readonly retrievalEngine: KodaRetrievalEngineV3;
+  private readonly answerEngine: KodaAnswerEngineV3;
 
-  // Injected services - REQUIRED (from container.ts DI)
-  private readonly retrievalEngine: any;
-  private readonly answerEngine: any;
-  private readonly documentSearch: any;
-  private readonly userPreferences: any;
-  private readonly conversationMemory: any;
-  private readonly feedbackLogger: any;
-  private readonly analyticsEngine: any;
+  // Analytics & utility services - REQUIRED (from container.ts DI)
+  private readonly documentSearch: DocumentSearchService;
+  private readonly userPreferences: UserPreferencesService;
+  private readonly conversationMemory: ConversationMemoryService;
+  private readonly feedbackLogger: FeedbackLoggerService;
+  private readonly analyticsEngine: AnalyticsEngineService;
+
+  // Logger
+  private readonly logger: Console;
 
   constructor(
     services: {
+      // Core RAG services - ALL REQUIRED
       intentEngine: KodaIntentEngineV3;
       fallbackConfig: FallbackConfigService;
       productHelp: KodaProductHelpServiceV3;
       formattingPipeline: KodaFormattingPipelineV3Service;
-      retrievalEngine: any;
-      answerEngine: any;
-      documentSearch?: any;
-      userPreferences?: any;
-      conversationMemory?: any;
-      feedbackLogger?: any;
-      analyticsEngine?: any;
+      retrievalEngine: KodaRetrievalEngineV3;
+      answerEngine: KodaAnswerEngineV3;
+      // Analytics & utility services - ALL REQUIRED
+      documentSearch: DocumentSearchService;
+      userPreferences: UserPreferencesService;
+      conversationMemory: ConversationMemoryService;
+      feedbackLogger: FeedbackLoggerService;
+      analyticsEngine: AnalyticsEngineService;
     },
-    logger?: any
+    logger?: Console
   ) {
-    // CRITICAL: All core services MUST be provided (fail-fast pattern)
-    if (!services.intentEngine) throw new Error('[Orchestrator] intentEngine is required');
-    if (!services.fallbackConfig) throw new Error('[Orchestrator] fallbackConfig is required');
-    if (!services.productHelp) throw new Error('[Orchestrator] productHelp is required');
-    if (!services.formattingPipeline) throw new Error('[Orchestrator] formattingPipeline is required');
-    if (!services.retrievalEngine) throw new Error('[Orchestrator] retrievalEngine is required');
-    if (!services.answerEngine) throw new Error('[Orchestrator] answerEngine is required');
+    // CRITICAL: ALL services MUST be provided (fail-fast pattern)
+    // No optional services - container.ts guarantees all are provided
+    if (!services.intentEngine) throw new Error('[Orchestrator] intentEngine is REQUIRED');
+    if (!services.fallbackConfig) throw new Error('[Orchestrator] fallbackConfig is REQUIRED');
+    if (!services.productHelp) throw new Error('[Orchestrator] productHelp is REQUIRED');
+    if (!services.formattingPipeline) throw new Error('[Orchestrator] formattingPipeline is REQUIRED');
+    if (!services.retrievalEngine) throw new Error('[Orchestrator] retrievalEngine is REQUIRED');
+    if (!services.answerEngine) throw new Error('[Orchestrator] answerEngine is REQUIRED');
+    if (!services.documentSearch) throw new Error('[Orchestrator] documentSearch is REQUIRED');
+    if (!services.userPreferences) throw new Error('[Orchestrator] userPreferences is REQUIRED');
+    if (!services.conversationMemory) throw new Error('[Orchestrator] conversationMemory is REQUIRED');
+    if (!services.feedbackLogger) throw new Error('[Orchestrator] feedbackLogger is REQUIRED');
+    if (!services.analyticsEngine) throw new Error('[Orchestrator] analyticsEngine is REQUIRED');
 
+    // Assign all services (no optional chains needed - all guaranteed)
     this.intentEngine = services.intentEngine;
     this.fallbackConfig = services.fallbackConfig;
     this.productHelp = services.productHelp;
     this.formattingPipeline = services.formattingPipeline;
-    this.logger = logger || console;
-
-    // Inject optional services (analytics, etc.)
     this.retrievalEngine = services.retrievalEngine;
     this.answerEngine = services.answerEngine;
     this.documentSearch = services.documentSearch;
@@ -91,6 +205,7 @@ export class KodaOrchestratorV3 {
     this.conversationMemory = services.conversationMemory;
     this.feedbackLogger = services.feedbackLogger;
     this.analyticsEngine = services.analyticsEngine;
+    this.logger = logger || console;
   }
 
   /**
@@ -129,6 +244,271 @@ export class KodaOrchestratorV3 {
       this.logger.error('[Orchestrator] Error processing request:', error);
       return this.buildErrorResponse(request, error);
     }
+  }
+
+  /**
+   * TRUE STREAMING orchestration entry point.
+   * Yields StreamEvent chunks in real-time as they arrive from LLM.
+   *
+   * TTFT (Time To First Token) should be <300-800ms.
+   */
+  async *orchestrateStream(request: OrchestratorRequest): StreamGenerator {
+    const startTime = Date.now();
+
+    try {
+      // Step 1: Classify intent (fast, non-streaming)
+      const intent = await this.intentEngine.predict({
+        text: request.text,
+        language: request.language,
+        context: request.context,
+      });
+
+      const language = intent.language || request.language || 'en';
+
+      this.logger.info(
+        `[Orchestrator] STREAMING userId=${request.userId} intent=${intent.primaryIntent} confidence=${intent.confidence.toFixed(2)}`
+      );
+
+      // Yield intent event
+      yield {
+        type: 'intent',
+        intent: intent.primaryIntent,
+        confidence: intent.confidence,
+      } as StreamEvent;
+
+      // Step 2: Route to streaming handler based on intent
+      let result: StreamingResult;
+
+      if (intent.primaryIntent === 'DOC_QA' || intent.primaryIntent === 'DOC_SEARCH' || intent.primaryIntent === 'DOC_SUMMARIZE') {
+        // Document-related intents use TRUE streaming
+        result = yield* this.streamDocumentQnA(request, intent, language);
+      } else if (intent.primaryIntent === 'CHITCHAT' || intent.primaryIntent === 'META_AI') {
+        // Simple intents - generate once and yield
+        result = yield* this.streamSimpleResponse(request, intent, language);
+      } else {
+        // Other intents - use non-streaming then yield the result
+        const response = await this.routeIntent(request, intent);
+        yield { type: 'content', content: response.answer } as ContentEvent;
+        result = {
+          fullAnswer: response.answer,
+          intent: intent.primaryIntent,
+          confidence: intent.confidence,
+          documentsUsed: response.metadata?.documentsUsed || 0,
+          processingTime: Date.now() - startTime,
+        };
+      }
+
+      // Yield metadata event
+      yield {
+        type: 'metadata',
+        processingTime: result.processingTime,
+        documentsUsed: result.documentsUsed,
+      } as StreamEvent;
+
+      // Yield done event - REQUIRED for proper stream completion
+      yield {
+        type: 'done',
+        fullAnswer: result.fullAnswer,
+      } as StreamEvent;
+
+      return result;
+
+    } catch (error: any) {
+      this.logger.error('[Orchestrator] Streaming error:', error);
+
+      // Yield error
+      yield {
+        type: 'error',
+        error: error.message || 'An error occurred',
+      } as StreamEvent;
+
+      return {
+        fullAnswer: 'Sorry, an error occurred. Please try again.',
+        intent: 'UNKNOWN',
+        confidence: 0,
+        documentsUsed: 0,
+        processingTime: Date.now() - startTime,
+      };
+    }
+  }
+
+  /**
+   * Stream DOC_QA response using TRUE streaming from answer engine.
+   * Event order: intent → retrieving → generating → content* → citations → metadata → done
+   */
+  private async *streamDocumentQnA(
+    request: OrchestratorRequest,
+    intent: PredictedIntent,
+    language: LanguageCode
+  ): StreamGenerator {
+    const startTime = Date.now();
+
+    // Check if user has documents
+    const hasDocuments = await this.checkUserHasDocuments(request.userId);
+    if (!hasDocuments) {
+      const fallback = this.fallbackConfig.getFallback('NO_DOCUMENTS', 'short_guidance', language);
+      yield { type: 'content', content: fallback.text } as ContentEvent;
+      yield { type: 'done', fullAnswer: fallback.text } as StreamEvent;
+      return {
+        fullAnswer: fallback.text,
+        intent: intent.primaryIntent,
+        confidence: intent.confidence,
+        documentsUsed: 0,
+        processingTime: Date.now() - startTime,
+      };
+    }
+
+    // Yield retrieving event
+    yield { type: 'retrieving', message: 'Searching documents...' } as StreamEvent;
+
+    // Convert PredictedIntent to IntentClassificationV3 for RAG services
+    const adaptedIntent = adaptPredictedIntent(intent, request);
+
+    // Retrieve documents with metadata (non-streaming - fast)
+    const retrievalResult = await this.retrievalEngine.retrieveWithMetadata({
+      query: request.text,
+      userId: request.userId,
+      language,
+      intent: adaptedIntent,
+    });
+
+    if (!retrievalResult.chunks || retrievalResult.chunks.length === 0) {
+      const noDocsMsg = this.getNoResultsMessage(language);
+      yield { type: 'content', content: noDocsMsg } as ContentEvent;
+      yield { type: 'done', fullAnswer: noDocsMsg } as StreamEvent;
+      return {
+        fullAnswer: noDocsMsg,
+        intent: intent.primaryIntent,
+        confidence: intent.confidence,
+        documentsUsed: 0,
+        processingTime: Date.now() - startTime,
+      };
+    }
+
+    // Yield generating event with document count
+    yield {
+      type: 'generating',
+      message: `Generating answer from ${retrievalResult.chunks.length} document chunks...`,
+    } as StreamEvent;
+
+    // TRUE STREAMING: Use answer engine's async generator
+    const answerStream = this.answerEngine.streamAnswerWithDocsAsync({
+      userId: request.userId,
+      query: request.text,
+      intent: adaptedIntent,
+      documents: retrievalResult.chunks,
+      language,
+    });
+
+    // Forward all content events from answer engine
+    let fullAnswer = '';
+    for await (const event of answerStream) {
+      yield event;
+      if (event.type === 'content') {
+        fullAnswer += (event as ContentEvent).content;
+      }
+    }
+
+    // Get the final result from the generator
+    const finalResult = await answerStream.next();
+    let result: StreamingResult;
+    if (finalResult.done && finalResult.value) {
+      result = finalResult.value;
+      fullAnswer = result.fullAnswer || fullAnswer;
+    } else {
+      result = {
+        fullAnswer,
+        intent: intent.primaryIntent,
+        confidence: intent.confidence,
+        documentsUsed: retrievalResult.chunks.length,
+        processingTime: Date.now() - startTime,
+      };
+    }
+
+    // Extract citations from retrieval chunks and yield citation event
+    const citations = this.extractCitationsFromChunks(retrievalResult.chunks);
+    if (citations.length > 0) {
+      yield {
+        type: 'citation',
+        citations,
+      } as StreamEvent;
+    }
+
+    // Update result with final processing time
+    result.processingTime = Date.now() - startTime;
+    result.documentsUsed = retrievalResult.chunks.length;
+
+    return result;
+  }
+
+  /**
+   * Extract citations from retrieved chunks for the citation event.
+   */
+  private extractCitationsFromChunks(chunks: any[]): Array<{
+    documentId: string;
+    documentName: string;
+    pageNumber?: number;
+    snippet?: string;
+  }> {
+    const seen = new Set<string>();
+    const citations: Array<{
+      documentId: string;
+      documentName: string;
+      pageNumber?: number;
+      snippet?: string;
+    }> = [];
+
+    for (const chunk of chunks.slice(0, 5)) {
+      const docId = chunk.documentId || chunk.metadata?.documentId;
+      if (!docId || seen.has(docId)) continue;
+      seen.add(docId);
+
+      citations.push({
+        documentId: docId,
+        documentName: chunk.documentName || chunk.metadata?.filename || 'Document',
+        pageNumber: chunk.pageNumber || chunk.metadata?.pageNumber,
+        snippet: chunk.content?.substring(0, 100),
+      });
+    }
+
+    return citations;
+  }
+
+  /**
+   * Stream simple responses (chitchat, meta AI).
+   */
+  private async *streamSimpleResponse(
+    request: OrchestratorRequest,
+    intent: PredictedIntent,
+    language: LanguageCode
+  ): StreamGenerator {
+    const startTime = Date.now();
+
+    // Generate the response
+    const response = await this.routeIntent(request, intent);
+
+    // Yield the content as a single chunk (these are short responses)
+    yield { type: 'content', content: response.answer } as ContentEvent;
+
+    return {
+      fullAnswer: response.answer,
+      intent: intent.primaryIntent,
+      confidence: intent.confidence,
+      documentsUsed: 0,
+      processingTime: Date.now() - startTime,
+    };
+  }
+
+  /**
+   * Get no results message in appropriate language.
+   */
+  private getNoResultsMessage(language: LanguageCode): string {
+    const messages: Record<LanguageCode, string> = {
+      en: "I couldn't find relevant information in your documents. Try rephrasing your question.",
+      pt: "Não encontrei informações relevantes nos seus documentos. Tente reformular sua pergunta.",
+      es: "No encontré información relevante en tus documentos. Intenta reformular tu pregunta.",
+    };
+    return messages[language] || messages.en;
   }
 
   /**
@@ -253,9 +633,10 @@ export class KodaOrchestratorV3 {
 
   /**
    * Handle DOC_QA: Answer questions using uploaded documents
+   * FAIL-FAST: Services are guaranteed by container - no optional chains
    */
   private async handleDocumentQnA(context: HandlerContext): Promise<IntentHandlerResponse> {
-    const { request, language } = context;
+    const { request, intent, language } = context;
 
     // Pre-check: Does user have documents?
     const hasDocuments = await this.checkUserHasDocuments(request.userId);
@@ -263,39 +644,48 @@ export class KodaOrchestratorV3 {
       return this.buildFallbackResponse(context, 'NO_DOCUMENTS');
     }
 
-    // If retrieval engine is available, use it
-    if (this.retrievalEngine && this.answerEngine) {
-      const retrievalResult = await this.retrievalEngine.retrieve({
-        query: request.text,
-        userId: request.userId,
-        language,
-        intent: context.intent, // FIX: Pass intent for intent-aware retrieval
-      });
+    // Convert PredictedIntent to IntentClassificationV3 for RAG services
+    const adaptedIntent = adaptPredictedIntent(intent, request);
 
-      const answerResult = await this.answerEngine.generate({
-        query: request.text,
-        chunks: retrievalResult.chunks,
-        language,
-        intent: 'DOC_QA',
-      });
+    // Retrieve documents - pass adapted intent for intent-aware boosting
+    const retrievalResult = await this.retrievalEngine.retrieveWithMetadata({
+      query: request.text,
+      userId: request.userId,
+      language,
+      intent: adaptedIntent,
+    });
 
-      const formatted = await this.formattingPipeline.format({
-        text: answerResult.text,
-        documents: retrievalResult.documents,
-        language,
-      });
-
-      return {
-        answer: answerResult.text,
-        formatted: formatted.text,
-        metadata: {
-          documentsUsed: retrievalResult.documents?.length || 0,
-          tokensUsed: answerResult.tokensUsed,
-        },
-      };
+    // Check if we got chunks
+    if (!retrievalResult.chunks || retrievalResult.chunks.length === 0) {
+      return this.buildFallbackResponse(context, 'NO_RELEVANT_DOCS');
     }
 
-    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Document Q&A service is currently unavailable.');
+    // Generate answer - pass adapted intent for question-type formatting
+    const answerResult = await this.answerEngine.answerWithDocs({
+      userId: request.userId,
+      query: request.text,
+      intent: adaptedIntent,
+      documents: retrievalResult.chunks,
+      language,
+    });
+
+    // Format with citations via formatting pipeline
+    const formatted = await this.formattingPipeline.format({
+      text: answerResult.answer,
+      citations: answerResult.citations,
+      language,
+    });
+
+    return {
+      answer: formatted.text || answerResult.answer,
+      formatted: formatted.text || answerResult.answer,
+      metadata: {
+        documentsUsed: retrievalResult.chunks.length,
+        citations: answerResult.citations,
+        confidence: answerResult.confidenceScore,
+        wasTruncated: answerResult.wasTruncated,
+      },
+    };
   }
 
   /**

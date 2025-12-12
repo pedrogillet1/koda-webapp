@@ -743,6 +743,12 @@ async function processDocumentWithTimeout(
       extractedLength: extractedText.length
     });
 
+    // 🛡️ GUARD: Fail if extraction produced too little text (prevents empty documents)
+    const MIN_EXTRACTION_LENGTH = 10;
+    if (!extractedText || extractedText.trim().length < MIN_EXTRACTION_LENGTH) {
+      throw new Error(`Text extraction failed - extracted only ${extractedText?.length || 0} chars (minimum: ${MIN_EXTRACTION_LENGTH}). The document may be empty, corrupted, or in an unsupported format.`);
+    }
+
     // CONVERT TO MARKDOWN
     let markdownContent: string | null = null;
     try {
@@ -1784,6 +1790,12 @@ async function processDocumentAsync(
     // STAGE 3: EXTRACTION COMPLETE (30%)
     // ════════════════════════════════════════════════════════════════════════
     await documentProgressService.emitProgress('EXTRACTION_COMPLETE', progressOptions);
+
+    // 🛡️ GUARD: Fail if extraction produced too little text (prevents empty documents)
+    const MIN_EXTRACTION_LENGTH = 10;
+    if (!extractedText || extractedText.trim().length < MIN_EXTRACTION_LENGTH) {
+      throw new Error(`Text extraction failed - extracted only ${extractedText?.length || 0} chars (minimum: ${MIN_EXTRACTION_LENGTH}). The document may be empty, corrupted, or in an unsupported format.`);
+    }
 
     // ════════════════════════════════════════════════════════════════════════
     // STAGE 4: CLEANING START (32%)
