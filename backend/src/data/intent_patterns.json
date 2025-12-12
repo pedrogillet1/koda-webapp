@@ -1,0 +1,77 @@
+{
+  "version": "3.0.0",
+  "lastUpdated": "2025-12-11",
+  "description": "Intent classification patterns for V3 services",
+  "ANALYTICS": {
+    "keywords": {
+      "en": ["how many", "count", "total", "number of", "statistics", "stats", "analytics", "metrics", "documents do i have", "files do i have"],
+      "pt": ["quantos", "quantas", "contagem", "total", "número de", "estatísticas", "métricas", "documentos eu tenho", "arquivos eu tenho"],
+      "es": ["cuántos", "cuántas", "conteo", "total", "número de", "estadísticas", "métricas", "documentos tengo", "archivos tengo"]
+    },
+    "patterns": {
+      "en": ["how many (documents|files|contracts)", "count (all|my) (documents|files)", "what is the total"],
+      "pt": ["quantos (documentos|arquivos|contratos)", "contar (todos|meus) (documentos|arquivos)"],
+      "es": ["cuántos (documentos|archivos|contratos)", "contar (todos|mis) (documentos|archivos)"]
+    }
+  },
+  "SEARCH": {
+    "keywords": {
+      "en": ["find", "search", "look for", "locate", "show me", "list", "get", "retrieve", "where is", "filter"],
+      "pt": ["encontrar", "buscar", "procurar", "localizar", "mostrar", "listar", "obter", "onde está", "filtrar"],
+      "es": ["encontrar", "buscar", "localizar", "mostrar", "listar", "obtener", "dónde está", "filtrar"]
+    },
+    "patterns": {
+      "en": ["find (all|my) (documents|files|contracts)", "search for", "show me (all|my)", "list (all|my)"],
+      "pt": ["encontrar (todos|meus) (documentos|arquivos)", "buscar por", "mostrar (todos|meus)"],
+      "es": ["encontrar (todos|mis) (documentos|archivos)", "buscar por", "mostrar (todos|mis)"]
+    }
+  },
+  "DOCUMENT_QNA": {
+    "keywords": {
+      "en": ["what does", "according to", "based on", "in the document", "in the file", "says about", "mention", "explain", "describe", "tell me about", "summarize", "extract", "quote"],
+      "pt": ["o que diz", "de acordo com", "baseado em", "no documento", "no arquivo", "fala sobre", "menciona", "explicar", "descrever", "me diga sobre", "resumir", "extrair", "citar"],
+      "es": ["qué dice", "según", "basado en", "en el documento", "en el archivo", "habla sobre", "menciona", "explicar", "describir", "dime sobre", "resumir", "extraer", "citar"]
+    },
+    "patterns": {
+      "en": ["what does .+ say about", "according to .+", "in .+ (document|file|contract)", "summarize .+", "extract .+ from"],
+      "pt": ["o que .+ diz sobre", "de acordo com .+", "no .+ (documento|arquivo|contrato)", "resumir .+", "extrair .+ de"],
+      "es": ["qué .+ dice sobre", "según .+", "en .+ (documento|archivo|contrato)", "resumir .+", "extraer .+ de"]
+    }
+  },
+  "CHITCHAT": {
+    "keywords": {
+      "en": ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "thanks", "thank you", "bye", "goodbye", "how are you", "nice to meet you"],
+      "pt": ["olá", "oi", "bom dia", "boa tarde", "boa noite", "obrigado", "obrigada", "tchau", "até logo", "como vai", "prazer"],
+      "es": ["hola", "buenos días", "buenas tardes", "buenas noches", "gracias", "adiós", "hasta luego", "cómo estás", "mucho gusto"]
+    },
+    "patterns": {
+      "en": ["^(hello|hi|hey)$", "^(thanks|thank you)$", "^(bye|goodbye)$"],
+      "pt": ["^(olá|oi)$", "^(obrigado|obrigada)$", "^(tchau|até logo)$"],
+      "es": ["^(hola)$", "^(gracias)$", "^(adiós|hasta luego)$"]
+    }
+  },
+  "META_AI": {
+    "keywords": {
+      "en": ["what can you do", "your capabilities", "help me", "what are you", "who are you", "your features", "how do you work", "what are your abilities"],
+      "pt": ["o que você pode fazer", "suas capacidades", "me ajude", "o que você é", "quem é você", "suas funcionalidades", "como você funciona"],
+      "es": ["qué puedes hacer", "tus capacidades", "ayúdame", "qué eres", "quién eres", "tus funcionalidades", "cómo funcionas"]
+    },
+    "patterns": {
+      "en": ["what can you (do|help with)", "what are (your|you) (capabilities|features)", "tell me about yourself"],
+      "pt": ["o que você pode (fazer|ajudar)", "quais são (suas|as suas) (capacidades|funcionalidades)"],
+      "es": ["qué puedes (hacer|ayudar)", "cuáles son (tus|las) (capacidades|funcionalidades)"]
+    }
+  },
+  "PRODUCT_HELP": {
+    "keywords": {
+      "en": ["how to", "how do i", "upload", "download", "settings", "configure", "tutorial", "guide", "instructions", "troubleshoot", "problem", "issue", "not working"],
+      "pt": ["como fazer", "como eu", "enviar", "baixar", "configurações", "configurar", "tutorial", "guia", "instruções", "resolver", "problema", "não funciona"],
+      "es": ["cómo hacer", "cómo", "subir", "descargar", "configuración", "configurar", "tutorial", "guía", "instrucciones", "resolver", "problema", "no funciona"]
+    },
+    "patterns": {
+      "en": ["how (do i|to|can i) (upload|download|configure|use)", "help with (upload|download|settings)", "having (trouble|issues|problems) with"],
+      "pt": ["como (eu|posso) (enviar|baixar|configurar|usar)", "ajuda com (envio|download|configurações)"],
+      "es": ["cómo (puedo|hacer para) (subir|descargar|configurar|usar)", "ayuda con (subida|descarga|configuración)"]
+    }
+  }
+}

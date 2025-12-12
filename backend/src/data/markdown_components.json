@@ -1,0 +1,150 @@
+{
+  "_comment": "Markdown component templates for notices, blocks, multilingual support",
+  "notices": {
+    "info": {
+      "en": {
+        "wrapper": ":::info\n{content}\n:::",
+        "icon": "ℹ️",
+        "title": "Info"
+      },
+      "pt": {
+        "wrapper": ":::info\n{content}\n:::",
+        "icon": "ℹ️",
+        "title": "Informação"
+      },
+      "es": {
+        "wrapper": ":::info\n{content}\n:::",
+        "icon": "ℹ️",
+        "title": "Información"
+      }
+    },
+    "warning": {
+      "en": {
+        "wrapper": ":::warning\n{content}\n:::",
+        "icon": "⚠️",
+        "title": "Warning"
+      },
+      "pt": {
+        "wrapper": ":::warning\n{content}\n:::",
+        "icon": "⚠️",
+        "title": "Aviso"
+      },
+      "es": {
+        "wrapper": ":::warning\n{content}\n:::",
+        "icon": "⚠️",
+        "title": "Advertencia"
+      }
+    },
+    "tip": {
+      "en": {
+        "wrapper": ":::tip\n{content}\n:::",
+        "icon": "💡",
+        "title": "Tip"
+      },
+      "pt": {
+        "wrapper": ":::tip\n{content}\n:::",
+        "icon": "💡",
+        "title": "Dica"
+      },
+      "es": {
+        "wrapper": ":::tip\n{content}\n:::",
+        "icon": "💡",
+        "title": "Consejo"
+      }
+    }
+  },
+  "blocks": {
+    "limitations": {
+      "en": {
+        "title": "Limitations",
+        "wrapper": "### Limitations\n\n{content}",
+        "intro": "Please note the following limitations:",
+        "list_prefix": "- "
+      },
+      "pt": {
+        "title": "Limitações",
+        "wrapper": "### Limitações\n\n{content}",
+        "intro": "Por favor, note as seguintes limitações:",
+        "list_prefix": "- "
+      },
+      "es": {
+        "title": "Limitaciones",
+        "wrapper": "### Limitaciones\n\n{content}",
+        "intro": "Por favor, tenga en cuenta las siguientes limitaciones:",
+        "list_prefix": "- "
+      }
+    },
+    "sources": {
+      "en": {
+        "title": "Sources",
+        "wrapper": "### Sources\n\n{content}",
+        "intro": "Information sourced from:",
+        "list_prefix": "- "
+      },
+      "pt": {
+        "title": "Fontes",
+        "wrapper": "### Fontes\n\n{content}",
+        "intro": "Informações obtidas de:",
+        "list_prefix": "- "
+      },
+      "es": {
+        "title": "Fuentes",
+        "wrapper": "### Fuentes\n\n{content}",
+        "intro": "Información obtenida de:",
+        "list_prefix": "- "
+      }
+    }
+  },
+  "multilingual": {
+    "language_switcher": {
+      "en": {
+        "label": "Language:",
+        "options": {
+          "en": "English",
+          "pt": "Português",
+          "es": "Español"
+        }
+      },
+      "pt": {
+        "label": "Idioma:",
+        "options": {
+          "en": "Inglês",
+          "pt": "Português",
+          "es": "Espanhol"
+        }
+      },
+      "es": {
+        "label": "Idioma:",
+        "options": {
+          "en": "Inglés",
+          "pt": "Portugués",
+          "es": "Español"
+        }
+      }
+    },
+    "translation_notice": {
+      "en": "This content is also available in other languages.",
+      "pt": "Este conteúdo também está disponível em outros idiomas.",
+      "es": "Este contenido también está disponible en otros idiomas."
+    }
+  },
+  "_comment": "Example usage templates for notices and blocks",
+  "templates": {
+    "notice_example": {
+      "en": ":::info\n**Info:** This is an informational notice.\n:::",
+      "pt": ":::info\n**Informação:** Este é um aviso informativo.\n:::",
+      "es": ":::info\n**Información:** Este es un aviso informativo.\n:::"
+    },
+    "limitations_example": {
+      "en": "### Limitations\n\n- Data may be outdated.\n- Some features are experimental.",
+      "pt": "### Limitações\n\n- Os dados podem estar desatualizados.\n- Algumas funcionalidades são experimentais.",
+      "es": "### Limitaciones\n\n- Los datos pueden estar desactualizados.\n- Algunas funciones son experimentales."
+    },
+    "sources_example": {
+      "en": "### Sources\n\n- Official documentation\n- User feedback",
+      "pt": "### Fontes\n\n- Documentação oficial\n- Feedback dos usuários",
+      "es": "### Fuentes\n\n- Documentación oficial\n- Retroalimentación de usuarios"
+    }
+  }
+}
+```
