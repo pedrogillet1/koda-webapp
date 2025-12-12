@@ -180,7 +180,7 @@ model Document {
   filenameEncrypted      String?
   extractedTextEncrypted String?
   renderableContent      String?
-  language               String              @default("english")  // Detected language for BM25 search
+  language               String              @default("en")  // ISO code (en/pt/es) for BM25 search and retrieval filters
 
   // KODA FIX: Embedding tracking fields
   embeddingsGenerated    Boolean             @default(false)  // Track if embeddings were successfully generated
