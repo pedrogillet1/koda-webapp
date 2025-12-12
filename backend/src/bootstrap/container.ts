@@ -253,6 +253,15 @@ class KodaV3Container {
       throw new BootstrapWiringError('Orchestrator.intentEngine is undefined (DI failed)');
     }
 
+    // Verify intentEngine has intentConfig wired (Phase 3 requirement)
+    const intentEng = this.services.intentEngine as any;
+    if (!intentEng.intentConfig) {
+      throw new BootstrapWiringError('IntentEngine.intentConfig is undefined (DI failed)');
+    }
+    if (!intentEng.languageDetector) {
+      throw new BootstrapWiringError('IntentEngine.languageDetector is undefined (DI failed)');
+    }
+
     console.log('✅ [Container] All wiring assertions passed');
   }
 
