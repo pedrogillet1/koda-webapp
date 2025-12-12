@@ -1,244 +1,237 @@
 /**
- * @file kodaMarkerParser.ts
- * @description Frontend marker parser for parsing backend markers (DOC, LOAD_MORE) embedded in text.
- *              Parses text into segments of plain text and marker objects with extracted metadata.
- *              Supports DOC and LOAD_MORE markers with robust error handling and extensibility.
+ * Koda Marker Parser V3 - Frontend
+ * 
+ * Parses unified marker format from backend:
+ * {{DOC::id=docId::name="filename"::ctx=text}}
+ * {{LOAD_MORE::total=50::shown=10::remaining=40}}
+ * 
+ * Streaming-safe: handles incomplete markers gracefully
  */
-
-import { strict as assert } from 'assert';
 
 /**
- * Marker types supported by the parser.
+ * Decode marker value (matches backend encoding)
  */
-export type MarkerType = 'DOC' | 'LOAD_MORE';
-
-/**
- * Base interface for a parsed marker.
- */
-export interface BaseMarker {
-  type: MarkerType;
-  raw: string; // Raw marker string including delimiters
-  metadata: Record<string, string>; // Extracted key-value metadata
+export function decodeMarkerValue(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch (err) {
+    return value;
+  }
 }
 
 /**
- * DOC marker interface.
+ * Parse document marker
+ * Returns null if invalid or incomplete
  */
-export interface DocMarker extends BaseMarker {
-  type: 'DOC';
-  metadata: {
-    id: string;
-    title?: string;
-    [key: string]: string | undefined;
+export function parseDocMarker(marker) {
+  // Match: {{DOC::id=...::name="..."::ctx=...}}
+  const regex = /^{{DOC::id=([^:]+)::name="([^"]+)"::ctx=(list|text)}}$/;
+  const match = marker.match(regex);
+  
+  if (!match) {
+    return null;
+  }
+  
+  return {
+    type: 'doc',
+    id: match[1],
+    name: decodeMarkerValue(match[2]),
+    ctx: match[3],
   };
 }
 
 /**
- * LOAD_MORE marker interface.
+ * Parse load more marker
+ * Returns null if invalid or incomplete
  */
-export interface LoadMoreMarker extends BaseMarker {
-  type: 'LOAD_MORE';
-  metadata: {
-    count: number;
-    cursor?: string;
-    [key: string]: string | number | undefined;
+export function parseLoadMoreMarker(marker) {
+  // Match: {{LOAD_MORE::total=...::shown=...::remaining=...}}
+  const regex = /^{{LOAD_MORE::total=(\d+)::shown=(\d+)::remaining=(\d+)}}$/;
+  const match = marker.match(regex);
+  
+  if (!match) {
+    return null;
+  }
+  
+  return {
+    type: 'load_more',
+    total: parseInt(match[1], 10),
+    shown: parseInt(match[2], 10),
+    remaining: parseInt(match[3], 10),
   };
 }
 
 /**
- * Union type for all supported markers.
+ * Check if marker is complete
+ * Useful for streaming: don't render incomplete markers
  */
-export type Marker = DocMarker | LoadMoreMarker;
-
-/**
- * Segment type representing either plain text or a marker.
- */
-export type Segment = 
-  | { type: 'text'; content: string }
-  | { type: 'marker'; marker: Marker };
-
-/**
- * Parser class for extracting markers from text.
- */
-export class KodaMarkerParser {
-  // Regex to match markers of the form [[MARKER_TYPE key1=value1 key2="value 2"]]
-  // Supports quoted values with spaces and escaped quotes.
-  private static readonly MARKER_REGEX = /\[\[\s*(\w+)((?:\s+\w+=(?:"(?:[^"\\]|\\.)*"|\S+))*)\s*\]\]/g;
-
-  // Regex to match individual key=value pairs inside a marker
-  // Supports quoted values with escaped quotes and unquoted values without spaces.
-  private static readonly KEY_VALUE_REGEX = /(\w+)=("((?:[^"\\]|\\.)*)"|[^\s"]+)/g;
-
-  /**
-   * Parses the input text and returns an array of segments.
-   * Each segment is either plain text or a marker object with extracted metadata.
-   * 
-   * @param input - The input string containing text and embedded markers.
-   * @returns Array of segments representing text and markers.
-   * @throws {Error} Throws if marker metadata is invalid or required fields are missing.
-   */
-  public static parse(input: string): Segment[] {
-    if (typeof input !== 'string') {
-      throw new TypeError(`Input must be a string, received ${typeof input}`);
-    }
-
-    const segments: Segment[] = [];
-    let lastIndex = 0;
-
-    // Use global regex to find all markers
-    const regex = KodaMarkerParser.MARKER_REGEX;
-    let match: RegExpExecArray | null;
-
-    while ((match = regex.exec(input)) !== null) {
-      const [rawMarker, markerTypeRaw, metadataRaw] = match;
-      const markerStart = match.index;
-      const markerEnd = regex.lastIndex;
-
-      // Push preceding text segment if any
-      if (markerStart > lastIndex) {
-        const textSegment = input.slice(lastIndex, markerStart);
-        segments.push({ type: 'text', content: textSegment });
-      }
-
-      const markerType = markerTypeRaw.toUpperCase();
-
-      try {
-        const metadata = KodaMarkerParser.parseMetadata(metadataRaw);
-
-        // Validate and create marker object based on type
-        let marker: Marker;
-        switch (markerType) {
-          case 'DOC':
-            marker = KodaMarkerParser.createDocMarker(rawMarker, metadata);
-            break;
-          case 'LOAD_MORE':
-            marker = KodaMarkerParser.createLoadMoreMarker(rawMarker, metadata);
-            break;
-          default:
-            // Unknown marker types are treated as plain text
-            segments.push({ type: 'text', content: rawMarker });
-            lastIndex = markerEnd;
-            continue;
-        }
-
-        segments.push({ type: 'marker', marker });
-      } catch (err) {
-        // If parsing marker fails, treat the entire raw marker as plain text to avoid breaking UI
-        console.error(`Failed to parse marker "${rawMarker}": ${(err as Error).message}`);
-        segments.push({ type: 'text', content: rawMarker });
-      }
-
-      lastIndex = markerEnd;
-    }
-
-    // Push remaining text after last marker
-    if (lastIndex < input.length) {
-      segments.push({ type: 'text', content: input.slice(lastIndex) });
-    }
-
-    return segments;
+export function isCompleteMarker(text) {
+  if (!text.startsWith('{{')) {
+    return false;
   }
-
-  /**
-   * Parses the metadata string inside a marker into a key-value object.
-   * Supports quoted values with escaped characters.
-   * 
-   * Example input: ' id=123 title="My Document" '
-   * Output: { id: '123', title: 'My Document' }
-   * 
-   * @param metadataRaw - Raw metadata string inside the marker.
-   * @returns Parsed metadata as key-value pairs.
-   * @throws {Error} Throws if metadata parsing fails.
-   */
-  private static parseMetadata(metadataRaw: string): Record<string, string> {
-    const metadata: Record<string, string> = {};
-    const regex = KodaMarkerParser.KEY_VALUE_REGEX;
-    let match: RegExpExecArray | null;
-
-    // Reset lastIndex in case of global regex reuse
-    regex.lastIndex = 0;
-
-    while ((match = regex.exec(metadataRaw)) !== null) {
-      const key = match[1];
-      let rawValue = match[2];
-
-      // If value is quoted, remove quotes and unescape
-      if (rawValue.startsWith('"') && rawValue.endsWith('"')) {
-        rawValue = rawValue.slice(1, -1);
-        rawValue = rawValue.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-      }
-
-      if (key in metadata) {
-        throw new Error(`Duplicate metadata key "${key}" in marker metadata.`);
-      }
-
-      metadata[key] = rawValue;
-    }
-
-    return metadata;
-  }
-
-  /**
-   * Creates a DOC marker object from raw marker string and metadata.
-   * Validates required fields.
-   * 
-   * @param raw - Raw marker string including delimiters.
-   * @param metadata - Parsed metadata key-value pairs.
-   * @returns DocMarker object.
-   * @throws {Error} Throws if required fields are missing or invalid.
-   */
-  private static createDocMarker(raw: string, metadata: Record<string, string>): DocMarker {
-    const id = metadata.id;
-    if (!id) {
-      throw new Error(`DOC marker missing required "id" field.`);
-    }
-
-    // Optional title field
-    const title = metadata.title;
-
-    // Return marker with all metadata preserved
-    return {
-      type: 'DOC',
-      raw,
-      metadata: {
-        id,
-        title,
-        ...metadata,
-      },
-    };
-  }
-
-  /**
-   * Creates a LOAD_MORE marker object from raw marker string and metadata.
-   * Validates required fields and converts types.
-   * 
-   * @param raw - Raw marker string including delimiters.
-   * @param metadata - Parsed metadata key-value pairs.
-   * @returns LoadMoreMarker object.
-   * @throws {Error} Throws if required fields are missing or invalid.
-   */
-  private static createLoadMoreMarker(raw: string, metadata: Record<string, string>): LoadMoreMarker {
-    const countStr = metadata.count;
-    if (!countStr) {
-      throw new Error(`LOAD_MORE marker missing required "count" field.`);
-    }
-
-    const count = Number(countStr);
-    if (!Number.isInteger(count) || count < 0) {
-      throw new Error(`LOAD_MORE marker "count" must be a non-negative integer, got "${countStr}".`);
-    }
-
-    const cursor = metadata.cursor;
-
-    return {
-      type: 'LOAD_MORE',
-      raw,
-      metadata: {
-        count,
-        cursor,
-        ...metadata,
-      },
-    };
-  }
+  
+  return text.endsWith('}}');
 }
 
+/**
+ * Parse text into parts (text + markers)
+ * Streaming-safe: treats incomplete markers as plain text
+ */
+export function parseTextWithMarkers(text) {
+  const parts = [];
+  
+  // Regex to match complete markers only
+  const markerRegex = /{{(DOC|LOAD_MORE)::[^}]+}}/g;
+  
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = markerRegex.exec(text)) !== null) {
+    // Add text before marker
+    if (match.index > lastIndex) {
+      const textPart = text.slice(lastIndex, match.index);
+      if (textPart) {
+        parts.push({
+          type: 'text',
+          value: textPart,
+        });
+      }
+    }
+    
+    // Parse and add marker
+    const markerText = match[0];
+    let parsed = null;
+    
+    if (markerText.startsWith('{{DOC::')) {
+      parsed = parseDocMarker(markerText);
+    } else if (markerText.startsWith('{{LOAD_MORE::')) {
+      parsed = parseLoadMoreMarker(markerText);
+    }
+    
+    if (parsed) {
+      parts.push(parsed);
+    } else {
+      // Invalid marker - treat as text
+      parts.push({
+        type: 'text',
+        value: markerText,
+      });
+    }
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Add remaining text
+  if (lastIndex < text.length) {
+    const textPart = text.slice(lastIndex);
+    if (textPart) {
+      parts.push({
+        type: 'text',
+        value: textPart,
+      });
+    }
+  }
+  
+  return parts;
+}
+
+/**
+ * Streaming-safe parser with holdback
+ * Holds back last N characters to avoid rendering incomplete markers
+ */
+export function parseWithHoldback(text, holdbackChars = 50) {
+  if (text.length < holdbackChars) {
+    // Not enough text to hold back, treat all as text
+    return {
+      parts: [{ type: 'text', value: text }],
+      heldBack: '',
+    };
+  }
+  
+  // Check if there's a potential incomplete marker in the last N chars
+  const lastPart = text.slice(-holdbackChars);
+  const hasOpenMarker = lastPart.includes('{{') && !lastPart.includes('}}');
+  
+  if (hasOpenMarker) {
+    // Find the last complete marker boundary
+    const lastCompleteIndex = text.lastIndexOf('}}');
+    
+    if (lastCompleteIndex === -1) {
+      // No complete markers yet, hold everything
+      return {
+        parts: [],
+        heldBack: text,
+      };
+    }
+    
+    // Parse up to last complete marker
+    const safePart = text.slice(0, lastCompleteIndex + 2);
+    const heldBack = text.slice(lastCompleteIndex + 2);
+    
+    return {
+      parts: parseTextWithMarkers(safePart),
+      heldBack,
+    };
+  }
+  
+  // No incomplete markers, parse everything
+  return {
+    parts: parseTextWithMarkers(text),
+    heldBack: '',
+  };
+}
+
+/**
+ * Extract all document IDs from text
+ */
+export function extractDocumentIds(text) {
+  const ids = new Set();
+  const regex = /{{DOC::id=([^:]+)::/g;
+  let match;
+  
+  while ((match = regex.exec(text)) !== null) {
+    ids.add(match[1]);
+  }
+  
+  return Array.from(ids);
+}
+
+/**
+ * Count markers in text
+ */
+export function countMarkers(text) {
+  const docCount = (text.match(/{{DOC::/g) || []).length;
+  const loadMoreCount = (text.match(/{{LOAD_MORE::/g) || []).length;
+  
+  return {
+    doc: docCount,
+    loadMore: loadMoreCount,
+    total: docCount + loadMoreCount,
+  };
+}
+
+/**
+ * Strip all markers from text (for copy/paste)
+ */
+export function stripMarkers(text) {
+  return text.replace(/{{(DOC|LOAD_MORE)::[^}]+}}/g, (match) => {
+    // For DOC markers, extract and return just the filename
+    const parsed = parseDocMarker(match);
+    if (parsed) {
+      return parsed.name;
+    }
+    return '';
+  });
+}
+
+export default {
+  parseDocMarker,
+  parseLoadMoreMarker,
+  isCompleteMarker,
+  parseTextWithMarkers,
+  parseWithHoldback,
+  extractDocumentIds,
+  countMarkers,
+  stripMarkers,
+  decodeMarkerValue,
+};

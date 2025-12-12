@@ -1,143 +1,132 @@
 /**
- * StreamingMarkdown.ENHANCED.jsx
- *
- * Enhanced StreamingMarkdown component that parses streaming markdown content,
- * detects special markers (DOC and LOAD_MORE), and renders them as interactive components.
- *
- * It uses `kodaMarkerParser` to split content into segments of text and markers.
- * Text segments are rendered as markdown, while markers render corresponding UI elements.
- *
- * The component also determines if it is rendered inside a list context to adjust
- * the rendering of document buttons accordingly.
+ * Streaming Markdown Enhanced - Production V3
+ * 
+ * Features:
+ * - Streaming-safe marker parsing (holdback mechanism)
+ * - CSS-only styling (no <u> tags, no rehypeRaw)
+ * - Inline document buttons with proper spacing
+ * - Load more buttons
  */
 
-import React, { useMemo, useCallback } from 'react';
-import PropTypes from 'prop-types';
+import React, { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
-import { kodaMarkerParser, MarkerType, Marker } from './kodaMarkerParser'; // Assume this is a utility parser module
-import { Button } from './Button'; // Generic Button component
-import { DocumentButton } from './DocumentButton'; // Specialized button for DOC markers
-import { LoadMoreButton } from './LoadMoreButton'; // Specialized button for LOAD_MORE markers
+import { parseWithHoldback } from '../utils/kodaMarkerParserV3';
+import InlineDocumentButton from './InlineDocumentButton';
+import LoadMoreButton from './LoadMoreButton';
 
 /**
- * Props for StreamingMarkdownEnhanced component.
- * @typedef {Object} StreamingMarkdownEnhancedProps
- * @property {string} content - The streaming markdown content to render.
- * @property {(docId: string) => void} onDocumentClick - Callback when a DOC marker button is clicked.
- * @property {() => void} onLoadMoreClick - Callback when LOAD_MORE marker button is clicked.
- * @property {boolean} [inList] - Optional flag indicating if the component is rendered inside a list.
+ * Main streaming markdown component
  */
-
-/**
- * StreamingMarkdownEnhanced component.
- *
- * Parses streaming markdown content, detects DOC and LOAD_MORE markers,
- * and renders them as interactive components alongside markdown text.
- *
- * @param {StreamingMarkdownEnhancedProps} props
- */
-export function StreamingMarkdownEnhanced({
+export default function StreamingMarkdownEnhanced({
   content,
+  isStreaming = false,
   onDocumentClick,
-  onLoadMoreClick,
-  inList = false,
+  onLoadMore,
+  className = '',
 }) {
-  /**
-   * Parses the content into segments of text and markers.
-   * Uses useMemo to avoid re-parsing on every render unless content changes.
-   */
-  const segments = useMemo(() => {
-    try {
-      return kodaMarkerParser(content);
-    } catch (error) {
-      // Log error and fallback to rendering entire content as markdown
-      // This ensures the UI does not break on parse errors.
-      // eslint-disable-next-line no-console
-      console.error('Error parsing content with kodaMarkerParser:', error);
-      return [{ type: 'text', content }];
+  // Parse content with streaming holdback
+  const { parts, heldBack } = useMemo(() => {
+    if (isStreaming) {
+      // Use holdback during streaming to avoid rendering incomplete markers
+      return parseWithHoldback(content, 50);
+    } else {
+      // No holdback when streaming is complete
+      return parseWithHoldback(content, 0);
     }
-  }, [content]);
-
-  /**
-   * Renders a single segment, either text or marker.
-   *
-   * @param {Marker | { type: 'text'; content: string }} segment
-   * @param {number} index
-   * @returns {JSX.Element}
-   */
-  const renderSegment = useCallback(
-    (segment, index) => {
-      if (segment.type === 'text') {
-        // Render markdown text with GitHub Flavored Markdown and raw HTML support
-        return (
-          <ReactMarkdown
-            key={`text-${index}`}
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeRaw]}
-            components={{
-              // Customize rendering of list items to pass down inList context if needed
-              li: ({ node, ...props }) => <li {...props} />,
-            }}
-          >
-            {segment.content}
-          </ReactMarkdown>
-        );
-      }
-
-      // Marker rendering
-      switch (segment.markerType) {
-        case MarkerType.DOC:
-          // DOC marker: render DocumentButton with docId and inList context
-          if (!segment.docId) {
-            // Defensive: docId is required for DOC markers
-            // eslint-disable-next-line no-console
-            console.warn('DOC marker missing docId:', segment);
-            return null;
-          }
-          return (
-            <DocumentButton
-              key={`doc-${index}`}
-              docId={segment.docId}
-              inList={inList}
-              onClick={() => onDocumentClick(segment.docId)}
-            />
-          );
-
-        case MarkerType.LOAD_MORE:
-          // LOAD_MORE marker: render LoadMoreButton
-          return (
-            <LoadMoreButton
-              key={`loadmore-${index}`}
-              onClick={onLoadMoreClick}
-            />
-          );
-
-        default:
-          // Unknown marker type: render nothing or fallback
-          // eslint-disable-next-line no-console
-          console.warn('Unknown marker type encountered:', segment.markerType);
-          return null;
-      }
-    },
-    [inList, onDocumentClick, onLoadMoreClick]
-  );
+  }, [content, isStreaming]);
 
   return (
-    <div className="streaming-markdown-enhanced" data-in-list={inList}>
-      {segments.map(renderSegment)}
+    <div className={`streaming-markdown ${className}`}>
+      {parts.map((part, index) => {
+        // Render text parts as markdown
+        if (part.type === 'text') {
+          return (
+            <ReactMarkdown
+              key={index}
+              remarkPlugins={[remarkGfm]}
+              components={{
+                // Ensure inline elements don't break spacing
+                p: ({ node, ...props }) => <p style={{ display: 'inline' }} {...props} />,
+              }}
+            >
+              {part.value}
+            </ReactMarkdown>
+          );
+        }
+
+        // Render document markers as inline buttons
+        if (part.type === 'doc') {
+          return (
+            <InlineDocumentButton
+              key={index}
+              docId={part.id}
+              docName={part.name}
+              context={part.ctx}
+              onClick={() => onDocumentClick?.(part.id, part.name)}
+            />
+          );
+        }
+
+        // Render load more markers as buttons
+        if (part.type === 'load_more') {
+          return (
+            <LoadMoreButton
+              key={index}
+              total={part.total}
+              shown={part.shown}
+              remaining={part.remaining}
+              onClick={() => onLoadMore?.(part.shown, part.remaining)}
+            />
+          );
+        }
+
+        return null;
+      })}
+
+      {/* Show held back text as plain text (no markers) */}
+      {isStreaming && heldBack && (
+        <span className="held-back-text">{heldBack}</span>
+      )}
+
+      {/* Streaming cursor */}
+      {isStreaming && (
+        <span className="streaming-cursor" aria-label="Generating...">
+          ▊
+        </span>
+      )}
     </div>
   );
 }
 
-StreamingMarkdownEnhanced.propTypes = {
-  content: PropTypes.string.isRequired,
-  onDocumentClick: PropTypes.func.isRequired,
-  onLoadMoreClick: PropTypes.func.isRequired,
-  inList: PropTypes.bool,
-};
-
-StreamingMarkdownEnhanced.defaultProps = {
-  inList: false,
-};
+/**
+ * CSS for the component (add to your global styles or CSS module)
+ * 
+ * .streaming-markdown {
+ *   line-height: 1.6;
+ *   font-size: 16px;
+ * }
+ * 
+ * .streaming-markdown p {
+ *   margin: 0;
+ *   display: inline;
+ * }
+ * 
+ * .streaming-markdown .held-back-text {
+ *   opacity: 0.7;
+ * }
+ * 
+ * .streaming-cursor {
+ *   display: inline-block;
+ *   width: 2px;
+ *   height: 1.2em;
+ *   background-color: currentColor;
+ *   animation: blink 1s step-end infinite;
+ *   margin-left: 2px;
+ *   vertical-align: text-bottom;
+ * }
+ * 
+ * @keyframes blink {
+ *   50% { opacity: 0; }
+ * }
+ */

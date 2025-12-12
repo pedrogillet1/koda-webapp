@@ -1,43 +1,39 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-
 /**
- * LoadMoreButton Component
- *
- * Displays a "See all X" link to navigate to the documents page
- * Styled as black bold text (like document names) - no button styling
+ * Load More Button - Production V3
+ * 
+ * Renders pagination control for document listings
  */
 
-const LoadMoreButton = ({ loadMoreData, onClick, style = {} }) => {
-  const navigate = useNavigate();
+import React from 'react';
+import './LoadMoreButton.css';
 
-  const { totalCount } = loadMoreData;
-
+export default function LoadMoreButton({
+  total,
+  shown,
+  remaining,
+  onClick,
+  className = '',
+}) {
   const handleClick = (e) => {
     e.preventDefault();
-    // Navigate to documents page to see all files
-    navigate('/documents');
+    onClick?.(shown, remaining);
   };
 
   return (
-    <div
-      onClick={handleClick}
-      style={{
-        display: 'block',
-        marginTop: '4px',
-        paddingLeft: '40px',
-        color: '#303030',
-        fontWeight: 600,
-        fontSize: 'inherit',
-        textDecoration: 'none',
-        cursor: 'pointer',
-        fontFamily: 'inherit',
-        ...style
-      }}
-    >
-      See all {totalCount}
+    <div className={`load-more-container ${className}`}>
+      <button
+        type="button"
+        className="load-more-button"
+        onClick={handleClick}
+        aria-label={`Load ${remaining} more documents`}
+      >
+        <span className="load-more-text">
+          Load {remaining} more {remaining === 1 ? 'document' : 'documents'}
+        </span>
+        <span className="load-more-stats">
+          (Showing {shown} of {total})
+        </span>
+      </button>
     </div>
   );
-};
-
-export default LoadMoreButton;
+}
