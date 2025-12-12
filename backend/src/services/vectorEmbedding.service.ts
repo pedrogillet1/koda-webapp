@@ -49,9 +49,14 @@ export const storeDocumentEmbeddings = async (
     verifyAfterStore = true,
   } = options;
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🛡️ HARD GUARD: NEVER allow zero-chunk documents to proceed
+  // This prevents "completed" documents with no searchable content
+  // ═══════════════════════════════════════════════════════════════════════════
   if (!chunks || chunks.length === 0) {
-    console.log(`[vectorEmbedding] No chunks to store for document ${documentId}`);
-    return;
+    const errorMessage = `CRITICAL: Zero chunks provided for document ${documentId}. Cannot store embeddings without content.`;
+    console.error(`❌ [vectorEmbedding] ${errorMessage}`);
+    throw new Error(errorMessage);
   }
 
   let attempt = 0;
@@ -144,8 +149,7 @@ export const storeDocumentEmbeddings = async (
 
       // ═══════════════════════════════════════════════════════════════════════════
       // STEP 6: Store in DocumentEmbedding table (PostgreSQL backup for BM25)
-      // NOTE: Temporarily disabled due to Prisma client schema mismatch
-      // Pinecone is the primary source of truth for embeddings
+      // 🔥 CRITICAL: If PostgreSQL fails, we must rollback Pinecone to prevent inconsistent state
       // ═══════════════════════════════════════════════════════════════════════════
       try {
         // Delete existing embeddings for this document
@@ -181,8 +185,22 @@ export const storeDocumentEmbeddings = async (
 
         console.log(`✅ [vectorEmbedding] Stored ${embeddingRecords.length} embeddings in PostgreSQL (BM25 backup)`);
       } catch (pgError: any) {
-        // Log warning but don't fail - Pinecone is the primary source
-        console.warn(`⚠️ [vectorEmbedding] PostgreSQL backup failed (non-critical): ${pgError.message}`);
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🔥 COMPENSATING DELETE: Rollback Pinecone on PostgreSQL failure
+        // This prevents inconsistent state where Pinecone has data but PG doesn't
+        // ═══════════════════════════════════════════════════════════════════════════
+        console.error(`❌ [vectorEmbedding] PostgreSQL storage FAILED: ${pgError.message}`);
+        console.warn(`🔄 [vectorEmbedding] Rolling back Pinecone embeddings for document ${documentId}...`);
+
+        try {
+          await pineconeService.deleteDocumentEmbeddings(documentId);
+          console.log(`✅ [vectorEmbedding] Rollback complete - Pinecone embeddings deleted`);
+        } catch (rollbackError: any) {
+          console.error(`❌ [vectorEmbedding] CRITICAL: Rollback failed - inconsistent state! ${rollbackError.message}`);
+        }
+
+        // Re-throw to mark document as failed
+        throw new Error(`PostgreSQL storage failed (Pinecone rolled back): ${pgError.message}`);
       }
 
       // ═══════════════════════════════════════════════════════════════════════════
@@ -223,8 +241,23 @@ export const storeDocumentEmbeddings = async (
 
         console.log(`✅ [vectorEmbedding] Stored ${chunkRecords.length} chunks in PostgreSQL (BM25 keyword search)`);
       } catch (chunkError: any) {
-        // Log warning but don't fail - Pinecone is the primary source
-        console.warn(`⚠️ [vectorEmbedding] DocumentChunk storage failed (BM25 may not work): ${chunkError.message}`);
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🔥 COMPENSATING DELETE: Rollback all stores on DocumentChunk failure
+        // Ensures atomic all-or-nothing storage for consistent hybrid search
+        // ═══════════════════════════════════════════════════════════════════════════
+        console.error(`❌ [vectorEmbedding] DocumentChunk storage FAILED: ${chunkError.message}`);
+        console.warn(`🔄 [vectorEmbedding] Rolling back Pinecone + DocumentEmbedding for document ${documentId}...`);
+
+        try {
+          await pineconeService.deleteDocumentEmbeddings(documentId);
+          await prisma.documentEmbedding.deleteMany({ where: { documentId } });
+          console.log(`✅ [vectorEmbedding] Rollback complete - all embeddings deleted`);
+        } catch (rollbackError: any) {
+          console.error(`❌ [vectorEmbedding] CRITICAL: Rollback failed - inconsistent state! ${rollbackError.message}`);
+        }
+
+        // Re-throw to mark document as failed
+        throw new Error(`DocumentChunk storage failed (all stores rolled back): ${chunkError.message}`);
       }
 
       // Success! Break out of retry loop

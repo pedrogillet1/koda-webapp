@@ -1198,6 +1198,13 @@ async function processDocumentWithTimeout(
           // Don't fail the whole process - displayTitle will remain null
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // 🛡️ INTEGRITY GUARD: Only mark completed if chunks were stored
+        // ═══════════════════════════════════════════════════════════════
+        if (!chunks || chunks.length === 0) {
+          throw new Error(`Cannot mark document as completed: no chunks were generated (extracted text length: ${extractedText?.length || 0})`);
+        }
+
         await prisma.document.update({
           where: { id: documentId },
           data: {
@@ -1205,13 +1212,13 @@ async function processDocumentWithTimeout(
             fileHash: fileHashActual,
             renderableContent: extractedText || null,
             embeddingsGenerated: true,
-            chunksCount: chunks?.length || 0,
+            chunksCount: chunks.length,
             displayTitle: displayTitle, // AI-generated human-readable title
             updatedAt: new Date()
           },
         });
 
-        console.log(`✅ [DOCUMENT] Completed with ${chunks?.length || 0} embeddings`);
+        console.log(`✅ [DOCUMENT] Completed with ${chunks.length} embeddings`);
       } catch (embeddingError: any) {
         // ═══════════════════════════════════════════════════════════════
         // KODA FIX: Mark as FAILED if embeddings fail
@@ -1237,8 +1244,6 @@ async function processDocumentWithTimeout(
         throw embeddingError;
       }
 
-    }
-
     // 🔍 VERIFY PINECONE STORAGE - Temporarily disabled during OpenAI migration
     // The embeddings are being stored successfully, verification is failing due to dimension query issues
 
@@ -1251,7 +1256,34 @@ async function processDocumentWithTimeout(
     // Document is marked "completed" ONLY after embeddings succeed
     // ═══════════════════════════════════════════════════════════════
 
- else {
+    } else {
+      // ═══════════════════════════════════════════════════════════════
+      // 🛡️ INTEGRITY: No text to embed = FAILURE (document unusable for RAG)
+      // ═══════════════════════════════════════════════════════════════
+      const errorMsg = `Document has insufficient text content for embeddings (length: ${extractedText?.length || 0} chars, minimum: 50)`;
+      console.error(`❌ [INGESTION] ${errorMsg}`);
+
+      // Emit clear failure event to user
+      emitToUser(userId, 'document-ingestion-failed', {
+        documentId,
+        filename,
+        error: errorMsg,
+        reason: 'no_text_content',
+        extractedLength: extractedText?.length || 0
+      });
+
+      // Mark as failed
+      await prisma.document.update({
+        where: { id: documentId },
+        data: {
+          status: 'failed',
+          error: errorMsg,
+          embeddingsGenerated: false,
+          updatedAt: new Date()
+        },
+      });
+
+      throw new Error(errorMsg);
     }
 
     // Invalidate cache for this user after successful processing
@@ -1451,6 +1483,11 @@ async function processDocumentAsync(
   };
 
   try {
+    // ═══════════════════════════════════════════════════════════════
+    // 🛡️ INTEGRITY TRACKING: Track successful embedding storage
+    // ═══════════════════════════════════════════════════════════════
+    let embeddingsSuccessfullyStored = false;
+    let storedChunksCount = 0;
 
     // ════════════════════════════════════════════════════════════════════════
     // STAGE 1: EXTRACTION START (22%)
@@ -2050,6 +2087,12 @@ async function processDocumentAsync(
             });
           }
 
+          // ═══════════════════════════════════════════════════════════════
+          // 🛡️ INTEGRITY: Mark embeddings as successfully stored
+          // ═══════════════════════════════════════════════════════════════
+          embeddingsSuccessfullyStored = true;
+          storedChunksCount = chunks.length;
+
         } catch (error: any) {
           // 🔥 FIX: Embedding failures now FAIL the document (not silent)
           console.error('❌ Vector embedding generation failed:', error);
@@ -2064,8 +2107,27 @@ async function processDocumentAsync(
           throw error;
         }
     } else {
-      // No text to embed - skip to database stage
-      await documentProgressService.emitCustomProgress(80, 'No text content for embeddings', progressOptions);
+      // ═══════════════════════════════════════════════════════════════
+      // 🛡️ INTEGRITY: No text to embed = FAILURE (document unusable for RAG)
+      // ═══════════════════════════════════════════════════════════════
+      const errorMsg = `Document has insufficient text content for embeddings (length: ${extractedText?.length || 0} chars, minimum: 50)`;
+      console.error(`❌ [INGESTION] ${errorMsg}`);
+
+      // Emit clear failure event to user
+      if (io) {
+        io.to(`user:${userId}`).emit('document-ingestion-failed', {
+          documentId,
+          filename,
+          error: errorMsg,
+          reason: 'no_text_content',
+          extractedLength: extractedText?.length || 0
+        });
+      }
+
+      // Emit error via progress service
+      await documentProgressService.emitError(errorMsg, progressOptions);
+
+      throw new Error(errorMsg);
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -2105,10 +2167,34 @@ async function processDocumentAsync(
     // ════════════════════════════════════════════════════════════════════════
     await documentProgressService.emitProgress('INDEXING_COMPLETE', progressOptions);
 
+    // ═══════════════════════════════════════════════════════════════
+    // 🛡️ INTEGRITY GUARD: Only mark completed if embeddings were stored
+    // ═══════════════════════════════════════════════════════════════
+    if (!embeddingsSuccessfullyStored || storedChunksCount === 0) {
+      const errorMsg = `Cannot mark document as completed: embeddings not stored (stored=${embeddingsSuccessfullyStored}, chunks=${storedChunksCount})`;
+      console.error(`❌ [INTEGRITY] ${errorMsg}`);
+
+      // Emit failure event
+      if (io) {
+        io.to(`user:${userId}`).emit('document-ingestion-failed', {
+          documentId,
+          filename,
+          error: errorMsg,
+          reason: 'no_embeddings'
+        });
+      }
+
+      throw new Error(errorMsg);
+    }
+
     // 🔥 FIX: Update document status to completed ONLY after all verification passed
     await prisma.document.update({
       where: { id: documentId },
-      data: { status: 'completed' },
+      data: {
+        status: 'completed',
+        chunksCount: storedChunksCount,
+        embeddingsGenerated: true
+      },
     });
 
     // ════════════════════════════════════════════════════════════════════════
