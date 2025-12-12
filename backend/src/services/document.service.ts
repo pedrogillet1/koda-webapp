@@ -5,11 +5,10 @@ import { config } from '../config/env';
 import * as textExtractionService from './textExtraction.service';
 import * as geminiService from './openai.service';
 import * as folderService from './folder.service';
-import { generateDocumentTitleOnly } from './titleGeneration.service';
-import markdownConversionService from './markdownConversion.service';
+// Ingestion Layer - document processing utilities (NOT used in RAG queries)
+import { generateDocumentTitleOnly, markdownConversionService, fileValidator } from './ingestion';
 import cacheService from './cache.service';
 import encryptionService from './encryption.service';
-import fileValidator from './fileValidator.service';
 import { invalidateUserCache } from '../controllers/batch.controller';
 import { addDocumentJob } from '../queues/document.queue';
 import fs from 'fs';
@@ -589,7 +588,7 @@ async function processDocumentWithTimeout(
 
 
               // ✅ FIX: ALWAYS extract images first (proactive approach)
-              const { PPTXImageExtractorService } = await import('./pptxImageExtractor.service');
+              const { PPTXImageExtractorService } = await import('./ingestion/pptxImageExtractor.service');
               const extractor = new PPTXImageExtractorService();
 
               const imageResult = await extractor.extractImages(
@@ -858,7 +857,7 @@ async function processDocumentWithTimeout(
     if (isDocx) {
       const pdfGenStartTime = Date.now();
       try {
-        const { convertDocxToPdf } = await import('./docx-converter.service');
+        const { convertDocxToPdf } = await import('./ingestion/docx-converter.service');
 
         // Get the document info
         const document = await prisma.document.findUnique({
@@ -1188,7 +1187,7 @@ async function processDocumentWithTimeout(
           // Use enhanced Excel processor for Excel files to preserve cell coordinates
           if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
               mimeType === 'application/vnd.ms-excel') {
-            const excelProcessor = await import('./excelProcessor.service');
+            const excelProcessor = await import('./ingestion/excelProcessor.service');
             const excelChunks = await excelProcessor.default.processExcel(fileBuffer);
 
             // Convert Excel chunks to embedding format with full document metadata
@@ -1796,7 +1795,7 @@ async function processDocumentAsync(
 
 
               // ✅ FIX: ALWAYS extract images first (proactive approach)
-              const { PPTXImageExtractorService } = await import('./pptxImageExtractor.service');
+              const { PPTXImageExtractorService } = await import('./ingestion/pptxImageExtractor.service');
               const extractor = new PPTXImageExtractorService();
 
               const imageResult = await extractor.extractImages(
@@ -2020,7 +2019,7 @@ async function processDocumentAsync(
     const isDocx = mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     if (isDocx) {
       try {
-        const { convertDocxToPdf } = await import('./docx-converter.service');
+        const { convertDocxToPdf } = await import('./ingestion/docx-converter.service');
 
         // ✅ FIX: Use the correct PDF path format
         // DOCX files are converted to PDF and stored as `${userId}/${documentId}-converted.pdf`
@@ -2183,7 +2182,7 @@ async function processDocumentAsync(
           // Use enhanced Excel processor for Excel files to preserve cell coordinates
           if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
               mimeType === 'application/vnd.ms-excel') {
-            const excelProcessor = await import('./excelProcessor.service');
+            const excelProcessor = await import('./ingestion/excelProcessor.service');
             const excelChunks = await excelProcessor.default.processExcel(fileBuffer);
 
             // Convert Excel chunks to embedding format with full document metadata
@@ -3350,7 +3349,7 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
   const isDocx = document.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
   if (isDocx) {
-    const { convertDocxToPdf } = await import('./docx-converter.service');
+    const { convertDocxToPdf } = await import('./ingestion/docx-converter.service');
 
     // REASON: Use the correct path for the converted PDF
     // WHY: During upload, DOCX is converted to PDF and saved as `${userId}/${documentId}-converted.pdf`
@@ -4025,7 +4024,7 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
       if (!slideResult.success || !slideResult.slides || slideResult.slides.length === 0) {
 
         // 🆕 FALLBACK: Try direct image extraction
-        const { pptxImageExtractorService } = await import('./pptxImageExtractor.service');
+        const { pptxImageExtractorService } = await import('./ingestion/pptxImageExtractor.service');
         const imageResult = await pptxImageExtractorService.extractImages(
           tempFilePath,
           documentId,

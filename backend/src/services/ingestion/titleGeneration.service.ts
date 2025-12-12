@@ -9,7 +9,7 @@
  * Uses Gemini 2.5 Flash for fast, cost-effective title generation.
  */
 
-import geminiGateway from './geminiGateway.service';
+import geminiGateway from '../geminiGateway.service';
 
 export type TitleMode =
   | 'chat_title'

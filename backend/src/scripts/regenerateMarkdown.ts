@@ -7,7 +7,7 @@
 
 import prisma from '../config/database';
 import { downloadFile } from '../config/storage';
-import markdownConversionService from '../services/markdownConversion.service';
+import { markdownConversionService } from '../services/ingestion';
 import { extractText } from '../services/textExtraction.service';
 
 interface ProcessingStats {

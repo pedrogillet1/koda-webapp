@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import AdmZip from 'adm-zip';
 import sharp from 'sharp';
-import s3StorageService from './s3Storage.service';
+import s3StorageService from '../s3Storage.service';
 
 interface ExtractedImage {
   slideNumber: number;

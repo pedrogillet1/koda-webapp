@@ -10,7 +10,7 @@
 import prisma from '../config/database';
 import { downloadFile } from '../config/storage';
 import { extractText } from '../services/textExtraction.service';
-import markdownConversionService from '../services/markdownConversion.service';
+import { markdownConversionService } from '../services/ingestion';
 import vectorEmbeddingService from '../services/vectorEmbedding.service';
 import semanticChunkingService from '../services/semantic-chunking.service';
 

@@ -72,6 +72,31 @@ class LanguageDetectorService {
     const engineLang = language === 'pt' ? 'pt-BR' : language;
     return languageEngine.getSystemInstructionSuffix(engineLang as EngineLanguage);
   }
+
+  /**
+   * Create a language instruction string for LLM prompts.
+   * Used by gemini.service and openai.service.
+   *
+   * @param language - Language code
+   * @returns Language instruction string
+   */
+  public createLanguageInstruction(language: SupportedLanguage | string): string {
+    const lang = (language || 'en').toLowerCase();
+
+    switch (lang) {
+      case 'pt':
+      case 'pt-br':
+      case 'portuguese':
+        return '\n\nIMPORTANT: Please respond in Portuguese (Português).';
+      case 'es':
+      case 'spanish':
+        return '\n\nIMPORTANT: Please respond in Spanish (Español).';
+      case 'en':
+      case 'english':
+      default:
+        return '\n\nIMPORTANT: Please respond in English.';
+    }
+  }
 }
 
 export const languageDetectorService = new LanguageDetectorService();
