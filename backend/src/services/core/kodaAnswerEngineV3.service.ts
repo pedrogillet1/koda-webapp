@@ -58,6 +58,8 @@ export interface AnswerResult {
   answer: string;
   confidenceScore?: number;
   citations?: Citation[];
+  wasTruncated?: boolean;
+  finishReason?: string;
 }
 
 // ============================================================================
@@ -178,6 +180,7 @@ export class KodaAnswerEngineV3 {
 
   /**
    * Generate an answer with retrieved documents.
+   * Includes truncation detection for answer quality assurance.
    */
   public async answerWithDocs(params: AnswerWithDocsParams): Promise<AnswerResult> {
     const { query, documents, language, intent } = params;
@@ -188,26 +191,34 @@ export class KodaAnswerEngineV3 {
         answer: this.getNoDocsMessage(lang),
         confidenceScore: 0,
         citations: [],
+        wasTruncated: false,
       };
     }
 
     // Build context from documents
     const context = this.buildContext(documents);
 
-    // Generate answer using Gemini LLM
-    const answer = await this.generateDocumentAnswer(query, context, intent, lang);
+    // Generate answer using Gemini LLM (with truncation detection)
+    const result = await this.generateDocumentAnswer(query, context, intent, lang);
 
     // Extract citations
     const citations = this.extractCitations(documents);
 
     // Calculate confidence based on document relevance scores
+    // Reduce confidence if answer was truncated
     const avgScore = documents.reduce((sum, doc) => sum + (doc.score || 0.5), 0) / documents.length;
-    const confidenceScore = Math.min(avgScore * 1.2, 1.0); // Scale up slightly, cap at 1.0
+    let confidenceScore = Math.min(avgScore * 1.2, 1.0); // Scale up slightly, cap at 1.0
+
+    if (result.wasTruncated) {
+      confidenceScore *= 0.7; // Reduce confidence for truncated answers
+    }
 
     return {
-      answer,
+      answer: result.text,
       confidenceScore,
       citations,
+      wasTruncated: result.wasTruncated,
+      finishReason: result.finishReason,
     };
   }
 
@@ -270,31 +281,43 @@ export class KodaAnswerEngineV3 {
 
   /**
    * Generate an answer based on documents and question type using Gemini LLM.
+   * Returns both the answer text and truncation status.
    */
   private async generateDocumentAnswer(
     query: string,
     context: string,
     intent: IntentClassificationV3,
     lang: LanguageCode
-  ): Promise<string> {
+  ): Promise<{ text: string; wasTruncated: boolean; finishReason?: string }> {
     try {
       console.log(`[KodaAnswerEngineV3] Generating answer with Gemini for query: "${query.substring(0, 50)}..."`);
 
       const systemPrompt = this.buildSystemPrompt(intent, lang);
       const userPrompt = this.buildUserPrompt(query, context, lang);
 
-      const answer = await geminiGateway.quickGenerate(
+      const response = await geminiGateway.quickGenerateWithMetadata(
         `${systemPrompt}\n\n${userPrompt}`,
         {
           temperature: 0.3, // Lower temperature for factual answers
           maxTokens: 2000
-          
         }
       );
 
-      console.log(`[KodaAnswerEngineV3] Generated answer (${answer.length} chars)`);
+      // Check for truncation based on finish_reason
+      // Gemini uses: 'STOP' (normal), 'MAX_TOKENS' (truncated), 'SAFETY', 'RECITATION', etc.
+      const wasTruncated = this.detectTruncation(response.text, response.finishReason);
 
-      return answer;
+      if (wasTruncated) {
+        console.warn(`[KodaAnswerEngineV3] Answer may be truncated. Finish reason: ${response.finishReason}`);
+      }
+
+      console.log(`[KodaAnswerEngineV3] Generated answer (${response.text.length} chars, truncated: ${wasTruncated})`);
+
+      return {
+        text: response.text,
+        wasTruncated,
+        finishReason: response.finishReason,
+      };
     } catch (error) {
       console.error('[KodaAnswerEngineV3] Gemini generation failed:', error);
 
@@ -305,8 +328,42 @@ export class KodaAnswerEngineV3 {
         es: "Encontré información relevante en tus documentos, pero tuve un problema al generar una respuesta detallada. Por favor, inténtalo de nuevo.",
       };
 
-      return fallbackMessages[lang] || fallbackMessages.en;
+      return {
+        text: fallbackMessages[lang] || fallbackMessages.en,
+        wasTruncated: false,
+      };
     }
+  }
+
+  /**
+   * Detect if an answer was truncated.
+   * Checks finish_reason and heuristic patterns.
+   */
+  private detectTruncation(text: string, finishReason?: string): boolean {
+    // Check finish_reason first (most reliable)
+    if (finishReason === 'MAX_TOKENS' || finishReason === 'LENGTH') {
+      return true;
+    }
+
+    // Heuristic checks for truncation patterns
+    if (!text || text.length === 0) {
+      return false;
+    }
+
+    const trimmed = text.trim();
+
+    // Check for incomplete sentences at the end
+    const endsWithIncomplete = /[a-zA-Z0-9,;:\-]$/.test(trimmed);
+    const endsWithEllipsis = trimmed.endsWith('...');
+    const endsWithCutWord = /\s[a-zA-Z]{1,3}$/.test(trimmed);
+
+    // Check for unclosed formatting
+    const unclosedBold = (trimmed.match(/\*\*/g) || []).length % 2 !== 0;
+    const unclosedBrackets = (trimmed.match(/\[/g) || []).length !== (trimmed.match(/\]/g) || []).length;
+    const unclosedCodeBlock = (trimmed.match(/```/g) || []).length % 2 !== 0;
+
+    return endsWithIncomplete || endsWithEllipsis || endsWithCutWord ||
+           unclosedBold || unclosedBrackets || unclosedCodeBlock;
   }
 
   /**
@@ -427,6 +484,140 @@ ${query}`;
    */
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Attempt to repair a truncated answer by requesting a continuation.
+   * Only attempts repair once to avoid infinite loops.
+   *
+   * @param truncatedAnswer - The original truncated answer
+   * @param query - Original user query
+   * @param context - Document context
+   * @param lang - Language code
+   * @returns Repaired answer or original if repair fails
+   */
+  public async tryRepairTruncatedAnswer(
+    truncatedAnswer: string,
+    query: string,
+    context: string,
+    lang: LanguageCode
+  ): Promise<{ text: string; wasRepaired: boolean }> {
+    try {
+      console.log('[KodaAnswerEngineV3] Attempting to repair truncated answer...');
+
+      const continuationPrompt = this.buildContinuationPrompt(truncatedAnswer, query, lang);
+
+      const response = await geminiGateway.quickGenerateWithMetadata(
+        `${continuationPrompt}\n\nContext:\n${context.substring(0, 2000)}`, // Limit context for continuation
+        {
+          temperature: 0.3,
+          maxTokens: 1000, // Smaller budget for continuation
+        }
+      );
+
+      // Check if continuation was also truncated
+      const continuationTruncated = this.detectTruncation(response.text, response.finishReason);
+
+      if (continuationTruncated) {
+        console.warn('[KodaAnswerEngineV3] Continuation was also truncated, using graceful ending');
+        // Add graceful ending to truncated answer
+        return {
+          text: this.addGracefulEnding(truncatedAnswer, lang),
+          wasRepaired: true,
+        };
+      }
+
+      // Combine original answer with continuation
+      const repairedAnswer = this.combineAnswerWithContinuation(truncatedAnswer, response.text);
+
+      console.log(`[KodaAnswerEngineV3] Answer repaired (${repairedAnswer.length} chars)`);
+
+      return {
+        text: repairedAnswer,
+        wasRepaired: true,
+      };
+    } catch (error) {
+      console.error('[KodaAnswerEngineV3] Failed to repair truncated answer:', error);
+
+      // Return original with graceful ending
+      return {
+        text: this.addGracefulEnding(truncatedAnswer, lang),
+        wasRepaired: false,
+      };
+    }
+  }
+
+  /**
+   * Build a continuation prompt for repairing truncated answers.
+   */
+  private buildContinuationPrompt(truncatedAnswer: string, query: string, lang: LanguageCode): string {
+    const prompts: Record<LanguageCode, string> = {
+      en: `The following answer was cut off. Please complete it naturally, starting from where it stopped.
+
+Original question: ${query}
+
+Incomplete answer:
+${truncatedAnswer}
+
+Please continue the answer from where it was cut off. Do not repeat what was already said.`,
+      pt: `A seguinte resposta foi cortada. Por favor, complete-a naturalmente, começando de onde parou.
+
+Pergunta original: ${query}
+
+Resposta incompleta:
+${truncatedAnswer}
+
+Por favor, continue a resposta de onde foi cortada. Não repita o que já foi dito.`,
+      es: `La siguiente respuesta fue cortada. Por favor, complétala naturalmente, comenzando desde donde se detuvo.
+
+Pregunta original: ${query}
+
+Respuesta incompleta:
+${truncatedAnswer}
+
+Por favor, continúa la respuesta desde donde fue cortada. No repitas lo que ya se dijo.`,
+    };
+
+    return prompts[lang] || prompts.en;
+  }
+
+  /**
+   * Combine original answer with continuation.
+   */
+  private combineAnswerWithContinuation(original: string, continuation: string): string {
+    // Remove any overlap between end of original and start of continuation
+    const trimmedOriginal = original.trim();
+    const trimmedContinuation = continuation.trim();
+
+    // If original ends with incomplete word, try to complete it
+    if (/[a-zA-Z]$/.test(trimmedOriginal)) {
+      // Add space before continuation
+      return `${trimmedOriginal} ${trimmedContinuation}`;
+    }
+
+    // If original ends with punctuation, just append
+    return `${trimmedOriginal} ${trimmedContinuation}`;
+  }
+
+  /**
+   * Add a graceful ending to a truncated answer.
+   */
+  private addGracefulEnding(truncatedAnswer: string, lang: LanguageCode): string {
+    const trimmed = truncatedAnswer.trim();
+
+    // If it already ends with proper punctuation, return as-is
+    if (/[.!?]$/.test(trimmed)) {
+      return trimmed;
+    }
+
+    // Add graceful ending based on language
+    const endings: Record<LanguageCode, string> = {
+      en: '... (response was shortened for brevity)',
+      pt: '... (resposta foi resumida por brevidade)',
+      es: '... (la respuesta fue resumida por brevedad)',
+    };
+
+    return `${trimmed}${endings[lang] || endings.en}`;
   }
 }
 

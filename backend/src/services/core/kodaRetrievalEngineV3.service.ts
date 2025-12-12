@@ -22,6 +22,8 @@ import type {
 
 import embeddingService from '../embedding.service';
 import pineconeService from '../pinecone.service';
+import { estimateTokens, estimateChunksTokens } from '../../utils/tokenBudgetEstimator';
+import { selectChunksWithinBudget } from '../../utils/contextWindowBudgeting';
 
 type LanguageCode = 'en' | 'pt' | 'es';
 
@@ -218,27 +220,45 @@ export class KodaRetrievalEngineV3 {
 
   /**
    * Apply context budgeting to limit total tokens.
+   * Uses the tokenBudgetEstimator for accurate token counting.
+   *
+   * @param chunks - Array of retrieved chunks (already sorted by relevance)
+   * @param maxTokens - Maximum tokens allowed for chunks
+   * @param language - Language for token estimation
+   * @returns Chunks that fit within the token budget
    */
   private applyContextBudget(
     chunks: RetrievedChunk[],
-    maxTokens: number = 4000
+    maxTokens: number = 4000,
+    language?: string
   ): RetrievedChunk[] {
-    let totalTokens = 0;
-    const budgetedChunks: RetrievedChunk[] = [];
+    // Extract content strings for budget calculation
+    const contentStrings = chunks.map(c => c.content);
 
-    for (const chunk of chunks) {
-      // Rough token estimate: ~4 chars per token
-      const estimatedTokens = Math.ceil(chunk.content.length / 4);
+    // Use the centralized budget selection
+    const budgetResult = selectChunksWithinBudget(contentStrings, maxTokens, language);
 
-      if (totalTokens + estimatedTokens <= maxTokens) {
-        budgetedChunks.push(chunk);
-        totalTokens += estimatedTokens;
-      } else {
-        break;
-      }
+    // Map back to chunks (take the first N that fit)
+    const budgetedChunks = chunks.slice(0, budgetResult.chunksIncluded);
+
+    // Log budget usage for monitoring
+    if (budgetResult.wasTruncated) {
+      console.log(
+        `[KodaRetrievalEngineV3] Budget: ${budgetResult.tokensUsed}/${maxTokens} tokens, ` +
+        `included ${budgetResult.chunksIncluded}, excluded ${budgetResult.chunksExcluded}`
+      );
     }
 
     return budgetedChunks;
+  }
+
+  /**
+   * Get estimated total tokens for a set of chunks.
+   * Useful for pre-flight checks before LLM calls.
+   */
+  public estimateChunkTokens(chunks: RetrievedChunk[], language?: string): number {
+    const contentStrings = chunks.map(c => c.content);
+    return estimateChunksTokens(contentStrings, language);
   }
 }
 

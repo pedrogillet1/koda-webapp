@@ -416,6 +416,27 @@ class GeminiGateway {
   }
 
   /**
+   * Quick generation with full response (includes finishReason for truncation detection)
+   */
+  public async quickGenerateWithMetadata(
+    prompt: string,
+    options: {
+      temperature?: number;
+      maxTokens?: number;
+      model?: GeminiModel;
+    } = {}
+  ): Promise<GeminiResponse> {
+    return this.generateContent({
+      prompt,
+      model: options.model,
+      config: {
+        temperature: options.temperature,
+        maxOutputTokens: options.maxTokens,
+      },
+    });
+  }
+
+  /**
    * JSON generation with automatic parsing
    */
   public async generateJSON<T = any>(

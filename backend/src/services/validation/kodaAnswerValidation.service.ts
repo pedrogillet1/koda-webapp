@@ -6,6 +6,7 @@
  *
  * Features:
  * - Policy-based validation (min length, citations required, etc.)
+ * - Truncation detection
  * - Multilingual support
  * - Severity-based pass/fail
  * - Extensible validation rules
@@ -14,7 +15,6 @@
  */
 
 import { loadJsonFile } from '../../config/dataPaths';
-
 
 import type {
   IntentClassificationV3,
@@ -37,6 +37,7 @@ export interface ValidationPolicy {
   minLengthTokens?: number;
   maxLengthTokens?: number;
   requireDocuments?: boolean;
+  allowTruncated?: boolean;
   severity?: 'info' | 'warning' | 'error';
 }
 
@@ -50,6 +51,8 @@ export interface AnswerToValidate {
   text: string;
   citations?: Citation[];
   documentsUsed?: string[];
+  wasTruncated?: boolean;
+  finishReason?: string;
 }
 
 export interface ValidationRequest {
@@ -76,10 +79,8 @@ export class KodaAnswerValidationService {
   constructor() {
     try {
       this.policies = loadJsonFile<ValidationPoliciesJson>('validation_policies.json');
-      // Loaded via loadJsonFile
-      // Converted to use dataPaths
     } catch (err) {
-      console.warn('Failed to load validation_policies.json, using defaults:', (err as Error).message);
+      console.warn('[KodaAnswerValidation] Failed to load validation_policies.json, using defaults:', (err as Error).message);
       this.policies = this.getDefaultPolicies();
     }
   }
@@ -129,6 +130,11 @@ export class KodaAnswerValidationService {
       reasons.push('EMPTY_ANSWER');
     }
 
+    // Rule 6: Check for truncation (NEW)
+    if (answer.wasTruncated && !policy.allowTruncated) {
+      reasons.push('TRUNCATED');
+    }
+
     return {
       passed: reasons.length === 0,
       reasons,
@@ -142,6 +148,13 @@ export class KodaAnswerValidationService {
   public isValid(req: ValidationRequest): boolean {
     const result = this.validate(req);
     return result.passed || result.severity !== 'error';
+  }
+
+  /**
+   * Check specifically for truncation.
+   */
+  public isTruncated(answer: AnswerToValidate): boolean {
+    return answer.wasTruncated === true;
   }
 
   /**
@@ -163,34 +176,40 @@ export class KodaAnswerValidationService {
         requireCitations: false,
         minLengthTokens: 5,
         maxLengthTokens: 2000,
+        allowTruncated: false,
         severity: 'warning',
       },
       'documents.summary': {
         requireCitations: true,
         minLengthTokens: 20,
         maxLengthTokens: 500,
+        allowTruncated: false,
         severity: 'warning',
       },
       'documents.factual': {
         requireCitations: true,
         minLengthTokens: 10,
         maxLengthTokens: 300,
+        allowTruncated: false,
         severity: 'warning',
       },
       'documents.compare': {
         requireCitations: true,
         minLengthTokens: 30,
         maxLengthTokens: 800,
+        allowTruncated: false,
         severity: 'warning',
       },
       'product.help': {
         requireCitations: false,
         minLengthTokens: 15,
+        allowTruncated: true, // Product help can be truncated
         severity: 'info',
       },
       'chitchat': {
         requireCitations: false,
         minLengthTokens: 3,
+        allowTruncated: true, // Chitchat can be truncated
         severity: 'info',
       },
     };

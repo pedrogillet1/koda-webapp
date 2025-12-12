@@ -1,5 +1,6 @@
 import express from 'express';
 import prisma from '../config/database';
+import { DATA_DIR, verifyAllDataFiles, REQUIRED_DATA_FILES } from '../config/dataPaths';
 
 const router = express.Router();
 
@@ -101,6 +102,41 @@ router.get('/health/document-stats', async (req, res) => {
       status: 'error',
       error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * Data files health check
+ * Returns status of all required JSON data files
+ */
+router.get('/health/data-health', async (_req, res) => {
+  try {
+    const { ok, problems } = verifyAllDataFiles();
+
+    const status = problems.length === 0 ? 'healthy' : 'unhealthy';
+    const httpStatus = problems.length === 0 ? 200 : 503;
+
+    res.status(httpStatus).json({
+      status,
+      timestamp: new Date().toISOString(),
+      dataDir: DATA_DIR,
+      totalFiles: REQUIRED_DATA_FILES.length,
+      okFiles: ok.length,
+      problemFiles: problems.length,
+      files: {
+        ok,
+        problems: problems.map(p => ({
+          file: p.file,
+          error: p.error,
+        })),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
     });
   }
 });
