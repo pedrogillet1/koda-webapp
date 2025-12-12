@@ -1,30 +1,38 @@
 /**
- * Core Services Index
+ * Core Services Index V3
  * Re-exports all core RAG services
  */
 
-// Main orchestrator (entry point)
-export * from './kodaOrchestrator.service';
+// V3 Orchestrator (main entry point)
+export * from './kodaOrchestratorV3.service';
 
-// Intent classification
-export * from './kodaIntentEngine.service';
+// V3 Intent classification
+export * from './kodaIntentEngineV3.service';
 
-// Retrieval and answer engines
+// V3 Config services
+export * from './intentConfig.service';
+export * from './fallbackConfig.service';
+
+// V3 Fallback engine
+export * from './kodaFallbackEngineV3.service';
+
+// V3 Formatting pipeline
+export * from './kodaFormattingPipelineV3.service';
+
+// V3 Product help
+export * from './kodaProductHelpV3.service';
+
+// V3 Pattern classifier
+export * from './patternClassifierV3.service';
+
+// Retrieval and answer engines (unchanged)
 export * from './kodaRetrievalEngineV3.service';
 export * from './kodaAnswerEngineV3.service';
 
-// Formatting
-export * from './kodaFormattingPipeline.service';
-
-// Document resolution
+// Document resolution (unchanged)
 export * from './documentResolution.service';
 
-// Product help
-export * from './kodaProductHelp.service';
-
-// Supporting services
+// Supporting services (unchanged)
 export * from './languageDetector.service';
-export * from './patternClassifier.service';
 export * from './multiIntent.service';
 export * from './override.service';
-export * from './fallbackEngine.service';

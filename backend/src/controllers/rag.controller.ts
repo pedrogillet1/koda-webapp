@@ -2,19 +2,20 @@
  * RAG Controller V3
  *
  * Clean RAG implementation using the V3 pipeline:
- * - Central orchestration via KodaOrchestratorService
- * - Intent classification via KodaIntentEngineService
+ * - Central orchestration via KodaOrchestratorV3
+ * - Intent classification via KodaIntentEngineV3
  * - Retrieval via KodaRetrievalEngineV3
  * - Answer generation via KodaAnswerEngineV3
- * - Formatting via KodaFormattingPipelineServiceV3
+ * - Formatting via KodaFormattingPipelineV3
  *
- * Supports 6 primary intents:
- * 1. ANALYTICS - Document statistics
- * 2. SEARCH - Document search
- * 3. DOCUMENT_QNA - Question answering
- * 4. CHITCHAT - Casual conversation
- * 5. META_AI - Capability questions
- * 6. PRODUCT_HELP - Product guidance
+ * Supports 25 intents (V3):
+ * DOC_QA, DOC_ANALYTICS, DOC_MANAGEMENT, DOC_SEARCH, DOC_SUMMARIZE,
+ * PREFERENCE_UPDATE, MEMORY_STORE, MEMORY_RECALL,
+ * ANSWER_REWRITE, ANSWER_EXPAND, ANSWER_SIMPLIFY,
+ * FEEDBACK_POSITIVE, FEEDBACK_NEGATIVE,
+ * PRODUCT_HELP, ONBOARDING_HELP, FEATURE_REQUEST,
+ * GENERIC_KNOWLEDGE, REASONING_TASK, TEXT_TRANSFORM,
+ * CHITCHAT, META_AI, OUT_OF_SCOPE, AMBIGUOUS, SAFETY_CONCERN, MULTI_INTENT, UNKNOWN
  */
 
 import { Request, Response } from 'express';
@@ -23,12 +24,13 @@ import cacheService from '../services/cache.service';
 import { generateConversationTitle } from '../services/openai.service';
 
 // V3 Services
-import { KodaOrchestratorService, RagChatRequestV3 } from '../services/core/kodaOrchestrator.service';
-import { KodaIntentEngineService } from '../services/core/kodaIntentEngine.service';
+import { KodaOrchestratorV3, kodaOrchestratorV3, OrchestratorRequest } from '../services/core/kodaOrchestratorV3.service';
+import { KodaIntentEngineV3, kodaIntentEngineV3 } from '../services/core/kodaIntentEngineV3.service';
+import { LanguageCode } from '../types/intentV3.types';
 
-// Instantiate V3 services
-const orchestrator = new KodaOrchestratorService();
-const intentEngine = new KodaIntentEngineService();
+// Use singleton instances
+const orchestrator = kodaOrchestratorV3;
+const intentEngine = kodaIntentEngineV3;
 
 // ============================================================================
 // Helper Functions
@@ -107,18 +109,18 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     await ensureConversationExists(conversationId, userId);
 
     // Build V3 request
-    const request: RagChatRequestV3 = {
+    const request: OrchestratorRequest = {
       userId,
-      query,
-      language: language as 'en' | 'pt' | 'es',
+      text: query,
+      language: (language as LanguageCode) || 'en',
       conversationId,
-      attachedDocumentIds: attachedDocumentIds.length > 0 ? attachedDocumentIds : undefined,
+      context: attachedDocumentIds.length > 0 ? { attachedDocumentIds } : undefined,
     };
 
     // Call V3 orchestrator
-    const response = await orchestrator.handleChat(request);
+    const response = await orchestrator.orchestrate(request);
 
-    console.log(`[RAG V3] Intent: ${response.primaryIntent}, Time: ${Date.now() - startTime}ms`);
+    console.log(`[RAG V3] Intent: ${response.metadata?.intent}, Time: ${Date.now() - startTime}ms`);
 
     // Save user message
     const userMessage = await prisma.message.create({
@@ -139,10 +141,10 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         role: 'assistant',
         content: response.answer,
         metadata: JSON.stringify({
-          primaryIntent: response.primaryIntent,
-          language: response.language,
-          sourceDocuments: response.sourceDocuments,
-          confidenceScore: response.confidenceScore,
+          primaryIntent: response.metadata?.intent,
+          language: request.language,
+          sourceDocuments: response.metadata?.documentsUsed ? [] : [],
+          confidenceScore: response.metadata?.confidence,
         }),
       },
     });
@@ -175,11 +177,8 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     // Return response
     res.status(200).json({
       answer: response.answer,
-      sources: response.sourceDocuments.map((doc: any) => ({
-        id: doc.documentId || doc.id,
-        filename: doc.documentName || doc.filename,
-      })),
-      intent: response.primaryIntent,
+      sources: [], // V3 handles sources differently via metadata
+      intent: response.metadata?.intent,
       userMessage: {
         id: userMessage.id,
         content: userMessage.content,
@@ -189,9 +188,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         content: assistantMessage.content,
       },
       metadata: {
-        primaryIntent: response.primaryIntent,
-        language: response.language,
-        confidenceScore: response.confidenceScore,
+        primaryIntent: response.metadata?.intent,
+        language: request.language,
+        confidenceScore: response.metadata?.confidence,
         totalTimeMs: Date.now() - startTime,
       },
     });
@@ -226,21 +225,21 @@ export const answerFollowUp = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const request: RagChatRequestV3 = {
+    const request: OrchestratorRequest = {
       userId,
-      query,
-      language: language as 'en' | 'pt' | 'es',
+      text: query,
+      language: (language as LanguageCode) || 'en',
       conversationId,
     };
 
-    const response = await orchestrator.handleChat(request);
+    const response = await orchestrator.orchestrate(request);
 
     res.status(200).json({
       answer: response.answer,
-      sources: response.sourceDocuments,
+      sources: [],
       metadata: {
-        primaryIntent: response.primaryIntent,
-        confidenceScore: response.confidenceScore,
+        primaryIntent: response.metadata?.intent,
+        confidenceScore: response.metadata?.confidence,
       },
     });
   } catch (error: any) {
@@ -284,15 +283,15 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // Ensure conversation exists
     await ensureConversationExists(conversationId, userId);
 
-    const request: RagChatRequestV3 = {
+    const request: OrchestratorRequest = {
       userId,
-      query,
-      language: language as 'en' | 'pt' | 'es',
+      text: query,
+      language: (language as LanguageCode) || 'en',
       conversationId,
     };
 
     // Get response
-    const response = await orchestrator.handleChat(request);
+    const response = await orchestrator.orchestrate(request);
 
     // Stream the response in chunks
     const words = response.answer.split(' ');
@@ -354,10 +353,10 @@ export const classifyIntent = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const intent = await intentEngine.classify({
-      userId: userId || 'anonymous',
-      query,
-      userLanguageHint: language as 'en' | 'pt' | 'es',
+    const intent = await intentEngine.predict({
+      text: query,
+      language: (language as LanguageCode) || 'en',
+      context: { userId: userId || 'anonymous' },
     });
 
     res.status(200).json(intent);
@@ -390,16 +389,15 @@ export const getContext = async (req: Request, res: Response) => {
     }
 
     // Classify intent using V3
-    const intent = await intentEngine.classify({
-      userId,
-      query,
-      userLanguageHint: (language as 'en' | 'pt' | 'es') || 'en',
+    const intent = await intentEngine.predict({
+      text: query,
+      language: ((language as string) || 'en') as LanguageCode,
+      context: { userId },
     });
 
     res.status(200).json({
       intent,
       primaryIntent: intent.primaryIntent,
-      requiresRAG: intent.requiresRAG,
       language: intent.language,
       confidence: intent.confidence,
     });

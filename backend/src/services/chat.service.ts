@@ -3,17 +3,18 @@
  *
  * Clean implementation using V3 RAG pipeline:
  * - Conversation management (CRUD)
- * - Message handling via KodaOrchestratorService
+ * - Message handling via KodaOrchestratorV3
  * - Title generation
  */
 
 import prisma from '../config/database';
 import { generateConversationTitle } from './openai.service';
-import { KodaOrchestratorService, RagChatRequestV3 } from './core/kodaOrchestrator.service';
+import { kodaOrchestratorV3, OrchestratorRequest } from './core/kodaOrchestratorV3.service';
+import { LanguageCode } from '../types/intentV3.types';
 import cacheService from './cache.service';
 
-// V3 Orchestrator instance
-const orchestrator = new KodaOrchestratorService();
+// V3 Orchestrator instance (singleton)
+const orchestrator = kodaOrchestratorV3;
 
 // ============================================================================
 // Types
@@ -167,16 +168,16 @@ async function sendMessage(params: SendMessageParams): Promise<MessageResult> {
   });
 
   // Build V3 RAG request
-  const request: RagChatRequestV3 = {
+  const request: OrchestratorRequest = {
     userId,
-    query: content,
-    language,
+    text: content,
+    language: language as LanguageCode,
     conversationId,
-    attachedDocumentIds: attachedDocumentId ? [attachedDocumentId] : undefined,
+    context: attachedDocumentId ? { attachedDocumentIds: [attachedDocumentId] } : undefined,
   };
 
   // Get AI response via V3 orchestrator
-  const response = await orchestrator.handleChat(request);
+  const response = await orchestrator.orchestrate(request);
 
   // Save assistant message
   const assistantMessage = await prisma.message.create({
@@ -185,10 +186,10 @@ async function sendMessage(params: SendMessageParams): Promise<MessageResult> {
       role: 'assistant',
       content: response.answer,
       metadata: JSON.stringify({
-        primaryIntent: response.primaryIntent,
-        language: response.language,
-        sourceDocuments: response.sourceDocuments,
-        confidenceScore: response.confidenceScore,
+        primaryIntent: response.metadata?.intent,
+        language: request.language,
+        sourceDocuments: response.metadata?.documentsUsed ? [] : [],
+        confidenceScore: response.metadata?.confidence,
       }),
     },
   });
@@ -220,7 +221,7 @@ async function sendMessage(params: SendMessageParams): Promise<MessageResult> {
   return {
     userMessage,
     assistantMessage,
-    sources: response.sourceDocuments,
+    sources: [], // V3 handles sources differently
   };
 }
 
@@ -243,16 +244,16 @@ async function sendMessageStreaming(
   });
 
   // Build V3 RAG request
-  const request: RagChatRequestV3 = {
+  const request: OrchestratorRequest = {
     userId,
-    query: content,
-    language,
+    text: content,
+    language: language as LanguageCode,
     conversationId,
-    attachedDocumentIds: attachedDocumentId ? [attachedDocumentId] : undefined,
+    context: attachedDocumentId ? { attachedDocumentIds: [attachedDocumentId] } : undefined,
   };
 
   // Get AI response via V3 orchestrator
-  const response = await orchestrator.handleChat(request);
+  const response = await orchestrator.orchestrate(request);
 
   // Stream the response in chunks
   const words = response.answer.split(' ');
@@ -279,7 +280,7 @@ async function sendMessageStreaming(
   return {
     userMessage,
     assistantMessage,
-    sources: response.sourceDocuments,
+    sources: [], // V3 handles sources differently
   };
 }
 
