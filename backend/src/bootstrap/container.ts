@@ -188,7 +188,10 @@ class KodaV3Container {
 
       // ========== STEP 5: Create intent engine (depends on loaded intentConfig) ==========
       console.log('📦 [Container] Creating intent engine...');
-      this.services.intentEngine = new KodaIntentEngineV3(this.services.intentConfig);
+      this.services.intentEngine = new KodaIntentEngineV3(
+        this.services.intentConfig,
+        this.services.languageDetector
+      );
 
       // ========== STEP 6: Create services that depend on intent engine ==========
       console.log('📦 [Container] Creating dependent services...');
