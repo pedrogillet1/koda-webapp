@@ -28,6 +28,7 @@ import { UserPreferencesService } from '../services/user/userPreferences.service
 import { ConversationMemoryService } from '../services/memory/conversationMemory.service';
 import { FeedbackLoggerService } from '../services/analytics/feedbackLogger.service';
 import { AnalyticsEngineService } from '../services/analytics/analyticsEngine.service';
+import { DocumentSearchService } from '../services/analytics/documentSearch.service';
 
 // ============================================================================
 // BOOTSTRAP ERROR
@@ -56,6 +57,7 @@ export interface KodaV3Services {
   conversationMemory: ConversationMemoryService;
   feedbackLogger: FeedbackLoggerService;
   analyticsEngine: AnalyticsEngineService;
+  documentSearch: DocumentSearchService;
 }
 
 // ============================================================================
@@ -93,6 +95,7 @@ class KodaV3Container {
       this.services.conversationMemory = new ConversationMemoryService();
       this.services.feedbackLogger = new FeedbackLoggerService();
       this.services.analyticsEngine = new AnalyticsEngineService();
+      this.services.documentSearch = new DocumentSearchService();
 
       // ========== STEP 3: Create intent engine ==========
       console.log('📦 [Container] Creating intent engine...');
@@ -112,6 +115,7 @@ class KodaV3Container {
           conversationMemory: this.services.conversationMemory,
           feedbackLogger: this.services.feedbackLogger,
           analyticsEngine: this.services.analyticsEngine,
+          documentSearch: this.services.documentSearch,
         },
         console // logger
       );
