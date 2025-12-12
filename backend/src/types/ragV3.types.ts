@@ -45,7 +45,8 @@ export enum IntentDomain {
   DOCUMENTS = 'DOCUMENTS',           // User's documents
   PRODUCT = 'PRODUCT',               // Koda product/UX
   ONBOARDING = 'ONBOARDING',         // First-time user help
-  GENERAL = 'GENERAL'                // Open-world chat
+  GENERAL = 'GENERAL',               // Open-world chat
+  CHITCHAT = 'CHITCHAT'              // Casual conversation
 }
 
 /**
@@ -118,24 +119,34 @@ export interface DocumentTarget {
  */
 export interface IntentClassificationV3 {
   // Core dimensions
-  primaryIntent: PrimaryIntent;
+  primaryIntent: PrimaryIntent | string;  // Allows string for flexibility
   domain: IntentDomain;
   questionType: QuestionType;
+  primaryType?: QuestionType;        // Alias for questionType (backward compat)
   scope: QueryScope;
-  
+
   // Language & RAG
   language: 'en' | 'pt' | 'es';
   requiresRAG: boolean;              // true = go through retrieval
   requiresProductHelp: boolean;      // true = use product help KB
-  
-  // Document targeting
+
+  // Document targeting (V3 enhanced)
   target: DocumentTarget;
-  
+  documentTargets?: string[];        // Resolved document IDs
+
+  // Raw query preservation
+  rawQuery?: string;                 // Original user query
+
   // Confidence & debugging
   confidence: number;                // 0-1
-  matchedPatterns: string[];         // Which patterns matched
-  matchedKeywords: string[];         // Which keywords matched
-  
+  matchedPatterns?: string[];        // Which patterns matched
+  matchedKeywords?: string[];        // Which keywords matched
+  matchedPattern?: string;           // Single pattern match (from pattern classifier)
+
+  // Override tracking
+  overrideReason?: string;           // Why intent was overridden
+  noDocsGuidance?: boolean;          // Flag for no-docs fallback
+
   // Metadata
   metadata?: {
     queryLength: number;
@@ -179,12 +190,16 @@ export interface ResolvedDocument {
 }
 
 /**
- * Document resolution result
+ * Document resolution result - output from resolution service
  */
 export interface DocumentResolutionResult {
-  resolvedDocs: ResolvedDocument[];
-  extractedNames: string[];          // What we extracted from query
-  ambiguous: Array<{                 // Ambiguous matches
+  resolvedDocumentIds: string[];
+  matches: ResolvedNameMatch[];
+  unresolvedNames: string[];
+  // Legacy compatibility
+  resolvedDocs?: ResolvedDocument[];
+  extractedNames?: string[];
+  ambiguous?: Array<{
     mention: string;
     candidates: ResolvedDocument[];
   }>;
@@ -249,6 +264,98 @@ export interface ContextBudget {
   reservedForAnswer: number;         // Expected answer length
   reservedForSystem: number;         // System prompt + query
   availableForContext: number;       // What's left for chunks
+}
+
+// ============================================================================
+// DOCUMENT RESOLUTION PARAMS (V3 - New)
+// ============================================================================
+
+/**
+ * Document resolution parameters - input to resolution service
+ */
+export interface DocumentResolutionParams {
+  userId: string;
+  rawNames: string[];
+  limitPerName?: number;
+}
+
+/**
+ * Resolved name match - individual match result
+ */
+export interface ResolvedNameMatch {
+  rawName: string;
+  documentId: string;
+  filename: string;
+  score: number;
+  matchedAlias?: string;
+}
+
+// ============================================================================
+// RANKING TYPES (V3 - New)
+// ============================================================================
+
+/**
+ * Ranking parameters - input to ranking service
+ */
+export interface RankingParams {
+  query: string;
+  intent: IntentClassificationV3;
+  chunks: RetrievedChunk[];
+  boostMap: Record<string, { documentId: string; factor: number; reason: string }>;
+}
+
+/**
+ * Ranked chunks - output from ranking service
+ */
+export type RankedChunks = RetrievedChunk[];
+
+// ============================================================================
+// DOCUMENT SEARCH TYPES (V3 - New)
+// ============================================================================
+
+/**
+ * Document search parameters
+ */
+export interface DocumentSearchParams {
+  userId: string;
+  limit: number;
+  offset: number;
+  filters?: {
+    folderId?: string;
+    tagId?: string;
+    fileType?: string;
+    status?: string;
+  };
+  orderBy?: 'recency' | 'name' | 'size';
+  query?: string;
+}
+
+/**
+ * Document search item
+ */
+export interface DocumentSearchItem {
+  documentId: string;
+  filename: string;
+  normalizedFilename?: string;
+  fileType: string;
+  sizeBytes: number;
+  pageCount?: number;
+  createdAt: Date;
+  updatedAt: Date;
+  folderId?: string;
+  folderPath?: string;
+  tags: string[];
+  language?: string;
+  status: 'processing' | 'completed' | 'failed';
+}
+
+/**
+ * Document search result
+ */
+export interface DocumentSearchResult {
+  items: DocumentSearchItem[];
+  total: number;
+  hasMore: boolean;
 }
 
 // ============================================================================
