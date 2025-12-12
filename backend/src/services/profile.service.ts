@@ -255,6 +255,7 @@ Insights:`;
   }
 }
 
-export const profileService = new ProfileService();
-export default profileService;
+// Singleton removed - use container.getProfile() instead
+
+export default ProfileService;
 

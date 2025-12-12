@@ -121,6 +121,6 @@ class MultiIntentService {
   }
 }
 
-export const multiIntentService = new MultiIntentService();
+// Singleton removed - use container.getMultiIntent() instead
 export { MultiIntentService };
-export default multiIntentService;
+export default MultiIntentService;

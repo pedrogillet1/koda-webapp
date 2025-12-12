@@ -249,7 +249,8 @@ export class KodaHybridSearchService {
 
 // Singleton instance for direct import
 // TODO: For better testability, register in container.ts and inject into consumers
-export const kodaHybridSearchService = new KodaHybridSearchService();
+// Singleton removed - use container.getKodaHybridSearch() instead
+
 
 // Export class for DI registration when ready
 export default KodaHybridSearchService;

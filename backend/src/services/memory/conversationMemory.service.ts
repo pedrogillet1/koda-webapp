@@ -128,5 +128,6 @@ export class ConversationMemoryService {
   }
 }
 
-export const conversationMemoryService = new ConversationMemoryService();
-export default conversationMemoryService;
+// Singleton removed - use container.getConversationMemory() instead
+
+export default ConversationMemoryService;

@@ -111,6 +111,5 @@ class OverrideService {
 // Export class for DI container injection
 export { OverrideService };
 
-// Singleton for backward compatibility (prefer DI injection via constructor)
-export const overrideService = new OverrideService();
-export default overrideService;
+// Singleton removed - use container.getOverride() instead
+export default OverrideService;

@@ -109,5 +109,5 @@ export class AnalyticsEngineService {
   }
 }
 
-export const analyticsEngineService = new AnalyticsEngineService();
-export default analyticsEngineService;
+// Singleton removed - use container.getAnalyticsEngine() instead
+export default AnalyticsEngineService;

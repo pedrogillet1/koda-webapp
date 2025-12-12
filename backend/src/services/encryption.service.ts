@@ -273,4 +273,6 @@ export class EncryptionService {
   }
 }
 
+// Infrastructure singleton - kept for backward compatibility
+// Can also be accessed via container.getEncryption()
 export default new EncryptionService();

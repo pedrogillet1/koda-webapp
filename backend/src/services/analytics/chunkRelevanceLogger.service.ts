@@ -125,4 +125,5 @@ export class ChunkRelevanceLoggerService {
   }
 }
 
-export const chunkRelevanceLoggerService = new ChunkRelevanceLoggerService();
+// Singleton removed - use container.getChunkRelevanceLogger() instead
+

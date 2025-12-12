@@ -501,4 +501,6 @@ export class CacheService {
   }
 }
 
+// Infrastructure singleton - kept for backward compatibility
+// Can also be accessed via container.getCache()
 export default new CacheService();

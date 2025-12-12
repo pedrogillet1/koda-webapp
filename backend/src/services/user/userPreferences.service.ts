@@ -77,5 +77,6 @@ export class UserPreferencesService {
   }
 }
 
-export const userPreferencesService = new UserPreferencesService();
-export default userPreferencesService;
+// Singleton removed - use container.getUserPreferences() instead
+
+export default UserPreferencesService;

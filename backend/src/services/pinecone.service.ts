@@ -694,4 +694,6 @@ export class PineconeService {
   }
 }
 
+// Infrastructure singleton - kept for backward compatibility
+// Can also be accessed via container.getPinecone()
 export default new PineconeService();

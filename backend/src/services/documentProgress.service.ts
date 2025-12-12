@@ -233,4 +233,6 @@ export class DocumentProgressService {
   }
 }
 
+// Infrastructure singleton - kept for backward compatibility
+// Can also be accessed via container.getDocumentProgress()
 export default new DocumentProgressService();

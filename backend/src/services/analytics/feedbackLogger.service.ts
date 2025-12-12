@@ -77,5 +77,5 @@ export class FeedbackLoggerService {
   }
 }
 
-export const feedbackLoggerService = new FeedbackLoggerService();
-export default feedbackLoggerService;
+// Singleton removed - use container.getFeedbackLogger() instead
+export default FeedbackLoggerService;

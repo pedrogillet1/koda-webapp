@@ -228,5 +228,6 @@ export class TruncationDetectorService {
 }
 
 // Singleton instance
-export const truncationDetectorService = new TruncationDetectorService();
-export default truncationDetectorService;
+// Singleton removed - use container.getTruncationDetector() instead
+
+export default TruncationDetectorService;

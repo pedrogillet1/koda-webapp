@@ -401,4 +401,6 @@ export class EmbeddingService {
   }
 }
 
+// Infrastructure singleton - kept for backward compatibility
+// Can also be accessed via container.getEmbedding()
 export default new EmbeddingService();

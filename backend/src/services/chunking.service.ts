@@ -174,4 +174,6 @@ export class ChunkingService {
   }
 }
 
+// Infrastructure singleton - kept for backward compatibility
+// Can also be accessed via container.getChunking()
 export default new ChunkingService();

@@ -103,4 +103,5 @@ export class KodaRetrievalRankingService {
   }
 }
 
-export const kodaRetrievalRankingService = new KodaRetrievalRankingService();
+// Singleton removed - use container.getKodaRetrievalRanking() instead
+
