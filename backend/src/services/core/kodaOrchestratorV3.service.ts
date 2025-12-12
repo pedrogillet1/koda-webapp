@@ -10,7 +10,9 @@
 import { KodaIntentEngineV3, kodaIntentEngineV3 } from './kodaIntentEngineV3.service';
 import { FallbackConfigService, fallbackConfigService } from './fallbackConfig.service';
 import { KodaProductHelpServiceV3, kodaProductHelpServiceV3 } from './kodaProductHelpV3.service';
-import { KodaFormattingPipelineV3, kodaFormattingPipelineV3 } from './kodaFormattingPipelineV3.service';
+import { KodaFormattingPipelineV3Service, kodaFormattingPipelineV3 } from './kodaFormattingPipelineV3.service';
+import KodaRetrievalEngineV3 from './kodaRetrievalEngineV3.service';
+import KodaAnswerEngineV3 from './kodaAnswerEngineV3.service';
 import {
   IntentName,
   LanguageCode,
@@ -37,7 +39,7 @@ export class KodaOrchestratorV3 {
   private readonly intentEngine: KodaIntentEngineV3;
   private readonly fallbackConfig: FallbackConfigService;
   private readonly productHelp: KodaProductHelpServiceV3;
-  private readonly formattingPipeline: KodaFormattingPipelineV3;
+  private readonly formattingPipeline: KodaFormattingPipelineV3Service;
   private readonly logger: any;
 
   // Injected services (these would be actual service instances in production)
@@ -53,7 +55,7 @@ export class KodaOrchestratorV3 {
       intentEngine?: KodaIntentEngineV3;
       fallbackConfig?: FallbackConfigService;
       productHelp?: KodaProductHelpServiceV3;
-      formattingPipeline?: KodaFormattingPipelineV3;
+      formattingPipeline?: KodaFormattingPipelineV3Service;
       retrievalEngine?: any;
       answerEngine?: any;
       documentSearch?: any;
@@ -264,7 +266,7 @@ export class KodaOrchestratorV3 {
       });
 
       const formatted = await this.formattingPipeline.format({
-        answer: answerResult.text,
+        text: answerResult.text,
         documents: retrievalResult.documents,
         language,
       });
@@ -299,10 +301,10 @@ export class KodaOrchestratorV3 {
         language,
       });
 
-      const formatted = await this.formattingPipeline.formatAnalytics({
-        result: analyticsResult,
-        language,
-      });
+      const formatted = await this.formattingPipeline.formatAnalytics(
+        request.text,
+        analyticsResult.results || []
+      );
 
       return {
         answer: analyticsResult.summary,
@@ -344,10 +346,11 @@ export class KodaOrchestratorV3 {
         language,
       });
 
-      const formatted = await this.formattingPipeline.formatSearchResults({
-        results: searchResult.documents,
-        language,
-      });
+      const formatted = await this.formattingPipeline.formatDocumentListing(
+        searchResult.documents || [],
+        searchResult.total || searchResult.documents?.length || 0,
+        searchResult.documents?.length || 0
+      );
 
       return {
         answer: searchResult.summary,
@@ -893,6 +896,14 @@ export class KodaOrchestratorV3 {
   }
 }
 
-// Singleton instance
-export const kodaOrchestratorV3 = new KodaOrchestratorV3();
+// Create singleton instances of core engines
+const retrievalEngine = new KodaRetrievalEngineV3();
+const answerEngine = new KodaAnswerEngineV3();
+
+// Singleton instance with injected services
+export const kodaOrchestratorV3 = new KodaOrchestratorV3({
+  retrievalEngine,
+  answerEngine,
+});
+
 export default kodaOrchestratorV3;

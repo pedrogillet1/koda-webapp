@@ -1,45 +1,71 @@
 /**
- * KODA V3 Formatting Pipeline Service
- *
+ * Koda Formatting Pipeline V3 - Production Ready
+ * 
  * Centralized formatting for ALL LLM answers
- * - Adaptive titles/sections (only for medium/complex answers like ChatGPT)
- * - Clean document markers (only filename visible, metadata hidden)
- * - Filename styling: Bold only in lists, Bold+underlined in text
- * - All filenames clickable to open preview modal
- *
- * Based on previous specifications + formatting requirements
+ * - Unified marker format: {{DOC::...}}
+ * - ID-based insertion (no global filename replace)
+ * - Safe location validation (not in code blocks)
+ * - Markdown integrity checks
+ * - Truncation detection
+ * - No HTML tags (CSS-only styling)
  */
 
-import { LanguageCode } from '../../types/intentV3.types';
+import {
+  createDocMarker,
+  createLoadMoreMarker,
+  getSafeInsertionPoints,
+  validateMarkerLocations,
+  countMarkers,
+  hasIncompleteMarkers,
+  type DocMarkerData,
+  type LoadMoreMarkerData,
+} from '../utils/markerUtils';
+import { truncationDetectorService, type TruncationDetectionResult } from '../utils/truncationDetector.service';
 
-export interface Document {
-  id: string;
-  filename: string;
-  type?: string;
-  size?: number;
-  uploadedAt?: Date;
-  metadata?: Record<string, any>;
+export interface Citation {
+  docId: string;
+  docName: string;
+  pageNumber?: number;
+  chunkId?: string;
+  relevanceScore?: number;
 }
 
-export interface FormattingRequest {
-  answer: string;
-  documents?: Document[];
-  language: LanguageCode;
+export interface DocumentReference {
+  id: string;
+  filename: string;
+  context: 'list' | 'text';
+}
+
+export interface FormattingInput {
+  text: string;
+  citations?: Citation[];
+  documents?: DocumentReference[];
   intent?: string;
-  complexity?: 'simple' | 'medium' | 'complex';
+  language?: string;
+  complexity?: 'simple' | 'moderate' | 'complex';
 }
 
 export interface FormattingResult {
   text: string;
-  hasMarkers: boolean;
-  documentCount: number;
-  metadata?: {
-    hasAdaptiveTitles: boolean;
-    hasSections: boolean;
+  markdown: string;
+  citations: Citation[];
+  documentMarkers: {
+    count: number;
+    locations: number[];
+  };
+  truncationDetected: boolean;
+  truncationDetails?: TruncationDetectionResult;
+  markdownIssues: string[];
+  metadata: {
+    hasCodeBlocks: boolean;
+    hasTables: boolean;
+    hasLists: boolean;
+    markerCount: number;
+    wordCount: number;
   };
 }
 
-export class KodaFormattingPipelineV3 {
+export class KodaFormattingPipelineV3Service {
   private readonly logger: any;
 
   constructor(logger?: any) {
@@ -48,256 +74,290 @@ export class KodaFormattingPipelineV3 {
 
   /**
    * Main formatting entry point
-   * Centralizes ALL LLM answer formatting
+   * Formats LLM answer with markers, validates structure
    */
-  async format(request: FormattingRequest): Promise<FormattingResult> {
-    let formatted = request.answer;
-    let hasMarkers = false;
-    let hasAdaptiveTitles = false;
-    let hasSections = false;
+  async format(input: FormattingInput): Promise<FormattingResult> {
+    const startTime = Date.now();
+    
+    try {
+      let { text } = input;
+      const citations = input.citations || [];
+      const documents = input.documents || [];
 
-    // 1. Determine complexity if not provided
-    const complexity = request.complexity || this.detectComplexity(formatted);
+      // Step 1: Detect truncation BEFORE any modifications
+      const truncationResult = truncationDetectorService.detectTruncation(text);
+      
+      if (truncationResult.isTruncated && truncationResult.confidence === 'high') {
+        this.logger.warn('High confidence truncation detected, returning early', {
+          reasons: truncationResult.reasons,
+        });
+        
+        // Return immediately without further processing
+        return {
+          text,
+          markdown: text,
+          citations,
+          documentMarkers: { count: 0, locations: [] },
+          truncationDetected: true,
+          truncationDetails: truncationResult,
+          markdownIssues: truncationResult.reasons,
+          metadata: this.extractMetadata(text),
+        };
+      }
 
-    // 2. Add adaptive titles/sections for medium/complex answers
-    if (complexity === 'medium' || complexity === 'complex') {
-      formatted = this.addAdaptiveTitles(formatted, request.language);
-      hasAdaptiveTitles = true;
-      hasSections = this.hasSections(formatted);
-    }
+      // Step 2: Insert document markers (ID-based, safe locations only)
+      if (documents.length > 0) {
+        text = this.insertDocumentMarkers(text, documents);
+      }
 
-    // 3. Insert document markers if documents are referenced
-    if (request.documents && request.documents.length > 0) {
-      formatted = this.insertDocumentMarkers(formatted, request.documents);
-      hasMarkers = true;
-    }
+      // Step 3: Validate marker locations
+      const locationIssues = validateMarkerLocations(text);
+      
+      // Step 4: Validate markdown structure
+      const structureIssues = truncationDetectorService.validateMarkdownStructure(text);
+      
+      // Step 5: Extract metadata
+      const metadata = this.extractMetadata(text);
+      
+      // Step 6: Count markers
+      const markerStats = countMarkers(text);
 
-    return {
-      text: formatted,
-      hasMarkers,
-      documentCount: request.documents?.length || 0,
-      metadata: {
-        hasAdaptiveTitles,
-        hasSections,
-      },
-    };
-  }
-
-  /**
-   * Detect answer complexity based on length and structure
-   */
-  private detectComplexity(text: string): 'simple' | 'medium' | 'complex' {
-    const length = text.length;
-    const paragraphs = text.split('\n\n').filter(p => p.trim().length > 0).length;
-    const hasBullets = text.includes('- ') || text.includes('* ') || /^\d+\./m.test(text);
-
-    if (length < 200 && paragraphs <= 2) {
-      return 'simple';
-    }
-
-    if (length > 800 || paragraphs > 5 || hasBullets) {
-      return 'complex';
-    }
-
-    return 'medium';
-  }
-
-  /**
-   * Add adaptive titles and sections (ChatGPT-style)
-   * Only for medium/complex answers
-   */
-  private addAdaptiveTitles(text: string, language: LanguageCode): string {
-    // If text already has markdown headers, don't add more
-    if (text.includes('##') || text.includes('**') && text.includes(':**')) {
-      return text;
-    }
-
-    // For now, return as-is
-    // In production, this would use LLM to add appropriate structure
-    return text;
-  }
-
-  /**
-   * Check if text has sections
-   */
-  private hasSections(text: string): boolean {
-    return text.includes('##') || /\n\n[A-Z][^.!?]*:\n/.test(text);
-  }
-
-  /**
-   * Insert document markers into text
-   * Creates clean markers with only filename visible
-   */
-  private insertDocumentMarkers(text: string, documents: Document[]): string {
-    let markedText = text;
-
-    for (const doc of documents) {
-      // Find references to this document in the text
-      const filenamePattern = new RegExp(this.escapeRegex(doc.filename), 'gi');
-
-      // Replace with marker
-      markedText = markedText.replace(filenamePattern, (match) => {
-        return this.createDocumentMarker(doc, 'text');
+      const duration = Date.now() - startTime;
+      
+      this.logger.info('Formatting complete', {
+        duration,
+        markerCount: markerStats.total,
+        truncated: truncationResult.isTruncated,
+        issues: [...locationIssues, ...structureIssues].length,
       });
-    }
 
-    return markedText;
+      return {
+        text,
+        markdown: text,
+        citations,
+        documentMarkers: {
+          count: markerStats.doc,
+          locations: [], // Could be populated if needed
+        },
+        truncationDetected: truncationResult.isTruncated,
+        truncationDetails: truncationResult.isTruncated ? truncationResult : undefined,
+        markdownIssues: [...locationIssues, ...structureIssues],
+        metadata: {
+          ...metadata,
+          markerCount: markerStats.total,
+        },
+      };
+    } catch (error: any) {
+      this.logger.error('Formatting failed', { error: error.message });
+      
+      // Return safe fallback
+      return {
+        text: input.text,
+        markdown: input.text,
+        citations: input.citations || [],
+        documentMarkers: { count: 0, locations: [] },
+        truncationDetected: false,
+        markdownIssues: [`Formatting error: ${error.message}`],
+        metadata: this.extractMetadata(input.text),
+      };
+    }
   }
 
   /**
-   * Create a document marker
-   *
-   * Format: <<<DOC_MARKER:docId:filename:context>>>
-   *
-   * Context determines styling:
-   * - 'list': Bold only (NO underline)
-   * - 'text': Bold + underlined (ALWAYS)
-   *
-   * Metadata is hidden in marker, only filename visible to user
+   * Insert document markers at safe locations
+   * Uses ID-based approach (no global filename replace)
    */
-  private createDocumentMarker(doc: Document, context: 'list' | 'text'): string {
-    // Clean marker format: only essential data
-    // Frontend will parse this and make it clickable
-    return `<<<DOC_MARKER:${doc.id}:${doc.filename}:${context}>>>`;
-  }
-
-  /**
-   * Format document list with markers
-   * Used for analytics/search results
-   */
-  async formatDocumentList(
-    documents: Document[],
-    language: LanguageCode,
-    title?: string
-  ): Promise<string> {
-    if (documents.length === 0) {
-      return this.getNoDocumentsMessage(language);
+  private insertDocumentMarkers(text: string, documents: DocumentReference[]): string {
+    // Build document registry (id → data)
+    const docRegistry = new Map<string, DocumentReference>();
+    for (const doc of documents) {
+      docRegistry.set(doc.id, doc);
     }
 
-    const titleText = title || this.getDefaultListTitle(language, documents.length);
+    // Strategy: Insert markers after first mention of each document
+    // This is safer than global replace and respects context
 
-    let formatted = `**${titleText}**\n\n`;
+    let result = text;
+    const inserted = new Set<string>();
 
     for (const doc of documents) {
-      // In lists: bold only, NO underline
-      const marker = this.createDocumentMarker(doc, 'list');
-      formatted += `- ${marker}\n`;
+      if (inserted.has(doc.id)) {
+        continue;
+      }
+
+      // Find first safe mention of this document's filename
+      const filename = doc.filename;
+      const filenameRegex = new RegExp(this.escapeRegex(filename), 'gi');
+      
+      let match;
+      while ((match = filenameRegex.exec(text)) !== null) {
+        const position = match.index + match[0].length;
+        
+        // Check if this position is safe
+        const safePoints = getSafeInsertionPoints(text);
+        const isSafe = safePoints.includes(position);
+        
+        if (isSafe) {
+          // Insert marker after the filename
+          const marker = createDocMarker({
+            id: doc.id,
+            name: filename,
+            ctx: doc.context,
+          });
+          
+          result = result.slice(0, position) + ' ' + marker + result.slice(position);
+          inserted.add(doc.id);
+          break;
+        }
+      }
     }
 
-    return formatted;
+    return result;
   }
 
   /**
-   * Format analytics result
+   * Format document listing (for SEARCH/ANALYTICS results)
    */
-  async formatAnalytics(params: {
-    result: any;
-    language: LanguageCode;
-  }): Promise<FormattingResult> {
-    const { result, language } = params;
-
-    let formatted = '';
-
-    // Add count summary
-    if (result.count !== undefined) {
-      formatted += this.formatCountSummary(result.count, result.type, language);
-      formatted += '\n\n';
+  async formatDocumentListing(
+    documents: Array<{
+      id: string;
+      filename: string;
+      summary?: string;
+      lastModified?: Date;
+      size?: number;
+    }>,
+    total: number,
+    shown: number
+  ): Promise<FormattingResult> {
+    const lines: string[] = [];
+    
+    lines.push('# Documents Found\n');
+    
+    for (let i = 0; i < documents.length; i++) {
+      const doc = documents[i];
+      const marker = createDocMarker({
+        id: doc.id,
+        name: doc.filename,
+        ctx: 'list',
+      });
+      
+      lines.push(`${i + 1}. **${doc.filename}** ${marker}`);
+      
+      if (doc.summary) {
+        lines.push(`   ${doc.summary}`);
+      }
+      
+      if (doc.lastModified) {
+        lines.push(`   *Modified: ${doc.lastModified.toLocaleDateString()}*`);
+      }
+      
+      lines.push('');
     }
-
-    // Add document list if present
-    if (result.documents && result.documents.length > 0) {
-      formatted += await this.formatDocumentList(result.documents, language);
+    
+    // Add load more marker if needed
+    if (shown < total) {
+      const remaining = total - shown;
+      const loadMoreMarker = createLoadMoreMarker({
+        total,
+        shown,
+        remaining,
+      });
+      
+      lines.push(`\n${loadMoreMarker}\n`);
     }
-
+    
+    const text = lines.join('\n');
+    
     return {
-      text: formatted,
-      hasMarkers: result.documents && result.documents.length > 0,
-      documentCount: result.documents?.length || 0,
+      text,
+      markdown: text,
+      citations: [],
+      documentMarkers: {
+        count: documents.length,
+        locations: [],
+      },
+      truncationDetected: false,
+      markdownIssues: [],
+      metadata: this.extractMetadata(text),
     };
   }
 
   /**
-   * Format search results
+   * Format analytics results
    */
-  async formatSearchResults(params: {
-    results: Document[];
-    language: LanguageCode;
-  }): Promise<FormattingResult> {
-    const { results, language } = params;
-
-    const title = this.getSearchResultsTitle(language, results.length);
-    const formatted = await this.formatDocumentList(results, language, title);
-
+  async formatAnalytics(
+    query: string,
+    results: Array<{
+      docId: string;
+      docName: string;
+      metric: string;
+      value: number | string;
+    }>
+  ): Promise<FormattingResult> {
+    const lines: string[] = [];
+    
+    lines.push(`# Analytics: ${query}\n`);
+    
+    // Group by document
+    const byDoc = new Map<string, typeof results>();
+    for (const result of results) {
+      if (!byDoc.has(result.docId)) {
+        byDoc.set(result.docId, []);
+      }
+      byDoc.get(result.docId)!.push(result);
+    }
+    
+    for (const [docId, docResults] of byDoc) {
+      const docName = docResults[0].docName;
+      const marker = createDocMarker({
+        id: docId,
+        name: docName,
+        ctx: 'list',
+      });
+      
+      lines.push(`## ${docName} ${marker}\n`);
+      
+      for (const result of docResults) {
+        lines.push(`- **${result.metric}**: ${result.value}`);
+      }
+      
+      lines.push('');
+    }
+    
+    const text = lines.join('\n');
+    
     return {
-      text: formatted,
-      hasMarkers: results.length > 0,
-      documentCount: results.length,
-    };
-  }
-
-  /**
-   * Format count summary
-   */
-  private formatCountSummary(count: number, type: string, language: LanguageCode): string {
-    const templates: Record<LanguageCode, Record<string, string>> = {
-      en: {
-        documents: `You have **${count}** document${count !== 1 ? 's' : ''}.`,
-        pdfs: `You have **${count}** PDF${count !== 1 ? 's' : ''}.`,
-        default: `Found **${count}** item${count !== 1 ? 's' : ''}.`,
+      text,
+      markdown: text,
+      citations: [],
+      documentMarkers: {
+        count: byDoc.size,
+        locations: [],
       },
-      pt: {
-        documents: `Você tem **${count}** documento${count !== 1 ? 's' : ''}.`,
-        pdfs: `Você tem **${count}** PDF${count !== 1 ? 's' : ''}.`,
-        default: `Encontrado${count !== 1 ? 's' : ''} **${count}** item${count !== 1 ? 's' : ''}.`,
-      },
-      es: {
-        documents: `Tienes **${count}** documento${count !== 1 ? 's' : ''}.`,
-        pdfs: `Tienes **${count}** PDF${count !== 1 ? 's' : ''}.`,
-        default: `Encontrado${count !== 1 ? 's' : ''} **${count}** elemento${count !== 1 ? 's' : ''}.`,
-      },
+      truncationDetected: false,
+      markdownIssues: [],
+      metadata: this.extractMetadata(text),
     };
-
-    const langTemplates = templates[language] || templates['en'];
-    return langTemplates[type] || langTemplates['default'];
   }
 
   /**
-   * Get default list title
+   * Extract metadata from text
    */
-  private getDefaultListTitle(language: LanguageCode, count: number): string {
-    const titles: Record<LanguageCode, string> = {
-      en: `Your Documents (${count})`,
-      pt: `Seus Documentos (${count})`,
-      es: `Tus Documentos (${count})`,
+  private extractMetadata(text: string): {
+    hasCodeBlocks: boolean;
+    hasTables: boolean;
+    hasLists: boolean;
+    markerCount: number;
+    wordCount: number;
+  } {
+    const markerStats = countMarkers(text);
+    return {
+      hasCodeBlocks: /```/.test(text),
+      hasTables: /\|[^\n]+\|/.test(text),
+      hasLists: /^[\s]*[-*\d+.]\s/m.test(text),
+      markerCount: markerStats.total,
+      wordCount: text.split(/\s+/).length,
     };
-
-    return titles[language] || titles['en'];
-  }
-
-  /**
-   * Get search results title
-   */
-  private getSearchResultsTitle(language: LanguageCode, count: number): string {
-    const titles: Record<LanguageCode, string> = {
-      en: `Search Results (${count})`,
-      pt: `Resultados da Pesquisa (${count})`,
-      es: `Resultados de Búsqueda (${count})`,
-    };
-
-    return titles[language] || titles['en'];
-  }
-
-  /**
-   * Get no documents message
-   */
-  private getNoDocumentsMessage(language: LanguageCode): string {
-    const messages: Record<LanguageCode, string> = {
-      en: 'No documents found.',
-      pt: 'Nenhum documento encontrado.',
-      es: 'No se encontraron documentos.',
-    };
-
-    return messages[language] || messages['en'];
   }
 
   /**
@@ -308,25 +368,30 @@ export class KodaFormattingPipelineV3 {
   }
 
   /**
-   * Strip all markers from text (for plain text export)
+   * Strip markers from text (for plain text export)
    */
   stripMarkers(text: string): string {
-    return text.replace(/<<<DOC_MARKER:[^>]+>>>/g, (match) => {
-      // Extract filename from marker
-      const parts = match.replace(/<<<DOC_MARKER:|>>>/g, '').split(':');
-      return parts[1] || ''; // Return just the filename
+    return text.replace(/{{(DOC|LOAD_MORE)::[^}]+}}/g, (match) => {
+      // For DOC markers, keep just the filename
+      if (match.startsWith('{{DOC::')) {
+        const nameMatch = match.match(/name="([^"]+)"/);
+        if (nameMatch) {
+          return nameMatch[1];
+        }
+      }
+      return '';
     });
   }
 
   /**
-   * Count markers in text
+   * Get marker count
    */
-  countMarkers(text: string): number {
-    const matches = text.match(/<<<DOC_MARKER:[^>]+>>>/g);
-    return matches ? matches.length : 0;
+  getMarkerCount(text: string): number {
+    const stats = countMarkers(text);
+    return stats.total;
   }
 }
 
 // Singleton instance
-export const kodaFormattingPipelineV3 = new KodaFormattingPipelineV3();
+export const kodaFormattingPipelineV3 = new KodaFormattingPipelineV3Service();
 export default kodaFormattingPipelineV3;

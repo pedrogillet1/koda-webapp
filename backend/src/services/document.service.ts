@@ -21,100 +21,7 @@ import path from 'path';
 import documentProgressService from './documentProgress.service';
 import uploadSessionService from './uploadSession.service';
 
-// ═══════════════════════════════════════════════════════════════
-// V1 Stubs - Document Intelligence removed
-// ═══════════════════════════════════════════════════════════════
-interface DocumentClassification {
-  type: string;
-  confidence: number;
-  domain?: string;
-  documentType?: string;
-  domainConfidence?: number;
-  typeConfidence?: number;
-}
 
-interface ExtractedEntity {
-  type: string;
-  value: string;
-  confidence: number;
-}
-
-interface ExtractedKeyword {
-  keyword: string;
-  weight: number;
-  word?: string;
-  tfIdf?: number;
-  isDomainSpecific?: boolean;
-}
-
-interface ChunkClassification {
-  type: string;
-  confidence: number;
-  chunkType?: string;
-  category?: string;
-}
-
-// Stub functions - no-op implementations (accept any args for compatibility)
-async function classifyDocument(_content: string, _arg2?: any, _arg3?: any): Promise<DocumentClassification> {
-  return { type: 'general', confidence: 0.5, domain: 'general', documentType: 'document', domainConfidence: 0.5, typeConfidence: 0.5 };
-}
-
-async function extractEntities(_content: string, _options?: any): Promise<ExtractedEntity[]> {
-  return [];
-}
-
-function extractKeywords(_content: string, _options?: any): ExtractedKeyword[] {
-  return [];
-}
-
-async function classifyChunk(_content: string, _options?: any): Promise<ChunkClassification> {
-  return { type: 'general', confidence: 0.5, chunkType: 'general', category: 'general' };
-}
-
-// Storage service stub
-const storageService = {
-  uploadFile: async () => ({ success: true }),
-  downloadFile: async () => null,
-  deleteFile: async () => ({ success: true }),
-  incrementStorage: async (_userId: string, _bytes: number) => { /* no-op */ },
-  decrementStorage: async (_userId: string, _bytes: number) => { /* no-op */ },
-};
-
-// NER service stub
-const nerService = {
-  extractEntities: async (_content: string, _userId: string): Promise<{ entities: ExtractedEntity[], suggestedTags: string[] }> =>
-    ({ entities: [], suggestedTags: [] }),
-  storeEntities: async (_docId: string, _entities: ExtractedEntity[]) => { /* no-op */ },
-  autoTagDocument: async (_userId: string, _docId?: string, _entities?: any, _suggestedTags?: any) => { /* no-op */ },
-};
-
-// Metadata enrichment stub
-const metadataEnrichmentService = {
-  enrichDocumentMetadata: async (_docId: string, _content: string) => { /* no-op */ },
-  enrichDocument: async (_content: string, _filename: string, _options?: any) => ({
-    topics: [],
-    entities: [],
-    summary: '',
-    keyPoints: [],
-    sentiment: 'neutral',
-    complexity: 'medium',
-  }),
-};
-
-// Methodology extraction stub
-const methodologyExtractionService = {
-  extractMethodology: async (_content: string) => null,
-};
-
-// Domain knowledge stub
-const domainKnowledgeService = {
-  analyzeDomain: async (_content: string) => null,
-};
-
-// BM25 chunk creation stub
-const bm25ChunkCreationService = {
-  createBM25Chunks: async (_docId: string, _content?: any, _pageCount?: number | null) => { /* no-op */ },
-};
 
 // ═══════════════════════════════════════════════════════════════
 // Semantic Chunking with Overlap - Interfaces and Fallback
@@ -404,8 +311,7 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
     },
   });
 
-  // 📊 STORAGE TRACKING: Increment user storage usage
-  await storageService.incrementStorage(userId, encryptedFileBuffer.length);
+
 
   // ⚡ ASYNCHRONOUS PROCESSING - Don't wait for all steps to complete
 
@@ -903,97 +809,11 @@ async function processDocumentWithTimeout(
     // AUTO-CATEGORIZATION DISABLED: Documents now stay in "Recently Added" by default
     // Users can manually organize documents using the chat interface or drag-and-drop
 
-    // ═══════════════════════════════════════════════════════════════
-    // DOCUMENT INTELLIGENCE SYSTEM - Classification, Entities, Keywords
-    // Replaces the old Gemini analysis with local TF-IDF + pattern matching
-    // ═══════════════════════════════════════════════════════════════
     let classification = null;
     let entities = null;
-    let docIntelligence: {
-      classification?: DocumentClassification;
-      entities?: ExtractedEntity[];
-      keywords?: ExtractedKeyword[];
-    } = {};
+    let docIntelligence: any = {};
 
-    if (extractedText && extractedText.length > 0) {
-      const analysisStartTime = Date.now();
-      try {
-        // 1. Document Classification (type + domain)
-        const docClassification = await classifyDocument(extractedText, filename, mimeType);
-        docIntelligence.classification = docClassification;
-        classification = `${docClassification.domain}:${docClassification.documentType}`;
-        console.log(`📊 [DocIntel] Classification: ${docClassification.domain}/${docClassification.documentType} (${((docClassification.domainConfidence || docClassification.confidence) * 100).toFixed(1)}%)`);
 
-        // 2. Entity Extraction (with domain context)
-        const extractedEntities = await extractEntities(extractedText, {
-          domain: docClassification.domain,
-          useLLM: false // Use fast pattern matching
-        });
-        docIntelligence.entities = extractedEntities;
-        entities = JSON.stringify(extractedEntities.slice(0, 50)); // Store top 50 entities
-        console.log(`🏷️ [DocIntel] Extracted ${extractedEntities.length} entities`);
-
-        // 3. Keyword Extraction (TF-IDF with domain boosting)
-        const extractedKeywords = extractKeywords(extractedText, {
-          domain: docClassification.domain,
-          maxKeywords: 100
-        });
-        docIntelligence.keywords = extractedKeywords;
-        console.log(`🔑 [DocIntel] Extracted ${extractedKeywords.length} keywords`);
-
-        const analysisTime = Date.now() - analysisStartTime;
-        console.log(`✅ [DocIntel] Document Intelligence completed in ${analysisTime}ms`);
-      } catch (error: any) {
-        console.error(`❌ [DocIntel] Document Intelligence failed:`, error.message);
-        // Fallback to old Gemini analysis if Document Intelligence fails
-        try {
-          const analysis = await geminiService.analyzeDocumentWithGemini(extractedText, mimeType);
-          classification = analysis.suggestedCategories?.[0] || null;
-          entities = JSON.stringify(analysis.keyEntities || {});
-        } catch (fallbackError) {
-          // Silent fail - document will still be processed
-        }
-      }
-    }
-
-    // ⚡ OPTIMIZATION: Run metadata enrichment in BACKGROUND (non-blocking)
-    // This saves 5-10 seconds of processing time
-    let enrichedMetadata: { summary?: string; topics?: string[]; entities?: any[] } | null = null;
-    if (extractedText && extractedText.length > 100) {
-
-      // Run in background - don't await!
-      Promise.resolve().then(async () => {
-        try {
-          // DEPRECATED: metadataEnrichment moved to _deprecated - using stub
-          
-          const enriched = await metadataEnrichmentService.enrichDocument(
-            extractedText,
-            filename,
-            {
-              extractTopics: true,
-              extractEntities: true,
-              generateSummary: true,
-              extractKeyPoints: true,
-              analyzeSentiment: true,
-              assessComplexity: true
-            }
-          );
-
-          // Update document metadata with enriched data
-          await prisma.documentMetadata.update({
-            where: { documentId },
-            data: {
-              classification: enriched.topics.length > 0 ? enriched.topics[0] : classification,
-              entities: enriched.entities ? JSON.stringify(enriched.entities) : entities,
-              summary: enriched.summary || null
-            }
-          });
-
-        } catch (error) {
-        }
-      });
-
-    }
 
     // Create or update metadata record (enriched data added in background)
     const metadataUpsertStartTime = Date.now();
@@ -1007,7 +827,7 @@ async function processDocumentWithTimeout(
       entities, // JSON string of entities
       // Store keywords as JSON in topics field (TF-IDF top keywords)
       topics: docIntelligence.keywords
-        ? JSON.stringify(docIntelligence.keywords.slice(0, 50).map(k => ({
+        ? JSON.stringify(docIntelligence.keywords.slice(0, 50).map((k: { word: string; tfIdf: number; isDomainSpecific?: boolean }) => ({
             word: k.word,
             tfIdf: k.tfIdf,
             isDomainSpecific: k.isDomainSpecific
@@ -1252,45 +1072,16 @@ async function processDocumentWithTimeout(
                 splitOn: ['\n\n', '\n', '. ', '! ', '? '],  // Smart boundaries
               });
 
-              // Get document classification info for chunk classification context
-              const docType = docIntelligence.classification?.documentType;
-              const domain = docIntelligence.classification?.domain;
-
-              // ═══════════════════════════════════════════════════════════════
-              // DOCUMENT INTELLIGENCE: Chunk Classification
-              // Classify each chunk to identify content type (header, table, etc.)
-              // ═══════════════════════════════════════════════════════════════
-              console.log('📦 [DocIntel] Classifying chunks...');
-              
-
-              chunks = await Promise.all(overlapChunks.map(async (chunk) => {
-                // Classify each chunk
-                let chunkClass: ChunkClassification | null = null;
-                try {
-                  chunkClass = await classifyChunk(chunk.content, {
-                    documentType: docType,
-                    domain: domain
-                  });
-                } catch (e) {
-                  // Non-critical - continue without chunk classification
-                }
-
+              chunks = overlapChunks.map((chunk) => {
                 return {
                   content: chunk.content,
                   metadata: {
                     chunkIndex: chunk.index,
                     startChar: chunk.startChar,
                     endChar: chunk.endChar,
-                    // Document Intelligence: Chunk Classification
-                    chunkType: chunkClass?.chunkType || 'content',
-                    chunkCategory: chunkClass?.category || 'main_content',
-                    chunkConfidence: chunkClass?.confidence || 0,
-                    // Document context
-                    documentType: docType,
-                    domain: domain
                   }
                 };
-              }));
+              });
 
               console.log(`✅ [CHUNKING] Created ${chunks.length} chunks with overlap + classification`);
             }
@@ -1449,76 +1240,7 @@ async function processDocumentWithTimeout(
     // Document is marked "completed" ONLY after embeddings succeed
     // ═══════════════════════════════════════════════════════════════
 
-    // ⚡ OPTIMIZATION: Run NER in BACKGROUND (non-blocking)
-    // This saves 3-5 seconds of processing time
-    if (extractedText && extractedText.trim().length > 0) {
-      // Run in background - don't await!
-      Promise.resolve().then(async () => {
-        try {
-          const nerStartTime = Date.now();
-
-          // Extract entities using NER
-          const nerResult = await nerService.extractEntities(extractedText, filename);
-
-          // Store entities in database
-          if (nerResult.entities.length > 0) {
-            await nerService.storeEntities(documentId, nerResult.entities);
-          }
-
-          // Auto-tag document based on entities and content
-          await nerService.autoTagDocument(
-            userId,
-            documentId,
-            nerResult.entities,
-            nerResult.suggestedTags
-          );
-
-          const nerTime = Date.now() - nerStartTime;
-        } catch (nerError: any) {
-          // NER is not critical - log error but continue
-        }
-      });
-
-
-      // ⚡ METHODOLOGY KNOWLEDGE EXTRACTION - Run in background (non-blocking)
-      // This builds the methodology knowledge base for "What is X?" queries
-      Promise.resolve().then(async () => {
-        try {
-          // DEPRECATED: methodologyExtraction moved to _deprecated - using stub
-          
-          // Stub does nothing - methodology extraction disabled
-        } catch (methodologyError: any) {
-          // Methodology extraction is not critical - log error but continue
-        }
-      });
-
-
-      // ⚡ DOMAIN KNOWLEDGE EXTRACTION - Run in background (non-blocking)
-      // This builds the domain knowledge base for term definitions, formulas, etc.
-      Promise.resolve().then(async () => {
-        try {
-          // DEPRECATED: domainKnowledge moved to _deprecated - using stub
-          
-          // Stub does nothing - domain knowledge extraction disabled
-        } catch (domainError: any) {
-          // Domain extraction is not critical - log error but continue
-        }
-      });
-
-      // ⚡ BM25 CHUNK CREATION - Run in background (non-blocking)
-      // Creates text chunks for keyword search (hybrid retrieval)
-      Promise.resolve().then(async () => {
-        try {
-          const bm25Service = bm25ChunkCreationService;
-          const textForChunking = markdownContent || extractedText;
-          await bm25Service.createBM25Chunks(documentId, textForChunking, pageCount);
-        } catch (bm25Error: any) {
-          // BM25 chunking is not critical - log error but continue
-          console.error('❌ [Background] BM25 chunk creation failed (non-critical):', bm25Error.message);
-        }
-      });
-
-    } else {
+ else {
     }
 
     // Invalidate cache for this user after successful processing
@@ -2094,36 +1816,7 @@ async function processDocumentAsync(
     // ════════════════════════════════════════════════════════════════════════
     await documentProgressService.emitProgress('ANALYSIS_COMPLETE', progressOptions);
 
-    // 🆕 ENHANCED METADATA ENRICHMENT with semantic understanding
-    let enrichedMetadata: { summary?: string; topics?: string[]; entities?: any[] } | null = null;
-    if (extractedText && extractedText.length > 100) {
-      try {
-        // DEPRECATED: metadataEnrichment moved to _deprecated - using stub
-        
-        enrichedMetadata = await metadataEnrichmentService.enrichDocument(
-          extractedText,
-          filename,
-          {
-            extractTopics: true,
-            extractEntities: true,
-            generateSummary: true,
-            extractKeyPoints: true,
-            analyzeSentiment: true,
-            assessComplexity: true
-          }
-        );
-
-        // Use enriched data if basic analysis didn't provide these
-        if (!classification && enrichedMetadata?.topics && enrichedMetadata.topics.length > 0) {
-          classification = enrichedMetadata.topics[0];
-        }
-        if ((!entities || entities === '{}') && enrichedMetadata?.entities) {
-          entities = JSON.stringify(enrichedMetadata.entities);
-        }
-
-      } catch (error) {
-      }
-    }
+    // Note: Enhanced metadata enrichment removed - using docIntelligence analysis instead
 
     // Create or update metadata record (upsert handles retry cases)
     await prisma.documentMetadata.upsert({
@@ -2134,7 +1827,7 @@ async function processDocumentAsync(
         ocrConfidence,
         classification,
         entities,
-        summary: enrichedMetadata?.summary || null,
+        summary: null,
         thumbnailUrl,
         pageCount,
         wordCount,
@@ -2147,7 +1840,7 @@ async function processDocumentAsync(
         ocrConfidence,
         classification,
         entities,
-        summary: enrichedMetadata?.summary || null,
+        summary: null,
         thumbnailUrl,
         pageCount,
         wordCount,
@@ -3043,8 +2736,7 @@ export const deleteDocument = async (documentId: string, userId: string) => {
     where: { id: documentId },
   });
 
-  // 📊 STORAGE TRACKING: Decrement user storage usage
-  await storageService.decrementStorage(userId, fileSize);
+
 
   // Invalidate caches
   await cacheService.invalidateUserCache(userId);
