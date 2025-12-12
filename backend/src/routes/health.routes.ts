@@ -1,29 +1,57 @@
 import express from 'express';
 import prisma from '../config/database';
 import { DATA_DIR, verifyAllDataFiles, REQUIRED_DATA_FILES } from '../config/dataPaths';
+import { isContainerReady } from '../middleware/containerGuard.middleware';
 
 const router = express.Router();
 
 /**
  * General health check
+ * Now includes container initialization status
  */
 router.get('/health', async (req, res) => {
   try {
-    // Check database connection
-    await prisma.$queryRaw`SELECT 1`;
+    // Check container initialization (critical for V3 services)
+    const containerInitialized = isContainerReady();
 
-    res.json({
-      status: 'healthy',
+    // Check database connection
+    let dbConnected = false;
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      dbConnected = true;
+    } catch {
+      dbConnected = false;
+    }
+
+    // Overall health: both container and DB must be ready
+    const isHealthy = containerInitialized && dbConnected;
+    const httpStatus = isHealthy ? 200 : 503;
+
+    res.status(httpStatus).json({
+      status: isHealthy ? 'healthy' : 'unhealthy',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
-      database: 'connected'
+      checks: {
+        container: containerInitialized ? 'initialized' : 'NOT_INITIALIZED',
+        database: dbConnected ? 'connected' : 'disconnected',
+      },
+      // Include details if unhealthy
+      ...(isHealthy ? {} : {
+        issues: [
+          ...(!containerInitialized ? ['Service container not initialized - V3 services unavailable'] : []),
+          ...(!dbConnected ? ['Database connection failed'] : []),
+        ],
+      }),
     });
   } catch (error) {
     res.status(500).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
       error: error instanceof Error ? error.message : 'Unknown error',
-      database: 'disconnected'
+      checks: {
+        container: 'unknown',
+        database: 'unknown',
+      },
     });
   }
 });

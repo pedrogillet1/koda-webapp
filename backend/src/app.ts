@@ -46,6 +46,7 @@ import { apiLimiter } from './middleware/rateLimit.middleware';
 import { errorHandler } from './middleware/error.middleware';
 import { auditLog } from './middleware/auditLog.middleware';
 import { initSentry, sentryErrorHandler } from './config/sentry.config';
+import containerGuard from './middleware/containerGuard.middleware';
 
 const app: Application = express();
 
@@ -186,6 +187,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Initialize Passport
 app.use(passport.initialize());
+
+// Container guard: Returns 503 if service container not initialized
+// Skips health check routes so they can report container status
+app.use('/api/', containerGuard);
 
 // Health check routes (both root and /api)
 app.use('/', healthRoutes); // Adds /health, /health/stuck-documents, /health/document-stats

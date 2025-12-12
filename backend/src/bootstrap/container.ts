@@ -230,6 +230,76 @@ class KodaV3Container {
   }
 
   /**
+   * Get the formatting pipeline instance.
+   */
+  public getFormattingPipeline(): KodaFormattingPipelineV3Service {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.formattingPipeline!;
+  }
+
+  /**
+   * Get the fallback config instance.
+   */
+  public getFallbackConfig(): FallbackConfigService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.fallbackConfig!;
+  }
+
+  /**
+   * Get the product help instance.
+   */
+  public getProductHelp(): KodaProductHelpServiceV3 {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.productHelp!;
+  }
+
+  /**
+   * Get the user preferences instance.
+   */
+  public getUserPreferences(): UserPreferencesService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.userPreferences!;
+  }
+
+  /**
+   * Get the conversation memory instance.
+   */
+  public getConversationMemory(): ConversationMemoryService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.conversationMemory!;
+  }
+
+  /**
+   * Get the feedback logger instance.
+   */
+  public getFeedbackLogger(): FeedbackLoggerService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.feedbackLogger!;
+  }
+
+  /**
+   * Get the document search instance.
+   */
+  public getDocumentSearch(): DocumentSearchService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.documentSearch!;
+  }
+
+  /**
    * Get all services (for testing)
    */
   public getAllServices(): KodaV3Services {
