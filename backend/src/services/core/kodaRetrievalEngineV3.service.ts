@@ -88,12 +88,13 @@ export class KodaRetrievalEngineV3 {
 
   /**
    * Full retrieval result with metadata (for advanced use cases).
+   * FIXED: usedHybrid now reflects actual retrieval path (not hardcoded)
    */
   public async retrieveWithMetadata(params: RetrieveParams): Promise<RetrievalResult> {
-    const chunks = await this.retrieve(params);
+    const { result, usedHybrid } = await this.retrieveWithHybridFlag(params);
 
     // Extract boost information from chunks
-    const appliedBoosts = chunks
+    const appliedBoosts = result
       .filter(chunk => chunk.metadata?.boostFactor && chunk.metadata.boostFactor !== 1.0)
       .map(chunk => ({
         documentId: chunk.documentId,
@@ -103,11 +104,11 @@ export class KodaRetrievalEngineV3 {
       .filter((v, i, a) => a.findIndex(t => t.documentId === v.documentId) === i); // Dedupe
 
     return {
-      chunks,
-      usedHybrid: true, // Now using Vector + BM25 hybrid search
+      chunks: result,
+      usedHybrid,  // FIXED: Now reflects actual retrieval path
       hybridDetails: {
         vectorTopK: params.maxChunks ? params.maxChunks * 2 : 20,
-        bm25TopK: params.maxChunks ? params.maxChunks * 2 : 20, // BM25 enabled
+        bm25TopK: usedHybrid ? (params.maxChunks ? params.maxChunks * 2 : 20) : 0,
         mergeStrategy: 'weighted',
       },
       appliedBoosts,
@@ -115,10 +116,49 @@ export class KodaRetrievalEngineV3 {
   }
 
   /**
+   * Internal method that returns both chunks and whether hybrid was used.
+   */
+  private async retrieveWithHybridFlag(params: RetrieveParams): Promise<{ result: RetrievedChunk[], usedHybrid: boolean }> {
+    const {
+      userId,
+      query,
+      intent,
+      maxChunks = this.defaultMaxChunks,
+    } = params;
+
+    if (!userId || !query) {
+      return { result: [], usedHybrid: false };
+    }
+
+    // Check if we need RAG based on intent
+    if (!intent.requiresRAG) {
+      return { result: [], usedHybrid: false };
+    }
+
+    try {
+      // Try hybrid retrieval first
+      const { chunks, usedHybrid } = await this.performHybridRetrievalWithFlag(params);
+      return { result: chunks.slice(0, maxChunks), usedHybrid };
+    } catch (error) {
+      console.error('[KodaRetrievalEngineV3] Retrieval failed:', error);
+      return { result: [], usedHybrid: false };
+    }
+  }
+
+  /**
    * Perform hybrid retrieval combining vector search (Pinecone) and BM25 (PostgreSQL).
    * Uses kodaHybridSearchService for combined search with 0.6/0.4 weighting.
    */
   private async performHybridRetrieval(params: RetrieveParams): Promise<RetrievedChunk[]> {
+    const { chunks } = await this.performHybridRetrievalWithFlag(params);
+    return chunks;
+  }
+
+  /**
+   * Perform hybrid retrieval with usedHybrid flag tracking.
+   * Returns both chunks and whether hybrid was actually used (vs fallback to vector-only).
+   */
+  private async performHybridRetrievalWithFlag(params: RetrieveParams): Promise<{ chunks: RetrievedChunk[], usedHybrid: boolean }> {
     const { userId, query, intent, documentIds, folderIds, maxChunks = this.defaultMaxChunks } = params;
 
     console.log(`[KodaRetrievalEngineV3] Starting HYBRID retrieval (Vector + BM25) for query: "${query.substring(0, 50)}..."`);
@@ -146,7 +186,7 @@ export class KodaRetrievalEngineV3 {
 
       if (hybridResults.length === 0) {
         console.log('[KodaRetrievalEngineV3] No results from hybrid search');
-        return [];
+        return { chunks: [], usedHybrid: true };  // Hybrid was attempted
       }
 
       // Step 3: Calculate document boosts based on intent
@@ -175,11 +215,12 @@ export class KodaRetrievalEngineV3 {
 
       console.log(`[KodaRetrievalEngineV3] Returning ${budgetedChunks.length} chunks after budgeting (hybrid)`);
 
-      return budgetedChunks;
+      return { chunks: budgetedChunks, usedHybrid: true };
     } catch (error) {
-      console.error('[KodaRetrievalEngineV3] Hybrid retrieval failed:', error);
+      console.error('[KodaRetrievalEngineV3] Hybrid retrieval failed, falling back to vector-only:', error);
       // Fallback to vector-only search
-      return this.performVectorOnlyRetrieval(params);
+      const vectorChunks = await this.performVectorOnlyRetrieval(params);
+      return { chunks: vectorChunks, usedHybrid: false };  // FIXED: Mark as vector-only fallback
     }
   }
 

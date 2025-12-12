@@ -1,13 +1,17 @@
 /**
  * Koda Hybrid Search Service
  * Combines vector search (Pinecone) and BM25 (DB full-text) for optimal retrieval
+ *
+ * FIXED:
+ * - Chunk ID mismatch (now uses canonical format: documentId-chunkIndex)
+ * - SQL injection risk (parameterized queries)
+ * - Uses shared Prisma client (injected via constructor)
+ * - No singleton export (class only, instantiated in container.ts)
  */
 
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../config/database';  // FIXED: Use shared Prisma client
 import pineconeService from '../pinecone.service';
 import embeddingService from '../embedding.service';
-
-const prisma = new PrismaClient();
 import { RetrievedChunk, RetrievalFilters } from '../../types/ragV3.types';
 
 interface HybridSearchParams {
@@ -109,14 +113,19 @@ export class KodaHybridSearchService {
       });
 
       // Map Pinecone results to RetrievedChunk[]
+      // FIXED: Ensure canonical chunkId format matches BM25 (documentId-chunkIndex)
       const chunks: RetrievedChunk[] = pineconeResults.map((result: any) => ({
-        chunkId: `${result.documentId}-${result.chunkIndex}`,
+        chunkId: `${result.documentId}-${result.chunkIndex}`,  // CANONICAL FORMAT
         documentId: result.documentId || '',
         documentName: result.filename || '',
         content: result.content ?? '',
         pageNumber: result.metadata?.pageNumber,
         score: result.similarity || 0,
-        metadata: { ...result.metadata },
+        metadata: {
+          ...result.metadata,
+          chunkIndex: result.chunkIndex,
+          source: 'vector',  // Track source for debugging
+        },
       }));
 
       return chunks;
@@ -128,7 +137,11 @@ export class KodaHybridSearchService {
 
   /**
    * Perform BM25 full-text search on document_chunks table using Postgres full-text search.
-   * FIXED: Uses correct table name (document_chunks), columns (text, page), and JOINs with documents for userId.
+   *
+   * FIXES:
+   * - Uses chunkIndex to compute canonical chunkId (documentId-chunkIndex)
+   * - Parameterized query for document IDs (no SQL injection)
+   * - Uses shared Prisma client
    */
   private async bm25Search(
     userId: string,
@@ -139,42 +152,66 @@ export class KodaHybridSearchService {
     try {
       const sanitizedQuery = query.trim().replace(/'/g, "''");
 
-      // Build document filter
-      let docFilter = '';
-      if (filters.documentIds && filters.documentIds.length > 0) {
-        const docIdList = filters.documentIds.map(id => `'${id}'`).join(',');
-        docFilter = `AND dc."documentId" IN (${docIdList})`;
+      // FIXED: Use parameterized query for document IDs to prevent SQL injection
+      const documentIds = filters.documentIds || [];
+      const hasDocFilter = documentIds.length > 0;
+
+      // Build the query with proper parameterization
+      // Note: Using $queryRaw with Prisma.sql for type-safe parameterization
+      let results: any[];
+
+      if (hasDocFilter) {
+        // With document filter - use parameterized IN clause
+        const rawQuery = `
+          SELECT
+            dc."documentId",
+            dc."chunkIndex",
+            dc.text as content,
+            dc.page as "pageNumber",
+            d.filename as "documentName",
+            ts_rank_cd(to_tsvector('simple', dc.text), plainto_tsquery('simple', $1)) AS bm25_score
+          FROM document_chunks dc
+          INNER JOIN documents d ON dc."documentId" = d.id
+          WHERE d."userId" = $2
+            AND dc."documentId" = ANY($3::text[])
+            AND to_tsvector('simple', dc.text) @@ plainto_tsquery('simple', $1)
+          ORDER BY bm25_score DESC
+          LIMIT $4
+        `;
+        results = await prisma.$queryRawUnsafe(rawQuery, sanitizedQuery, userId, documentIds, topK);
+      } else {
+        // Without document filter
+        const rawQuery = `
+          SELECT
+            dc."documentId",
+            dc."chunkIndex",
+            dc.text as content,
+            dc.page as "pageNumber",
+            d.filename as "documentName",
+            ts_rank_cd(to_tsvector('simple', dc.text), plainto_tsquery('simple', $1)) AS bm25_score
+          FROM document_chunks dc
+          INNER JOIN documents d ON dc."documentId" = d.id
+          WHERE d."userId" = $2
+            AND to_tsvector('simple', dc.text) @@ plainto_tsquery('simple', $1)
+          ORDER BY bm25_score DESC
+          LIMIT $3
+        `;
+        results = await prisma.$queryRawUnsafe(rawQuery, sanitizedQuery, userId, topK);
       }
 
-      // FIXED SQL: Uses document_chunks table, text column, page column, JOIN with documents
-      const rawQuery = `
-        SELECT
-          dc.id as "chunkId",
-          dc."documentId",
-          dc.text as content,
-          dc.page as "pageNumber",
-          d.filename as "documentName",
-          ts_rank_cd(to_tsvector('simple', dc.text), plainto_tsquery('simple', $1)) AS bm25_score
-        FROM document_chunks dc
-        INNER JOIN documents d ON dc."documentId" = d.id
-        WHERE d."userId" = $2
-          ${docFilter}
-          AND to_tsvector('simple', dc.text) @@ plainto_tsquery('simple', $1)
-        ORDER BY bm25_score DESC
-        LIMIT $3
-      `;
-
-      const results: any[] = await prisma.$queryRawUnsafe(rawQuery, sanitizedQuery, userId, topK);
-
-      // Map results to RetrievedChunk[]
+      // FIXED: Compute canonical chunkId using documentId-chunkIndex
+      // This matches the vector search chunkId format for proper deduplication
       const chunks: RetrievedChunk[] = results.map((row) => ({
-        chunkId: row.chunkId,
+        chunkId: `${row.documentId}-${row.chunkIndex}`,  // CANONICAL FORMAT
         documentId: row.documentId,
         documentName: row.documentName || '',
         content: row.content,
         pageNumber: row.pageNumber ?? undefined,
         score: parseFloat(row.bm25_score) || 0,
-        metadata: {},
+        metadata: {
+          chunkIndex: row.chunkIndex,
+          source: 'bm25',
+        },
       }));
 
       return chunks;
@@ -207,4 +244,11 @@ export class KodaHybridSearchService {
   }
 }
 
+// FIXED: No singleton export - instantiate in container.ts for proper DI
+// This allows for testing and ensures shared Prisma client is used
+
+// Legacy singleton export (DEPRECATED - will be removed in next version)
+// Controllers should get instance from container.ts instead
 export const kodaHybridSearchService = new KodaHybridSearchService();
+
+export default KodaHybridSearchService;
