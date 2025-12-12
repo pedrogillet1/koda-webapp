@@ -7,7 +7,8 @@
 import { Request, Response } from 'express';
 import chatService from '../services/chat.service';
 import prisma from '../config/database';
-import cacheService from '../services/cache.service';
+import { getContainer } from '../bootstrap/container';
+// cacheService now accessed via getContainer().getCache()
 
 // ============================================================================
 // Conversation Endpoints
@@ -43,8 +44,8 @@ export const getConversations = async (req: Request, res: Response) => {
     const userId = req.user!.id;
 
     // Try cache first
-    const cacheKey = cacheService.generateKey('conversations_list', userId);
-    const cached = await cacheService.get<any>(cacheKey);
+    const cacheKey = getContainer().getCache().generateKey('conversations_list', userId);
+    const cached = await getContainer().getCache().get<any>(cacheKey);
 
     if (cached) {
       res.json(cached);
@@ -54,7 +55,7 @@ export const getConversations = async (req: Request, res: Response) => {
     const conversations = await chatService.getUserConversations(userId);
 
     // Cache for 2 minutes
-    await cacheService.set(cacheKey, conversations, { ttl: 120 });
+    await getContainer().getCache().set(cacheKey, conversations, { ttl: 120 });
 
     res.json(conversations);
   } catch (error: any) {
@@ -73,8 +74,8 @@ export const getConversation = async (req: Request, res: Response) => {
     const { conversationId } = req.params;
 
     // Try cache first
-    const cacheKey = cacheService.generateKey('conversation', conversationId, userId);
-    const cached = await cacheService.get<any>(cacheKey);
+    const cacheKey = getContainer().getCache().generateKey('conversation', conversationId, userId);
+    const cached = await getContainer().getCache().get<any>(cacheKey);
 
     if (cached) {
       res.json(cached);
@@ -84,7 +85,7 @@ export const getConversation = async (req: Request, res: Response) => {
     const conversation = await chatService.getConversation(conversationId, userId);
 
     // Cache for 1 minute
-    await cacheService.set(cacheKey, conversation, { ttl: 60 });
+    await getContainer().getCache().set(cacheKey, conversation, { ttl: 60 });
 
     res.json(conversation);
   } catch (error: any) {
@@ -109,10 +110,10 @@ export const deleteConversation = async (req: Request, res: Response) => {
     await chatService.deleteConversation(conversationId, userId);
 
     // Invalidate caches
-    const cacheKey = cacheService.generateKey('conversation', conversationId, userId);
-    const listCacheKey = cacheService.generateKey('conversations_list', userId);
-    await cacheService.set(cacheKey, null, { ttl: 0 });
-    await cacheService.set(listCacheKey, null, { ttl: 0 });
+    const cacheKey = getContainer().getCache().generateKey('conversation', conversationId, userId);
+    const listCacheKey = getContainer().getCache().generateKey('conversations_list', userId);
+    await getContainer().getCache().set(cacheKey, null, { ttl: 0 });
+    await getContainer().getCache().set(listCacheKey, null, { ttl: 0 });
 
     res.json({ success: true });
   } catch (error: any) {
@@ -136,8 +137,8 @@ export const deleteAllConversations = async (req: Request, res: Response) => {
     const result = await chatService.deleteAllConversations(userId);
 
     // Invalidate cache
-    const listCacheKey = cacheService.generateKey('conversations_list', userId);
-    await cacheService.set(listCacheKey, null, { ttl: 0 });
+    const listCacheKey = getContainer().getCache().generateKey('conversations_list', userId);
+    await getContainer().getCache().set(listCacheKey, null, { ttl: 0 });
 
     res.json(result);
   } catch (error: any) {
@@ -173,8 +174,8 @@ export const sendMessage = async (req: Request, res: Response) => {
     });
 
     // Invalidate cache
-    const cacheKey = cacheService.generateKey('conversation', conversationId, userId);
-    await cacheService.set(cacheKey, null, { ttl: 0 });
+    const cacheKey = getContainer().getCache().generateKey('conversation', conversationId, userId);
+    await getContainer().getCache().set(cacheKey, null, { ttl: 0 });
 
     res.json(result);
   } catch (error: any) {

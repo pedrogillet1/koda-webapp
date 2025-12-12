@@ -14,7 +14,8 @@
 import { Request, Response } from 'express';
 // REMOVED: sessionStorageService, metadataExtractionService, documentComparisonService - deleted services
 import textExtractionService from '../services/textExtraction.service';
-import embeddingService from '../services/embedding.service';
+import { getContainer } from '../bootstrap/container';
+// embeddingService now accessed via getContainer().getEmbedding()
 import prisma from '../config/database';
 import crypto from 'crypto';
 
@@ -193,7 +194,7 @@ export const uploadToSession = async (req: Request, res: Response) => {
 
     // Create chunks and embeddings
     const chunks = createChunks(extractionResult.text, 1000);
-    const chunkEmbeddings = await embeddingService.generateBatchEmbeddings(
+    const chunkEmbeddings = await getContainer().getEmbedding().generateBatchEmbeddings(
       chunks,
       { taskType: 'RETRIEVAL_DOCUMENT' }
     );
@@ -274,7 +275,7 @@ export const querySession = async (req: Request, res: Response) => {
     }
 
     // Generate query embedding
-    const embeddingResult = await embeddingService.generateQueryEmbedding(query);
+    const embeddingResult = await getContainer().getEmbedding().generateQueryEmbedding(query);
 
     // Query session
     const results = await sessionStorageService.querySession(

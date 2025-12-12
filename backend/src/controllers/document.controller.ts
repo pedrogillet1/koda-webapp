@@ -5,7 +5,8 @@ import { config } from '../config/env';
 import { getSignedUploadUrl } from '../config/storage';
 import crypto from 'crypto';
 import { emitDocumentEvent, emitToUser } from '../services/websocket.service';
-import cacheService from '../services/cache.service';
+import { getContainer } from '../bootstrap/container';
+// cacheService now accessed via getContainer().getCache()
 import { redisConnection } from '../config/redis';
 
 /**
@@ -91,7 +92,7 @@ export const confirmUpload = async (req: Request, res: Response): Promise<void> 
 
     // ✅ CACHE FIX: Invalidate cache BEFORE emitting events
     // This ensures frontend gets fresh data when it fetches
-    await cacheService.invalidateUserCache(req.user.id);
+    await getContainer().getCache().invalidateUserCache(req.user.id);
     console.log('🗑️ [Cache] Invalidated user cache synchronously');
 
     // ✅ INSTANT UPLOAD FIX: Emit FULL document object via WebSocket
@@ -235,7 +236,7 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
       console.log('📡 [WebSocket] Emitted document-created event with full document object');
 
       // Invalidate cache immediately
-      await cacheService.invalidateDocumentListCache(req.user.id);
+      await getContainer().getCache().invalidateDocumentListCache(req.user.id);
       console.log('🗑️ [Cache] Invalidated document list cache immediately');
 
       // Emit folder-tree-updated event to refresh folder tree
@@ -336,7 +337,7 @@ export const uploadMultipleDocuments = async (req: Request, res: Response): Prom
 
     // ✅ INSTANT UPLOAD: Invalidate cache immediately (no delay!) - only if new docs uploaded
     if (newDocuments.length > 0) {
-      await cacheService.invalidateDocumentListCache(req.user.id);
+      await getContainer().getCache().invalidateDocumentListCache(req.user.id);
       console.log('🗑️ [Cache] Invalidated document list cache immediately');
 
       // Emit folder-tree-updated event to refresh folder tree
@@ -505,8 +506,8 @@ export const listDocuments = async (req: Request, res: Response): Promise<void> 
     const limitNum = parseInt(limit as string) || 1000;
 
     // Try to get from cache first
-    const cacheKey = cacheService.generateKey('documents_list', req.user.id, folderId, pageNum, limitNum);
-    const cached = await cacheService.get<any>(cacheKey);
+    const cacheKey = getContainer().getCache().generateKey('documents_list', req.user.id, folderId, pageNum, limitNum);
+    const cached = await getContainer().getCache().get<any>(cacheKey);
 
     if (cached) {
       console.log(`✅ Cache hit for document list (folderId: ${folderId || 'all'})`);
@@ -522,7 +523,7 @@ export const listDocuments = async (req: Request, res: Response): Promise<void> 
     );
 
     // Cache the result for 2 minutes
-    await cacheService.set(cacheKey, result, { ttl: 120 });
+    await getContainer().getCache().set(cacheKey, result, { ttl: 120 });
 
     res.status(200).json(result);
   } catch (error) {
@@ -547,7 +548,7 @@ export const updateDocument = async (req: Request, res: Response): Promise<void>
     const document = await documentService.updateDocument(id, req.user.id, { folderId, filename });
 
     // Invalidate document list cache
-    await cacheService.invalidateDocumentListCache(req.user.id);
+    await getContainer().getCache().invalidateDocumentListCache(req.user.id);
 
     // Emit real-time event for document update (moved or renamed)
     if (folderId !== undefined) {
@@ -713,7 +714,7 @@ export const deleteDocument = async (req: Request, res: Response): Promise<void>
     emitDocumentEvent(req.user.id, 'deleted', id);
 
     // Invalidate RAG cache (document removed, search results may change)
-    await cacheService.invalidateUserCache(req.user.id);
+    await getContainer().getCache().invalidateUserCache(req.user.id);
 
     res.status(200).json({ message: 'Document deleted successfully' });
   } catch (error) {

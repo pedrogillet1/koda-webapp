@@ -20,7 +20,7 @@ import { initPromptConfig } from './services/core/promptConfig.service';
 import { initTokenBudgetEstimator } from './services/utils/tokenBudgetEstimator.service';
 import { initContextWindowBudgeting } from './services/utils/contextWindowBudgeting.service';
 // Config services are now loaded inside container.ts during initialization
-import { initializeContainer } from './bootstrap/container';
+import { initializeContainer, getContainer } from './bootstrap/container';
 // ============================================================================
 // Global Error Handlers
 // ============================================================================
@@ -187,7 +187,16 @@ async function startServer() {
     // 4. Initialize service container (CRITICAL - wires all services with DI)
     // This now loads JSON configs (intent patterns, fallbacks, product help) inside container
     await initializeContainer();
-    console.log('[Server] ✅ Service container initialized with proper DI (configs loaded)');
+    
+    // ASSERTION: Verify container is ready before proceeding
+    const container = getContainer();
+    if (!container.isInitialized()) {
+      throw new Error('FATAL: Container initialization returned but isInitialized() is false');
+    }
+    console.log('[Server] ✅ Service container initialized and verified ready');
+    console.log('[Server]    - Orchestrator: ', container.getOrchestrator() ? 'OK' : 'MISSING');
+    console.log('[Server]    - IntentEngine: ', container.getIntentEngine() ? 'OK' : 'MISSING');
+    console.log('[Server]    - RetrievalEngine: ', container.getRetrievalEngine() ? 'OK' : 'MISSING');
 
     // Test database connection
     await prisma.$connect();

@@ -20,7 +20,7 @@
 
 import { Request, Response } from 'express';
 import prisma from '../config/database';
-import cacheService from '../services/cache.service';
+// cacheService now accessed via getContainer().getCache()
 import { generateConversationTitle } from '../services/openai.service';
 
 // V3 Services - Get from container (proper DI)
@@ -181,8 +181,8 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     }
 
     // Invalidate cache
-    const cacheKey = cacheService.generateKey('conversation', conversationId, userId);
-    await cacheService.set(cacheKey, null, { ttl: 0 });
+    const cacheKey = getContainer().getCache().generateKey('conversation', conversationId, userId);
+    await getContainer().getCache().set(cacheKey, null, { ttl: 0 });
 
     // Return response with sources and citations
     res.status(200).json({
