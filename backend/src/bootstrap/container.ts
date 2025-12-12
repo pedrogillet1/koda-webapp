@@ -18,19 +18,38 @@
  */
 
 import { KodaOrchestratorV3 } from '../services/core/kodaOrchestratorV3.service';
-import { KodaIntentEngineV3 } from '../services/core/kodaIntentEngineV3.service';
+import KodaIntentEngineV3 from '../services/core/kodaIntentEngineV3.service';
+import IntentConfigService, { intentConfigService } from '../services/core/intentConfig.service';
 import KodaRetrievalEngineV3 from '../services/core/kodaRetrievalEngineV3.service';
+import { KodaHybridSearchService } from '../services/retrieval/kodaHybridSearch.service';
+import DynamicDocBoostService from '../services/retrieval/dynamicDocBoost.service';
 import KodaAnswerEngineV3 from '../services/core/kodaAnswerEngineV3.service';
-import { KodaFormattingPipelineV3Service } from '../services/core/kodaFormattingPipelineV3.service';
-import { KodaProductHelpServiceV3 } from '../services/core/kodaProductHelpV3.service';
-import { FallbackConfigService } from '../services/core/fallbackConfig.service';
+import KodaFormattingPipelineV3Service from '../services/core/kodaFormattingPipelineV3.service';
+import KodaProductHelpServiceV3, { kodaProductHelpServiceV3 } from '../services/core/kodaProductHelpV3.service';
+import FallbackConfigService, { fallbackConfigService } from '../services/core/fallbackConfig.service';
 import { MultiIntentService } from '../services/core/multiIntent.service';
 import { OverrideService } from '../services/core/override.service';
 import { UserPreferencesService } from '../services/user/userPreferences.service';
 import { ConversationMemoryService } from '../services/memory/conversationMemory.service';
 import { FeedbackLoggerService } from '../services/analytics/feedbackLogger.service';
 import { AnalyticsEngineService } from '../services/analytics/analyticsEngine.service';
-import { DocumentSearchService } from '../services/analytics/documentSearch.service';
+import DocumentSearchService from '../services/analytics/documentSearch.service';
+
+// Infrastructure services
+import { CacheService } from '../services/cache.service';
+import { EncryptionService } from '../services/encryption.service';
+import { PineconeService } from '../services/pinecone.service';
+import { EmbeddingService } from '../services/embedding.service';
+import { ChunkingService } from '../services/chunking.service';
+import { DocumentProgressService } from '../services/documentProgress.service';
+import { ProfileService } from '../services/profile.service';
+
+// Core RAG services
+import { KodaMarkerGeneratorService } from '../utils/kodaMarkerGenerator.service';
+import { KodaFallbackEngineV3 } from '../services/core/kodaFallbackEngineV3.service';
+import { KodaRetrievalRankingService } from '../services/retrieval/kodaRetrievalRanking.service';
+import { DefaultLanguageDetector } from '../services/core/languageDetector.service';
+import PatternClassifierServiceV3 from '../services/core/patternClassifierV3.service';
 
 // ============================================================================
 // BOOTSTRAP ERROR
@@ -48,8 +67,10 @@ class BootstrapWiringError extends Error {
 // ============================================================================
 
 export interface KodaV3Services {
+  // Core orchestration
   orchestrator: KodaOrchestratorV3;
   intentEngine: KodaIntentEngineV3;
+  intentConfig: IntentConfigService;
   retrievalEngine: KodaRetrievalEngineV3;
   answerEngine: KodaAnswerEngineV3;
   formattingPipeline: KodaFormattingPipelineV3Service;
@@ -62,6 +83,24 @@ export interface KodaV3Services {
   feedbackLogger: FeedbackLoggerService;
   analyticsEngine: AnalyticsEngineService;
   documentSearch: DocumentSearchService;
+  hybridSearch: KodaHybridSearchService;
+  dynamicDocBoost: DynamicDocBoostService;
+
+  // Infrastructure services
+  cache: CacheService;
+  encryption: EncryptionService;
+  pinecone: PineconeService;
+  embedding: EmbeddingService;
+  chunking: ChunkingService;
+  documentProgress: DocumentProgressService;
+  profile: ProfileService;
+
+  // Core RAG services
+  markerGenerator: KodaMarkerGeneratorService;
+  fallbackEngine: KodaFallbackEngineV3;
+  retrievalRanking: KodaRetrievalRankingService;
+  languageDetector: DefaultLanguageDetector;
+  patternClassifier: PatternClassifierServiceV3;
 }
 
 // ============================================================================
@@ -76,7 +115,7 @@ class KodaV3Container {
    * Initialize all services in correct dependency order.
    * This MUST be called once at server startup.
    */
-  public initialize(): void {
+  public async initialize(): Promise<void> {
     if (this._isInitialized) {
       console.log('⚠️  [Container] Already initialized, skipping');
       return;
@@ -85,16 +124,42 @@ class KodaV3Container {
     console.log('🚀 [Container] Initializing Koda V3 services...');
 
     try {
-      // ========== STEP 1: Create config services ==========
-      console.log('📦 [Container] Creating config services...');
-      this.services.fallbackConfig = new FallbackConfigService();
+      // ========== STEP 1: Use pre-loaded config singletons ==========
+      // These are loaded in server.ts BEFORE container init (fail-fast on startup)
+      console.log('📦 [Container] Using pre-loaded config singletons...');
+      this.services.fallbackConfig = fallbackConfigService;
+      this.services.intentConfig = intentConfigService;
+      this.services.productHelp = kodaProductHelpServiceV3;
 
-      // ========== STEP 2: Create leaf services (no dependencies) ==========
+      // Verify configs are loaded (fail-fast)
+      if (!this.services.fallbackConfig.isReady()) {
+        throw new BootstrapWiringError('FallbackConfig not loaded - must call loadFallbacks() before container init');
+      }
+      if (!this.services.intentConfig.isReady()) {
+        throw new BootstrapWiringError('IntentConfig not loaded - must call loadPatterns() before container init');
+      }
+      if (!this.services.productHelp.isReady()) {
+        throw new BootstrapWiringError('ProductHelp not loaded - must call loadContent() before container init');
+      }
+
+      // ========== STEP 2: Create infrastructure services ==========
+      console.log('📦 [Container] Creating infrastructure services...');
+      this.services.cache = new CacheService();
+      this.services.encryption = new EncryptionService();
+      this.services.pinecone = new PineconeService();
+      this.services.embedding = new EmbeddingService();
+      this.services.chunking = new ChunkingService();
+      this.services.documentProgress = new DocumentProgressService();
+      this.services.profile = new ProfileService();
+      this.services.markerGenerator = new KodaMarkerGeneratorService();
+      this.services.retrievalRanking = new KodaRetrievalRankingService();
+      this.services.languageDetector = new DefaultLanguageDetector();
+
+      // ========== STEP 3: Create leaf services (no dependencies) ==========
       console.log('📦 [Container] Creating leaf services...');
       this.services.retrievalEngine = new KodaRetrievalEngineV3();
       this.services.answerEngine = new KodaAnswerEngineV3();
       this.services.formattingPipeline = new KodaFormattingPipelineV3Service();
-      this.services.productHelp = new KodaProductHelpServiceV3();
       this.services.multiIntent = new MultiIntentService();
       this.services.override = new OverrideService();
       this.services.userPreferences = new UserPreferencesService();
@@ -102,12 +167,25 @@ class KodaV3Container {
       this.services.feedbackLogger = new FeedbackLoggerService();
       this.services.analyticsEngine = new AnalyticsEngineService();
       this.services.documentSearch = new DocumentSearchService();
+      this.services.hybridSearch = new KodaHybridSearchService();
+      this.services.dynamicDocBoost = new DynamicDocBoostService();
 
-      // ========== STEP 3: Create intent engine ==========
+      // ========== STEP 4: Load JSON configurations ==========
+      console.log('📦 [Container] Loading JSON configurations...');
+      await this.services.intentConfig.loadPatterns();
+      await this.services.fallbackConfig.loadFallbacks();
+      await this.services.productHelp.loadContent();
+
+      // ========== STEP 5: Create intent engine (depends on loaded intentConfig) ==========
       console.log('📦 [Container] Creating intent engine...');
-      this.services.intentEngine = new KodaIntentEngineV3();
+      this.services.intentEngine = new KodaIntentEngineV3(this.services.intentConfig);
 
-      // ========== STEP 4: Create orchestrator (depends on everything) ==========
+      // ========== STEP 6: Create services that depend on intent engine ==========
+      console.log('📦 [Container] Creating dependent services...');
+      this.services.fallbackEngine = new KodaFallbackEngineV3(this.services.fallbackConfig);
+      this.services.patternClassifier = new PatternClassifierServiceV3(this.services.intentEngine);
+
+      // ========== STEP 7: Create orchestrator (depends on everything) ==========
       console.log('📦 [Container] Creating orchestrator with dependencies...');
       this.services.orchestrator = new KodaOrchestratorV3(
         {
@@ -128,7 +206,7 @@ class KodaV3Container {
         console // logger
       );
 
-      // ========== STEP 5: Fail-fast assertions ==========
+      // ========== STEP 8: Fail-fast assertions ==========
       this.assertWiring();
 
       this._isInitialized = true;
@@ -328,6 +406,36 @@ class KodaV3Container {
   }
 
   /**
+   * Get the intent config instance.
+   */
+  public getIntentConfig(): IntentConfigService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.intentConfig!;
+  }
+
+  /**
+   * Get the hybrid search instance.
+   */
+  public getHybridSearch(): KodaHybridSearchService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.hybridSearch!;
+  }
+
+  /**
+   * Get the dynamic doc boost instance.
+   */
+  public getDynamicDocBoost(): DynamicDocBoostService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.dynamicDocBoost!;
+  }
+
+  /**
    * Get all services (for testing)
    */
   public getAllServices(): KodaV3Services {
@@ -347,8 +455,8 @@ const container = new KodaV3Container();
 /**
  * Initialize the container (call once at startup)
  */
-export function initializeContainer(): void {
-  container.initialize();
+export async function initializeContainer(): Promise<void> {
+  await container.initialize();
 }
 
 /**

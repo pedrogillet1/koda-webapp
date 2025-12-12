@@ -390,7 +390,5 @@ export class KodaFormattingPipelineV3Service {
   }
 }
 
-// Class is exported via 'export class' above
-// Singleton for backward compatibility (prefer DI injection via constructor)
-export const kodaFormattingPipelineV3 = new KodaFormattingPipelineV3Service();
-export default kodaFormattingPipelineV3;
+// Export class for DI registration (instantiate in container.ts)
+export default KodaFormattingPipelineV3Service;

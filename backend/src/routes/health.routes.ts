@@ -2,17 +2,25 @@ import express from 'express';
 import prisma from '../config/database';
 import { DATA_DIR, verifyAllDataFiles, REQUIRED_DATA_FILES } from '../config/dataPaths';
 import { isContainerReady } from '../middleware/containerGuard.middleware';
+import { fallbackConfigService } from '../services/core/fallbackConfig.service';
+import { kodaProductHelpServiceV3 } from '../services/core/kodaProductHelpV3.service';
+import { intentConfigService } from '../services/core/intentConfig.service';
 
 const router = express.Router();
 
 /**
  * General health check
- * Now includes container initialization status
+ * Includes container, database, and config loading status
  */
 router.get('/health', async (req, res) => {
   try {
     // Check container initialization (critical for V3 services)
     const containerInitialized = isContainerReady();
+
+    // Check config services loaded (MUST be loaded before container)
+    const fallbacksLoaded = fallbackConfigService.isReady();
+    const productHelpLoaded = kodaProductHelpServiceV3.isReady();
+    const intentConfigLoaded = intentConfigService.isReady();
 
     // Check database connection
     let dbConnected = false;
@@ -23,8 +31,8 @@ router.get('/health', async (req, res) => {
       dbConnected = false;
     }
 
-    // Overall health: both container and DB must be ready
-    const isHealthy = containerInitialized && dbConnected;
+    // Overall health: all components must be ready
+    const isHealthy = containerInitialized && dbConnected && fallbacksLoaded && productHelpLoaded && intentConfigLoaded;
     const httpStatus = isHealthy ? 200 : 503;
 
     res.status(httpStatus).json({
@@ -34,12 +42,18 @@ router.get('/health', async (req, res) => {
       checks: {
         container: containerInitialized ? 'initialized' : 'NOT_INITIALIZED',
         database: dbConnected ? 'connected' : 'disconnected',
+        fallbacks: fallbacksLoaded ? 'loaded' : 'NOT_LOADED',
+        productHelp: productHelpLoaded ? 'loaded' : 'NOT_LOADED',
+        intentConfig: intentConfigLoaded ? 'loaded' : 'NOT_LOADED',
       },
       // Include details if unhealthy
       ...(isHealthy ? {} : {
         issues: [
           ...(!containerInitialized ? ['Service container not initialized - V3 services unavailable'] : []),
           ...(!dbConnected ? ['Database connection failed'] : []),
+          ...(!fallbacksLoaded ? ['Fallback configs not loaded'] : []),
+          ...(!productHelpLoaded ? ['Product help content not loaded'] : []),
+          ...(!intentConfigLoaded ? ['Intent config patterns not loaded'] : []),
         ],
       }),
     });
@@ -51,9 +65,50 @@ router.get('/health', async (req, res) => {
       checks: {
         container: 'unknown',
         database: 'unknown',
+        fallbacks: 'unknown',
+        productHelp: 'unknown',
+        intentConfig: 'unknown',
       },
     });
   }
+});
+
+/**
+ * Kubernetes-style readiness probe
+ * Returns 200 if server is ready to accept traffic, 503 otherwise
+ * Lighter weight than /health - no detailed diagnostics
+ */
+router.get('/health/readiness', async (_req, res) => {
+  const containerReady = isContainerReady();
+  const configsReady = fallbackConfigService.isReady() && kodaProductHelpServiceV3.isReady() && intentConfigService.isReady();
+
+  // Quick DB check
+  let dbReady = false;
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    dbReady = true;
+  } catch {
+    dbReady = false;
+  }
+
+  const isReady = containerReady && configsReady && dbReady;
+
+  res.status(isReady ? 200 : 503).json({
+    ready: isReady,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
+ * Kubernetes-style liveness probe
+ * Returns 200 if process is alive (not deadlocked)
+ */
+router.get('/health/liveness', (_req, res) => {
+  res.status(200).json({
+    alive: true,
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
 });
 
 /**

@@ -148,4 +148,8 @@ export class DynamicDocBoostService {
   }
 }
 
+// Singleton instance for direct import
 export const dynamicDocBoostService = new DynamicDocBoostService();
+
+// Export class for DI registration
+export default DynamicDocBoostService;

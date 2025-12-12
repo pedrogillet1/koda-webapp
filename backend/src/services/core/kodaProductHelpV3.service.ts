@@ -378,6 +378,8 @@ Intenta preguntar:
   }
 }
 
-// Singleton instance
+// Singleton instance for direct import (loaded in server.ts before container init)
 export const kodaProductHelpServiceV3 = new KodaProductHelpServiceV3();
-export default kodaProductHelpServiceV3;
+
+// Export class for DI registration
+export default KodaProductHelpServiceV3;

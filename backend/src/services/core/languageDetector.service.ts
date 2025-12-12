@@ -1,103 +1,72 @@
 /**
- * Language Detector Service
- *
- * Wrapper service that provides the interface expected by KodaIntentEngine.
- * Uses the existing languageEngine.service.ts for actual detection.
+ * KODA V3 Language Detector Service
+ * 
+ * Injectable language detection for Intent Engine.
+ * Implements ILanguageDetector interface for DI compliance.
+ * 
+ * Based on: Phase 3 Intent Engine Correctness requirements
  */
 
-import languageEngine, {
-  SupportedLanguage as EngineLanguage,
-  detectLanguage as engineDetectLanguage
-} from '../languageEngine.service';
+import { LanguageCode } from '../../types/intentV3.types';
 
-export type SupportedLanguage = 'en' | 'pt' | 'es';
-
-export interface LanguageDetectionResult {
-  language: SupportedLanguage;
-  confidence: number;
+/**
+ * Interface for language detection
+ * Allows swapping detection implementation (heuristic, ML-based, external API)
+ */
+export interface ILanguageDetector {
+  detect(text: string): Promise<LanguageCode>;
 }
 
 /**
- * Convert engine language format to simple format
+ * Default implementation using keyword heuristics
+ * Fast and deterministic - no external dependencies
  */
-function normalizeLanguage(lang: EngineLanguage | string): SupportedLanguage {
-  if (lang === 'pt-BR' || lang === 'pt') return 'pt';
-  if (lang === 'es') return 'es';
-  return 'en';
-}
+export class DefaultLanguageDetector implements ILanguageDetector {
+  // Portuguese indicators
+  private readonly ptIndicators = ['você', 'está', 'não', 'são', 'também', 'quantos', 'quais', 'onde'];
+  // Spanish indicators
+  private readonly esIndicators = ['usted', 'está', 'cuántos', 'cuáles', 'dónde', 'también', 'qué'];
+  // English indicators
+  private readonly enIndicators = ['you', 'are', 'how', 'what', 'where', 'which', 'many'];
 
-class LanguageDetectorService {
   /**
-   * Detect language from text with confidence score.
-   *
-   * @param text - Text to analyze
-   * @param hint - Optional language hint from user preferences
-   * @returns Language detection result with confidence
+   * Create a language instruction for LLM prompts
    */
-  public detect(text: string, hint?: SupportedLanguage): LanguageDetectionResult {
-    if (!text || text.trim().length === 0) {
-      return {
-        language: hint || 'en',
-        confidence: hint ? 0.8 : 0.5,
-      };
-    }
-
-    // Use the existing engine detection
-    const result = engineDetectLanguage(text, hint === 'pt' ? 'pt-BR' : hint || 'pt-BR');
-
-    return {
-      language: normalizeLanguage(result.language),
-      confidence: result.confidence,
+  createLanguageInstruction(lang: string): string {
+    const instructions: Record<string, string> = {
+      en: 'Respond in English.',
+      pt: 'Responda em português.',
+      es: 'Responde en español.',
     };
+    return instructions[lang] || instructions.en;
   }
 
-  /**
-   * Simple language detection returning just the language code.
-   */
-  public detectSimple(text: string, hint?: SupportedLanguage): SupportedLanguage {
-    return this.detect(text, hint).language;
-  }
+  async detect(text: string): Promise<LanguageCode> {
+    const lowerText = text.toLowerCase();
 
-  /**
-   * Check if a text is a greeting in any supported language.
-   */
-  public isGreeting(text: string): boolean {
-    return languageEngine.isGreeting(text);
-  }
+    let ptScore = 0;
+    let esScore = 0;
+    let enScore = 0;
 
-  /**
-   * Get system instruction suffix for LLM prompts.
-   */
-  public getSystemInstructionSuffix(language: SupportedLanguage): string {
-    const engineLang = language === 'pt' ? 'pt-BR' : language;
-    return languageEngine.getSystemInstructionSuffix(engineLang as EngineLanguage);
-  }
-
-  /**
-   * Create a language instruction string for LLM prompts.
-   * Used by gemini.service and openai.service.
-   *
-   * @param language - Language code
-   * @returns Language instruction string
-   */
-  public createLanguageInstruction(language: SupportedLanguage | string): string {
-    const lang = (language || 'en').toLowerCase();
-
-    switch (lang) {
-      case 'pt':
-      case 'pt-br':
-      case 'portuguese':
-        return '\n\nIMPORTANT: Please respond in Portuguese (Português).';
-      case 'es':
-      case 'spanish':
-        return '\n\nIMPORTANT: Please respond in Spanish (Español).';
-      case 'en':
-      case 'english':
-      default:
-        return '\n\nIMPORTANT: Please respond in English.';
+    for (const indicator of this.ptIndicators) {
+      if (lowerText.includes(indicator)) ptScore++;
     }
+    for (const indicator of this.esIndicators) {
+      if (lowerText.includes(indicator)) esScore++;
+    }
+    for (const indicator of this.enIndicators) {
+      if (lowerText.includes(indicator)) enScore++;
+    }
+
+    // Return language with highest score
+    if (ptScore > esScore && ptScore > enScore) return 'pt';
+    if (esScore > ptScore && esScore > enScore) return 'es';
+    return 'en'; // Default to English
   }
 }
 
-export const languageDetectorService = new LanguageDetectorService();
-export default languageDetectorService;
+// Export default instance
+export const defaultLanguageDetector = new DefaultLanguageDetector();
+
+// Alias for backward compatibility
+export const languageDetectorService = defaultLanguageDetector;

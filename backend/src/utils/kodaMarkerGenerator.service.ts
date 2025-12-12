@@ -47,7 +47,7 @@ export interface DocumentInfo {
   slideCount?: number;
 }
 
-class KodaMarkerGeneratorService {
+export class KodaMarkerGeneratorService {
   /**
    * Generate document marker
    * 
@@ -411,9 +411,6 @@ class KodaMarkerGeneratorService {
 // EXPORTS
 // ============================================================================
 
-// Export class for DI container injection
-export { KodaMarkerGeneratorService };
-
-// Singleton for backward compatibility (prefer DI injection)
+// Singleton instance for direct import
 export const kodaMarkerGenerator = new KodaMarkerGeneratorService();
 export default kodaMarkerGenerator;

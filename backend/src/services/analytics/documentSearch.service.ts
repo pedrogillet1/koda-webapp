@@ -136,4 +136,5 @@ export class DocumentSearchService {
   }
 }
 
-export const documentSearchService = new DocumentSearchService();
+// Export class for DI registration (instantiate in container.ts)
+export default DocumentSearchService;

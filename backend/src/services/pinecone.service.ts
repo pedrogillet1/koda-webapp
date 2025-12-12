@@ -6,7 +6,7 @@ import { Pinecone } from '@pinecone-database/pinecone';
  *
  * Expected performance: 2-5s → 0.3-0.8s for vector search
  */
-class PineconeService {
+export class PineconeService {
   private pinecone: Pinecone | null = null;
   private indexName: string;
   private isInitialized = false;

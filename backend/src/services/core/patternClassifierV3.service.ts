@@ -7,7 +7,7 @@
  * Based on: pasted_content_22.txt Section C specifications
  */
 
-import { KodaIntentEngineV3, kodaIntentEngineV3 } from './kodaIntentEngineV3.service';
+import KodaIntentEngineV3 from './kodaIntentEngineV3.service';
 import {
   IntentName,
   LanguageCode,
@@ -20,9 +20,12 @@ export class PatternClassifierServiceV3 {
   private readonly logger: any;
 
   constructor(
-    intentEngine: KodaIntentEngineV3 = kodaIntentEngineV3,
+    intentEngine: KodaIntentEngineV3,
     logger?: any
   ) {
+    if (!intentEngine) {
+      throw new Error('[PatternClassifier] intentEngine is required - must be injected');
+    }
     this.intentEngine = intentEngine;
     this.logger = logger || console;
   }
@@ -111,6 +114,5 @@ export class PatternClassifierServiceV3 {
   }
 }
 
-// Singleton instance
-export const patternClassifierServiceV3 = new PatternClassifierServiceV3();
-export default patternClassifierServiceV3;
+// Export class for DI registration (instantiate in container.ts with intentEngine)
+export default PatternClassifierServiceV3;

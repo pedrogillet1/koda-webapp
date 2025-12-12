@@ -331,6 +331,8 @@ export class IntentConfigService {
   }
 }
 
-// Singleton instance
+// Singleton instance for direct import (loaded in server.ts before container init)
 export const intentConfigService = new IntentConfigService();
-export default intentConfigService;
+
+// Export class for DI registration
+export default IntentConfigService;

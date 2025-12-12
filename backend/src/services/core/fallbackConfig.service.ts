@@ -306,6 +306,8 @@ export class FallbackConfigService {
   }
 }
 
-// Singleton instance
+// Singleton instance for direct import (loaded in server.ts before container init)
 export const fallbackConfigService = new FallbackConfigService();
-export default fallbackConfigService;
+
+// Export class for DI registration
+export default FallbackConfigService;

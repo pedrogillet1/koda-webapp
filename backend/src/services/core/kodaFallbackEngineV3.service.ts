@@ -7,7 +7,7 @@
  * Based on previous specifications + pasted_content_21.txt Layer 6
  */
 
-import { FallbackConfigService, FallbackResponse, fallbackConfigService } from './fallbackConfig.service';
+import FallbackConfigService, { fallbackConfigService, FallbackResponse } from './fallbackConfig.service';
 import {
   FallbackScenarioKey,
   FallbackStyleId,

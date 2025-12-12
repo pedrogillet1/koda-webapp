@@ -40,7 +40,7 @@ export interface DocumentProgressOptions {
   sessionId?: string;
 }
 
-class DocumentProgressService {
+export class DocumentProgressService {
   
   /**
    * Progress stage definitions

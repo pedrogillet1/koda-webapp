@@ -19,9 +19,7 @@ import { DATA_DIR, verifyAllDataFiles } from './config/dataPaths';
 import { initPromptConfig } from './services/core/promptConfig.service';
 import { initTokenBudgetEstimator } from './services/utils/tokenBudgetEstimator.service';
 import { initContextWindowBudgeting } from './services/utils/contextWindowBudgeting.service';
-import { intentConfigService } from './services/core/intentConfig.service';
-import { fallbackConfigService } from './services/core/fallbackConfig.service';
-import { kodaProductHelpServiceV3 } from './services/core/kodaProductHelpV3.service';
+// Config services are now loaded inside container.ts during initialization
 import { initializeContainer } from './bootstrap/container';
 // ============================================================================
 // Global Error Handlers
@@ -186,31 +184,10 @@ async function startServer() {
     });
     console.log('[Server] PromptConfig initialized');
 
-    // 4. Initialize intent config (loads intent patterns)
-    await intentConfigService.loadPatterns();
-    console.log('[Server] IntentConfig initialized');
-
-    // 5. Load fallback configurations (MUST be before container init)
-    try {
-      await fallbackConfigService.loadFallbacks();
-      console.log('[Server] FallbackConfig loaded');
-    } catch (error) {
-      console.error('[Server] CRITICAL: Failed to load fallback configurations:', error);
-      throw new Error('Startup failed: Fallback configuration loading failed');
-    }
-
-    // 6. Load product help content (MUST be before container init)
-    try {
-      await kodaProductHelpServiceV3.loadContent();
-      console.log('[Server] ProductHelp content loaded');
-    } catch (error) {
-      console.error('[Server] CRITICAL: Failed to load product help content:', error);
-      throw new Error('Startup failed: Product help content loading failed');
-    }
-
-    // 7. Initialize service container (CRITICAL - wires all services with DI)
-    initializeContainer();
-    console.log('[Server] ✅ Service container initialized with proper DI');
+    // 4. Initialize service container (CRITICAL - wires all services with DI)
+    // This now loads JSON configs (intent patterns, fallbacks, product help) inside container
+    await initializeContainer();
+    console.log('[Server] ✅ Service container initialized with proper DI (configs loaded)');
 
     // Test database connection
     await prisma.$connect();

@@ -19,7 +19,7 @@ interface EncryptedData {
   version: string; // For key rotation support
 }
 
-class EncryptionService {
+export class EncryptionService {
   private readonly ALGORITHM = 'aes-256-gcm';
   private readonly KEY_LENGTH = 32; // 256 bits
   private readonly IV_LENGTH = 16; // 128 bits

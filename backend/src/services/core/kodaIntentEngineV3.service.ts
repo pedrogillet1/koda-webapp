@@ -7,7 +7,8 @@
  * Based on: pasted_content_21.txt Layer 4 specifications
  */
 
-import { IntentConfigService, intentConfigService } from './intentConfig.service';
+import { IntentConfigService } from './intentConfig.service';
+import { ILanguageDetector, DefaultLanguageDetector } from './languageDetector.service';
 import {
   IntentName,
   LanguageCode,
@@ -28,13 +29,20 @@ interface IntentScore {
 
 export class KodaIntentEngineV3 {
   private readonly intentConfig: IntentConfigService;
+  private readonly languageDetector: ILanguageDetector;
   private readonly logger: any;
 
   constructor(
-    intentConfig: IntentConfigService = intentConfigService,
+    intentConfig: IntentConfigService,
+    languageDetector?: ILanguageDetector,
     logger?: any
   ) {
+    // FAIL-FAST: IntentConfigService is REQUIRED (no default singleton)
+    if (!intentConfig) {
+      throw new Error('[IntentEngine] intentConfig is REQUIRED - must be injected from container');
+    }
     this.intentConfig = intentConfig;
+    this.languageDetector = languageDetector || new DefaultLanguageDetector();
     this.logger = logger || console;
   }
 
@@ -156,12 +164,18 @@ export class KodaIntentEngineV3 {
       keywords
     );
 
-    // 3. Combine scores
+    // 3. Combine scores with deterministic clamping
     // Use max of regex and keyword scores, then apply priority multiplier
     const baseScore = Math.max(regexScore, keywordScore);
-    const priority = pattern.priority || 50;
-    const priorityMultiplier = priority / 100;
-    const finalScore = baseScore * priorityMultiplier;
+
+    // Clamp priority to [0, 100] for deterministic scoring
+    const rawPriority = pattern.priority ?? 50;
+    const clampedPriority = Math.min(100, Math.max(0, rawPriority));
+    const priorityMultiplier = clampedPriority / 100;
+
+    // Apply multiplier and clamp final score to [0, 1]
+    const rawScore = baseScore * priorityMultiplier;
+    const finalScore = Math.min(1, Math.max(0, rawScore));
 
     return {
       intent: intentName,
@@ -236,36 +250,10 @@ export class KodaIntentEngineV3 {
 
   /**
    * Detect language from text
-   * Simple heuristic-based detection
+   * Delegates to injected ILanguageDetector
    */
   private async detectLanguage(text: string): Promise<LanguageCode> {
-    // Portuguese indicators
-    const ptIndicators = ['você', 'está', 'não', 'são', 'também', 'quantos', 'quais', 'onde'];
-    // Spanish indicators
-    const esIndicators = ['usted', 'está', 'cuántos', 'cuáles', 'dónde', 'también', 'qué'];
-    // English indicators
-    const enIndicators = ['you', 'are', 'how', 'what', 'where', 'which', 'many'];
-
-    const lowerText = text.toLowerCase();
-
-    let ptScore = 0;
-    let esScore = 0;
-    let enScore = 0;
-
-    for (const indicator of ptIndicators) {
-      if (lowerText.includes(indicator)) ptScore++;
-    }
-    for (const indicator of esIndicators) {
-      if (lowerText.includes(indicator)) esScore++;
-    }
-    for (const indicator of enIndicators) {
-      if (lowerText.includes(indicator)) enScore++;
-    }
-
-    // Return language with highest score
-    if (ptScore > esScore && ptScore > enScore) return 'pt';
-    if (esScore > ptScore && esScore > enScore) return 'es';
-    return 'en'; // Default to English
+    return this.languageDetector.detect(text);
   }
 
   /**
@@ -313,6 +301,5 @@ export class KodaIntentEngineV3 {
   }
 }
 
-// Singleton instance
-export const kodaIntentEngineV3 = new KodaIntentEngineV3();
-export default kodaIntentEngineV3;
+// Export class for DI registration (instantiate in container.ts)
+export default KodaIntentEngineV3;

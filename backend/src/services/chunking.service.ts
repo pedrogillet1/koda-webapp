@@ -27,7 +27,7 @@ interface DocumentChunkingOptions {
   overlap?: number;
 }
 
-class ChunkingService {
+export class ChunkingService {
   private readonly DEFAULT_MAX_SIZE = 1000; // ~600 tokens (optimal for embeddings)
   private readonly DEFAULT_OVERLAP = 200; // 20% overlap for context
   private readonly DEFAULT_SPLIT_ON = ['\n\n', '\n', '. ', '! ', '? ', ', '];

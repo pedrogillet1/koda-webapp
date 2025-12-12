@@ -22,8 +22,8 @@ import type {
 
 import embeddingService from '../embedding.service';
 import pineconeService from '../pinecone.service';
-import { kodaHybridSearchService } from '../retrieval/kodaHybridSearch.service';
-import { dynamicDocBoostService, DocumentBoostMap } from '../retrieval/dynamicDocBoost.service';
+import { KodaHybridSearchService, kodaHybridSearchService } from '../retrieval/kodaHybridSearch.service';
+import DynamicDocBoostService, { dynamicDocBoostService, DocumentBoostMap } from '../retrieval/dynamicDocBoost.service';
 import { kodaRetrievalRankingService } from '../retrieval/kodaRetrievalRanking.service';
 import {
   getTokenBudgetEstimator,
@@ -53,6 +53,8 @@ export interface RetrieveParams {
 
 export class KodaRetrievalEngineV3 {
   private defaultMaxChunks = 10;
+  private hybridSearch = kodaHybridSearchService;
+  private dynamicDocBoost = dynamicDocBoostService;
 
   /**
    * Retrieve relevant document chunks for a query.
@@ -172,7 +174,7 @@ export class KodaRetrievalEngineV3 {
 
       // Step 2: Perform hybrid search (Vector 0.6 + BM25 0.4)
       console.log('[KodaRetrievalEngineV3] Performing hybrid search (Vector + BM25)...');
-      const hybridResults = await kodaHybridSearchService.search({
+      const hybridResults = await this.hybridSearch.search({
         userId,
         query,
         filters: {
@@ -193,7 +195,7 @@ export class KodaRetrievalEngineV3 {
 
       // Step 3: Compute dynamic document boosts using dedicated service
       const candidateDocumentIds = [...new Set(hybridResults.map(c => c.documentId))];
-      const boostMap = await dynamicDocBoostService.computeBoosts({
+      const boostMap = await this.dynamicDocBoost.computeBoosts({
         userId,
         intent,
         candidateDocumentIds,

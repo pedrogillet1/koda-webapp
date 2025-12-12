@@ -7,7 +7,7 @@
 import NodeCache from 'node-cache';
 import crypto from 'crypto';
 
-class CacheService {
+export class CacheService {
   private cache: NodeCache;
   private readonly DEFAULT_TTL = 300; // 5 minutes
   private readonly EMBEDDING_TTL = 3600; // 1 hour (reduced from 7 days for memory)

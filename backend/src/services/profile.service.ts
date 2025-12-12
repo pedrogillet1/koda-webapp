@@ -11,7 +11,7 @@ const prisma = new PrismaClient();
  * 2. Building personalized system prompts from profile data
  * 3. Analyzing conversations to extract user insights automatically
  */
-class ProfileService {
+export class ProfileService {
   /**
    * Get a user's profile
    * @param userId - The user ID
