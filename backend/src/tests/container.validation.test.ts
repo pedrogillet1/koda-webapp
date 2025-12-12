@@ -50,6 +50,16 @@ describe('KodaV3 Container', () => {
       const analyticsEngine = getContainer().getAnalyticsEngine();
       expect(analyticsEngine).toBeDefined();
     });
+
+    it('should have multi-intent service defined', () => {
+      const multiIntent = getContainer().getMultiIntent();
+      expect(multiIntent).toBeDefined();
+    });
+
+    it('should have override service defined', () => {
+      const override = getContainer().getOverride();
+      expect(override).toBeDefined();
+    });
   });
 
   describe('Orchestrator Dependencies', () => {
@@ -76,6 +86,16 @@ describe('KodaV3 Container', () => {
     it('should have formatting pipeline injected', () => {
       const orchestrator = getOrchestrator() as any;
       expect(orchestrator.formattingPipeline).toBeDefined();
+    });
+
+    it('should have multi-intent service injected', () => {
+      const orchestrator = getOrchestrator() as any;
+      expect(orchestrator.multiIntent).toBeDefined();
+    });
+
+    it('should have override service injected', () => {
+      const orchestrator = getOrchestrator() as any;
+      expect(orchestrator.override).toBeDefined();
     });
   });
 

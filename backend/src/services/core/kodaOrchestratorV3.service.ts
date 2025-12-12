@@ -15,9 +15,10 @@ import KodaRetrievalEngineV3 from './kodaRetrievalEngineV3.service';
 import KodaAnswerEngineV3 from './kodaAnswerEngineV3.service';
 import prisma from '../../config/database';
 
-// Multi-intent and override services
-import multiIntentService from './multiIntent.service';
-import overrideService from './override.service';
+// Multi-intent and override services - TYPES ONLY for DI
+// NOTE: Instances are injected via container.ts, NOT imported as singletons
+import { MultiIntentService } from './multiIntent.service';
+import { OverrideService } from './override.service';
 
 // Service types for DI - these are injected via container.ts
 import { UserPreferencesService } from '../user/userPreferences.service';
@@ -155,6 +156,10 @@ export class KodaOrchestratorV3 {
   private readonly retrievalEngine: KodaRetrievalEngineV3;
   private readonly answerEngine: KodaAnswerEngineV3;
 
+  // Multi-intent and override services - REQUIRED (from container.ts DI)
+  private readonly multiIntent: MultiIntentService;
+  private readonly override: OverrideService;
+
   // Analytics & utility services - REQUIRED (from container.ts DI)
   private readonly documentSearch: DocumentSearchService;
   private readonly userPreferences: UserPreferencesService;
@@ -174,6 +179,9 @@ export class KodaOrchestratorV3 {
       formattingPipeline: KodaFormattingPipelineV3Service;
       retrievalEngine: KodaRetrievalEngineV3;
       answerEngine: KodaAnswerEngineV3;
+      // Multi-intent and override services - ALL REQUIRED
+      multiIntent: MultiIntentService;
+      override: OverrideService;
       // Analytics & utility services - ALL REQUIRED
       documentSearch: DocumentSearchService;
       userPreferences: UserPreferencesService;
@@ -191,6 +199,8 @@ export class KodaOrchestratorV3 {
     if (!services.formattingPipeline) throw new Error('[Orchestrator] formattingPipeline is REQUIRED');
     if (!services.retrievalEngine) throw new Error('[Orchestrator] retrievalEngine is REQUIRED');
     if (!services.answerEngine) throw new Error('[Orchestrator] answerEngine is REQUIRED');
+    if (!services.multiIntent) throw new Error('[Orchestrator] multiIntent is REQUIRED');
+    if (!services.override) throw new Error('[Orchestrator] override is REQUIRED');
     if (!services.documentSearch) throw new Error('[Orchestrator] documentSearch is REQUIRED');
     if (!services.userPreferences) throw new Error('[Orchestrator] userPreferences is REQUIRED');
     if (!services.conversationMemory) throw new Error('[Orchestrator] conversationMemory is REQUIRED');
@@ -204,6 +214,8 @@ export class KodaOrchestratorV3 {
     this.formattingPipeline = services.formattingPipeline;
     this.retrievalEngine = services.retrievalEngine;
     this.answerEngine = services.answerEngine;
+    this.multiIntent = services.multiIntent;
+    this.override = services.override;
     this.documentSearch = services.documentSearch;
     this.userPreferences = services.userPreferences;
     this.conversationMemory = services.conversationMemory;
@@ -237,14 +249,14 @@ export class KodaOrchestratorV3 {
         `[Orchestrator] userId=${request.userId} intent=${intent.primaryIntent} confidence=${intent.confidence.toFixed(2)}`
       );
 
-      // 2. Multi-intent detection
-      const multiIntent = multiIntentService.detect(request.text);
-      if (multiIntent.isMultiIntent && multiIntent.segments.length > 1) {
+      // 2. Multi-intent detection (using injected service)
+      const multiIntentResult = this.multiIntent.detect(request.text);
+      if (multiIntentResult.isMultiIntent && multiIntentResult.segments.length > 1) {
         this.logger.info(
-          `[Orchestrator] Multi-intent detected: ${multiIntent.segments.length} segments`
+          `[Orchestrator] Multi-intent detected: ${multiIntentResult.segments.length} segments`
         );
         // Process segments sequentially and combine responses
-        return this.processMultiIntentSequentially(request, multiIntent.segments, startTime);
+        return this.processMultiIntentSequentially(request, multiIntentResult.segments, startTime);
       }
 
       // 3. Get workspace stats for override rules
@@ -253,7 +265,7 @@ export class KodaOrchestratorV3 {
 
       // 4. Apply override rules (e.g., no docs + help query → PRODUCT_HELP)
       const adaptedIntent = adaptPredictedIntent(intent, request);
-      const overriddenIntent = await overrideService.override({
+      const overriddenIntent = await this.override.override({
         intent: adaptedIntent,
         userId: request.userId,
         query: request.text,
@@ -390,10 +402,10 @@ export class KodaOrchestratorV3 {
       );
 
       // Step 2: Multi-intent detection (log only for streaming, use primary intent)
-      const multiIntent = multiIntentService.detect(request.text);
-      if (multiIntent.isMultiIntent && multiIntent.segments.length > 1) {
+      const multiIntentResult = this.multiIntent.detect(request.text);
+      if (multiIntentResult.isMultiIntent && multiIntentResult.segments.length > 1) {
         this.logger.info(
-          `[Orchestrator] Multi-intent detected in stream (${multiIntent.segments.length} segments) - using primary intent only`
+          `[Orchestrator] Multi-intent detected in stream (${multiIntentResult.segments.length} segments) - using primary intent only`
         );
       }
 
@@ -402,7 +414,7 @@ export class KodaOrchestratorV3 {
       const workspaceStats = { docCount };
 
       const adaptedIntent = adaptPredictedIntent(intent, request);
-      const overriddenIntent = await overrideService.override({
+      const overriddenIntent = await this.override.override({
         intent: adaptedIntent,
         userId: request.userId,
         query: request.text,

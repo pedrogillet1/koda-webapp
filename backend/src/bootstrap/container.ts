@@ -24,6 +24,8 @@ import KodaAnswerEngineV3 from '../services/core/kodaAnswerEngineV3.service';
 import { KodaFormattingPipelineV3Service } from '../services/core/kodaFormattingPipelineV3.service';
 import { KodaProductHelpServiceV3 } from '../services/core/kodaProductHelpV3.service';
 import { FallbackConfigService } from '../services/core/fallbackConfig.service';
+import { MultiIntentService } from '../services/core/multiIntent.service';
+import { OverrideService } from '../services/core/override.service';
 import { UserPreferencesService } from '../services/user/userPreferences.service';
 import { ConversationMemoryService } from '../services/memory/conversationMemory.service';
 import { FeedbackLoggerService } from '../services/analytics/feedbackLogger.service';
@@ -53,6 +55,8 @@ export interface KodaV3Services {
   formattingPipeline: KodaFormattingPipelineV3Service;
   productHelp: KodaProductHelpServiceV3;
   fallbackConfig: FallbackConfigService;
+  multiIntent: MultiIntentService;
+  override: OverrideService;
   userPreferences: UserPreferencesService;
   conversationMemory: ConversationMemoryService;
   feedbackLogger: FeedbackLoggerService;
@@ -91,6 +95,8 @@ class KodaV3Container {
       this.services.answerEngine = new KodaAnswerEngineV3();
       this.services.formattingPipeline = new KodaFormattingPipelineV3Service();
       this.services.productHelp = new KodaProductHelpServiceV3();
+      this.services.multiIntent = new MultiIntentService();
+      this.services.override = new OverrideService();
       this.services.userPreferences = new UserPreferencesService();
       this.services.conversationMemory = new ConversationMemoryService();
       this.services.feedbackLogger = new FeedbackLoggerService();
@@ -111,6 +117,8 @@ class KodaV3Container {
           formattingPipeline: this.services.formattingPipeline,
           retrievalEngine: this.services.retrievalEngine,
           answerEngine: this.services.answerEngine,
+          multiIntent: this.services.multiIntent,
+          override: this.services.override,
           userPreferences: this.services.userPreferences,
           conversationMemory: this.services.conversationMemory,
           feedbackLogger: this.services.feedbackLogger,
@@ -297,6 +305,26 @@ class KodaV3Container {
       throw new BootstrapWiringError('Container not initialized');
     }
     return this.services.documentSearch!;
+  }
+
+  /**
+   * Get the multi-intent service instance.
+   */
+  public getMultiIntent(): MultiIntentService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.multiIntent!;
+  }
+
+  /**
+   * Get the override service instance.
+   */
+  public getOverride(): OverrideService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.override!;
   }
 
   /**
