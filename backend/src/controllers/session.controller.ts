@@ -15,7 +15,6 @@ import { Request, Response } from 'express';
 // REMOVED: sessionStorageService, metadataExtractionService, documentComparisonService - deleted services
 import textExtractionService from '../services/textExtraction.service';
 import embeddingService from '../services/embedding.service';
-import ragService from '../services/rag.service';
 import prisma from '../config/database';
 import crypto from 'crypto';
 

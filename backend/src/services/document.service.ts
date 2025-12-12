@@ -3,17 +3,14 @@ import prisma from '../config/database';
 import { uploadFile, downloadFile, getSignedUrl, deleteFile, bucket, fileExists } from '../config/storage';
 import { config } from '../config/env';
 import * as textExtractionService from './textExtraction.service';
-import * as visionService from './vision.service';
 import * as geminiService from './openai.service';
 import * as folderService from './folder.service';
 import { generateDocumentTitleOnly } from './titleGeneration.service';
 import markdownConversionService from './markdownConversion.service';
 import cacheService from './cache.service';
 import encryptionService from './encryption.service';
-import pptxProcessorService from './pptxProcessor.service';
 import fileValidator from './fileValidator.service';
 import { invalidateUserCache } from '../controllers/batch.controller';
-import { invalidateFileListingCache } from './rag.service';
 import { addDocumentJob } from '../queues/document.queue';
 import fs from 'fs';
 import os from 'os';
@@ -428,8 +425,6 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
 
     // ⚡ CACHE: Invalidate Redis cache after document upload
     await invalidateUserCache(userId);
-    // ⚡ PERFORMANCE: Invalidate file listing cache
-    invalidateFileListingCache(userId);
 
     return document; // Return the already-created document
   }
@@ -448,8 +443,6 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
 
   // ⚡ CACHE: Invalidate Redis cache after document upload
   await invalidateUserCache(userId);
-  // ⚡ PERFORMANCE: Invalidate file listing cache
-  invalidateFileListingCache(userId);
   // ⚡ MODE OPTIMIZATION: Invalidate query response cache (new documents = stale answers)
   await cacheService.invalidateUserQueryCache(userId);
   console.log(`🗑️  [MODE CACHE] Invalidated query cache after document upload`);
@@ -578,31 +571,15 @@ async function processDocumentWithTimeout(
         const tempFilePath = path.join(tempDir, `pptx-${crypto.randomUUID()}.pptx`);
         fs.writeFileSync(tempFilePath, fileBuffer);
 
-        // Import and use PPTX extractor
-        const { pptxExtractorService } = await import('./pptxExtractor.service');
-        const result = await pptxExtractorService.extractText(tempFilePath);
+        // Use textExtraction service for PowerPoint
+        const pptxResult = await textExtractionService.extractTextFromPowerPoint(fileBuffer);
 
-        if (result.success) {
-          extractedText = result.fullText || '';
-          const extractedSlides = result.slides || [];
-          pptxMetadata = result.metadata || {};
-          pageCount = result.totalSlides || null;
-
-          // Store slide text data immediately (even without images)
-          slidesData = extractedSlides.map((slide) => ({
-            slideNumber: slide.slide_number,
-            content: slide.content,
-            textCount: slide.text_count,
-            imageUrl: null, // Will be updated later if images are generated
-          }));
-
-
-          // 🆕 Phase 4C: Process PowerPoint into slide-level chunks
-          const pptxProcessResult = await pptxProcessorService.processFile(tempFilePath);
-          if (pptxProcessResult.success) {
-            pptxSlideChunks = pptxProcessResult.chunks;
-          } else {
-          }
+        if (pptxResult.text) {
+          extractedText = pptxResult.text;
+          pageCount = pptxResult.pageCount || null;
+          pptxMetadata = {};
+          slidesData = [];
+          pptxSlideChunks = [];
 
           // ✅ FIX: PROACTIVE image extraction approach - Always extract images first
           (async () => {
@@ -805,74 +782,16 @@ async function processDocumentWithTimeout(
       extractedText = await geminiService.extractTextFromImageWithGemini(fileBuffer, mimeType);
       ocrConfidence = 0.95;
     }
-    // 📄 Special handling for PDFs - detect scanned PDFs proactively
+    // 📄 PDF processing - use textExtractionService
     else if (mimeType === 'application/pdf') {
       try {
-        // Import Mistral OCR service (high-quality OCR API)
-        const mistralOCR = (await import('./mistral-ocr.service')).default;
-
-        // Check if PDF is scanned (with fallback if check fails)
-        let isScanned = false;
-        try {
-          isScanned = await mistralOCR.isScannedPDF(fileBuffer);
-          console.log(`📄 [PDF] Scanned check result: ${isScanned ? 'SCANNED' : 'NATIVE TEXT'}`);
-        } catch (scanCheckError: any) {
-          console.warn('⚠️ [PDF] Scan check failed, assuming native:', scanCheckError.message);
-          isScanned = false; // Assume text-based if check fails
-        }
-
-        if (isScanned && mistralOCR.isAvailable()) {
-          // Scanned PDF - use Mistral OCR (best quality)
-          console.log('📄 [PDF] Using Mistral OCR for scanned PDF...');
-          try {
-            const ocrResult = await mistralOCR.processScannedPDF(fileBuffer);
-            extractedText = ocrResult.text;
-            ocrConfidence = ocrResult.confidence;
-            pageCount = ocrResult.pageCount;
-            wordCount = extractedText ? extractedText.split(/\s+/).filter((w: string) => w.length > 0).length : 0;
-            console.log(`✅ [PDF] Mistral OCR extracted ${extractedText.length} chars, ${wordCount} words`);
-          } catch (mistralError: any) {
-            console.error('❌ [PDF] Mistral OCR failed:', mistralError.message);
-
-            // Fallback to standard text extraction (may get minimal text from scanned PDFs)
-            console.log('🔄 [PDF] Falling back to standard extraction...');
-            const result = await textExtractionService.extractText(fileBuffer, mimeType);
-            extractedText = result.text;
-            ocrConfidence = result.confidence || 0.5;
-            pageCount = result.pageCount || null;
-            wordCount = result.wordCount || null;
-
-            if (extractedText.trim().length < 100) {
-              console.warn('⚠️ [PDF] Minimal text extracted from scanned PDF');
-            }
-          }
-        } else if (isScanned && !mistralOCR.isAvailable()) {
-          // Scanned PDF but Mistral OCR not configured
-          console.warn('⚠️ [PDF] Scanned PDF detected but Mistral OCR not available');
-          console.warn('   Configure MISTRAL_API_KEY in .env for high-quality OCR');
-
-          // Try standard extraction (will likely get minimal text)
-          const result = await textExtractionService.extractText(fileBuffer, mimeType);
-          extractedText = result.text;
-          ocrConfidence = result.confidence || null;
-          pageCount = result.pageCount || null;
-          wordCount = result.wordCount || null;
-
-          if (extractedText.trim().length < 100) {
-            // Add note about OCR configuration
-            extractedText = `[Scanned PDF: ${filename}]\n\nThis document appears to be a scanned PDF with minimal extractable text (${extractedText.trim().length} chars found).\n\nTo enable full text extraction, configure MISTRAL_API_KEY in your backend .env file.\n\n--- Extracted Content ---\n${extractedText}`;
-            ocrConfidence = 0.1; // Low confidence indicates OCR needed
-          }
-        } else {
-          // Text-based PDF - use standard extraction
-          console.log('📄 [PDF] Using standard text extraction for native PDF...');
-          const result = await textExtractionService.extractText(fileBuffer, mimeType);
-          extractedText = result.text;
-          ocrConfidence = result.confidence || null;
-          pageCount = result.pageCount || null;
-          wordCount = result.wordCount || null;
-          console.log(`✅ [PDF] Extracted ${extractedText.length} chars from native PDF`);
-        }
+        console.log('📄 [PDF] Using standard text extraction...');
+        const result = await textExtractionService.extractText(fileBuffer, mimeType);
+        extractedText = result.text;
+        ocrConfidence = result.confidence || null;
+        pageCount = result.pageCount || null;
+        wordCount = result.wordCount || null;
+        console.log(`✅ [PDF] Extracted ${extractedText.length} chars from PDF`);
       } catch (pdfError: any) {
         console.error('❌ [PDF] Processing failed:', pdfError.message);
         throw pdfError;
@@ -1272,17 +1191,6 @@ async function processDocumentWithTimeout(
             const excelProcessor = await import('./excelProcessor.service');
             const excelChunks = await excelProcessor.default.processExcel(fileBuffer);
 
-            // ⚡ EXCEL FORMULA ENGINE: Load into HyperFormula for live calculations
-            try {
-              const { excelFormulaEngine } = await import('./calculation');
-              await excelFormulaEngine.initialize();
-              const excelInfo = await excelFormulaEngine.loadExcelFile(fileBuffer, documentId);
-              console.log(`✅ [DOCUMENT] Excel loaded into formula engine: ${excelInfo.sheets.length} sheets, ${excelInfo.totalFormulas} formulas`);
-            } catch (excelEngineError) {
-              // Non-critical - Excel processing can continue without formula engine
-              console.warn(`⚠️ [DOCUMENT] Excel formula engine load failed (non-critical):`, excelEngineError);
-            }
-
             // Convert Excel chunks to embedding format with full document metadata
             // ⚡ CRITICAL: Prepend filename to content so AI sees it prominently
             chunks = excelChunks.map(chunk => ({
@@ -1616,8 +1524,6 @@ async function processDocumentWithTimeout(
 
     // Invalidate cache for this user after successful processing
     await cacheService.invalidateUserCache(userId);
-    // ⚡ PERFORMANCE: Invalidate file listing cache
-    invalidateFileListingCache(userId);
 
     // ⏱️ TOTAL PROCESSING TIME
     const totalProcessingTime = Date.now() - processingStartTime;
@@ -1863,7 +1769,7 @@ async function processDocumentAsync(
     let pptxMetadata: any | null = null;
     let pptxSlideChunks: any[] | null = null; // For Phase 4C: Slide-level chunks
 
-    // Check if it's a PowerPoint file - use Python PPTX extractor
+    // Check if it's a PowerPoint file - use textExtraction service
     const isPPTX = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
     if (isPPTX) {
       try {
@@ -1872,31 +1778,15 @@ async function processDocumentAsync(
         const tempFilePath = path.join(tempDir, `pptx-${crypto.randomUUID()}.pptx`);
         fs.writeFileSync(tempFilePath, fileBuffer);
 
-        // Import and use PPTX extractor
-        const { pptxExtractorService } = await import('./pptxExtractor.service');
-        const result = await pptxExtractorService.extractText(tempFilePath);
+        // Use textExtraction service for PowerPoint
+        const pptxResult = await textExtractionService.extractTextFromPowerPoint(fileBuffer);
 
-        if (result.success) {
-          extractedText = result.fullText || '';
-          const extractedSlides = result.slides || [];
-          pptxMetadata = result.metadata || {};
-          pageCount = result.totalSlides || null;
-
-          // Store slide text data immediately (even without images)
-          slidesData = extractedSlides.map((slide) => ({
-            slideNumber: slide.slide_number,
-            content: slide.content,
-            textCount: slide.text_count,
-            imageUrl: null, // Will be updated later if images are generated
-          }));
-
-
-          // 🆕 Phase 4C: Process PowerPoint into slide-level chunks
-          const pptxProcessResult = await pptxProcessorService.processFile(tempFilePath);
-          if (pptxProcessResult.success) {
-            pptxSlideChunks = pptxProcessResult.chunks;
-          } else {
-          }
+        if (pptxResult.text) {
+          extractedText = pptxResult.text;
+          pageCount = pptxResult.pageCount || null;
+          pptxMetadata = {};
+          slidesData = [];
+          pptxSlideChunks = [];
 
           // ✅ FIX: PROACTIVE image extraction approach - Always extract images first
           (async () => {
@@ -2107,29 +1997,8 @@ async function processDocumentAsync(
         pageCount = result.pageCount || null;
         wordCount = result.wordCount || null;
       } catch (extractionError: any) {
-
-        if (mimeType === 'application/pdf') {
-          try {
-            const visionService = await import('./vision.service');
-            const ocrResult = await visionService.extractTextFromScannedPDF(fileBuffer);
-            extractedText = ocrResult.text;
-            ocrConfidence = ocrResult.confidence || 0.85;
-          } catch (visionError) {
-            console.error('❌ Google Cloud Vision also failed:', visionError);
-            throw new Error(`Failed to extract text from scanned PDF: ${extractionError.message}`);
-          }
-        } else if (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mimeType)) {
-          try {
-            extractedText = await geminiService.extractTextFromImageWithGemini(fileBuffer, mimeType);
-            ocrConfidence = 0.85;
-          } catch (visionError) {
-            console.error('❌ Fallback extraction also failed:', visionError);
-            throw new Error(`Failed to extract text from image: ${extractionError.message}`);
-          }
-        } else {
-          console.error(`❌ Cannot extract text from ${mimeType}, marking as failed`);
-          throw new Error(`Failed to extract text from ${mimeType}: ${extractionError.message}`);
-        }
+        console.error(`❌ Failed to extract text from ${mimeType}:`, extractionError.message);
+        throw new Error(`Failed to extract text from ${mimeType}: ${extractionError.message}`);
       }
     }
 
@@ -2316,17 +2185,6 @@ async function processDocumentAsync(
               mimeType === 'application/vnd.ms-excel') {
             const excelProcessor = await import('./excelProcessor.service');
             const excelChunks = await excelProcessor.default.processExcel(fileBuffer);
-
-            // ⚡ EXCEL FORMULA ENGINE: Load into HyperFormula for live calculations
-            try {
-              const { excelFormulaEngine } = await import('./calculation');
-              await excelFormulaEngine.initialize();
-              const excelInfo = await excelFormulaEngine.loadExcelFile(fileBuffer, documentId);
-              console.log(`✅ [DOCUMENT-ZK] Excel loaded into formula engine: ${excelInfo.sheets.length} sheets, ${excelInfo.totalFormulas} formulas`);
-            } catch (excelEngineError) {
-              // Non-critical - Excel processing can continue without formula engine
-              console.warn(`⚠️ [DOCUMENT-ZK] Excel formula engine load failed (non-critical):`, excelEngineError);
-            }
 
             // Convert Excel chunks to embedding format with full document metadata
             // ⚡ CRITICAL: Prepend filename to content so AI sees it prominently
@@ -2527,8 +2385,6 @@ async function processDocumentAsync(
 
     // Invalidate cache for this user after successful processing
     await cacheService.invalidateUserCache(userId);
-    // ⚡ PERFORMANCE: Invalidate file listing cache
-    invalidateFileListingCache(userId);
 
     // ════════════════════════════════════════════════════════════════════════
     // STAGE 18: INDEXING COMPLETE (95%)
@@ -3197,9 +3053,6 @@ export const deleteDocument = async (documentId: string, userId: string) => {
   // Invalidate document-specific response cache (AI chat responses)
   await cacheService.invalidateDocumentCache(documentId);
 
-  // ⚡ PERFORMANCE: Invalidate file listing cache for faster "what files do I have?" queries
-  invalidateFileListingCache(userId);
-
   // ⚡ MODE OPTIMIZATION: Invalidate query response cache (deleted documents = stale answers)
   await cacheService.invalidateUserQueryCache(userId);
   console.log(`🗑️  [MODE CACHE] Invalidated query cache after document deletion`);
@@ -3322,8 +3175,6 @@ export const deleteAllDocuments = async (userId: string) => {
 
     // Invalidate cache for this user
     await cacheService.invalidateUserCache(userId);
-    // ⚡ PERFORMANCE: Invalidate file listing cache
-    invalidateFileListingCache(userId);
 
     console.log(`✅ [DeleteAllDocuments] Completed: ${successCount} deleted, ${failedCount} failed`);
 
@@ -3636,28 +3487,11 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
   ];
 
   if (excelTypes.includes(document.mimeType)) {
-    // REASON: Convert Excel to HTML for rich in-browser preview with full styling
-    // WHY: HTML tables preserve formatting, colors, borders and are universally displayable
-    const excelToHtmlService = await import('./excelToHtmlStyled.service');
-
-    // Download Excel file from storage
-    let excelBuffer = await downloadFile(document.encryptedFilename);
-
-    // Decrypt if encrypted
-    if (document.isEncrypted) {
-      const encryptionService = await import('./encryption.service');
-      excelBuffer = encryptionService.default.decryptFile(excelBuffer, `document-${userId}`);
-    }
-
-    // Convert to HTML
-    const htmlResult = await excelToHtmlService.default.convertToHtml(excelBuffer);
-
+    // Return download URL for Excel files
+    const url = await getSignedUrl(document.encryptedFilename, 3600);
     return {
       previewType: 'excel',
-      htmlContent: htmlResult.html,
-      sheetCount: htmlResult.sheetCount,
-      sheets: htmlResult.sheets,
-      downloadUrl: await getSignedUrl(document.encryptedFilename, 3600),
+      downloadUrl: url,
       originalType: document.mimeType,
       filename: document.filename,
     };
@@ -3880,18 +3714,17 @@ export const reprocessDocument = async (documentId: string, userId: string) => {
       fs.writeFileSync(tempFilePath, fileBuffer);
 
       try {
-        // Import and use PPTX extractor
-        const { pptxExtractorService } = await import('./pptxExtractor.service');
-        const result = await pptxExtractorService.extractText(tempFilePath);
+        // Use textExtraction service for PowerPoint
+        const pptxResult = await textExtractionService.extractTextFromPowerPoint(fileBuffer);
 
         // Clean up temp file
         fs.unlinkSync(tempFilePath);
 
-        if (result.success) {
-          const extractedText = result.fullText || '';
-          const slidesData = result.slides || [];
-          const pptxMetadata = result.metadata || {};
-          const pageCount = result.totalSlides || null;
+        if (pptxResult.text) {
+          const extractedText = pptxResult.text;
+          const slidesData: any[] = [];
+          const pptxMetadata = {};
+          const pageCount = pptxResult.pageCount || null;
 
 
           // Update metadata with slides data

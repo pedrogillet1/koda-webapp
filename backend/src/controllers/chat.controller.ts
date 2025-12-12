@@ -170,7 +170,6 @@ export const sendMessage = async (req: Request, res: Response) => {
       conversationId,
       content,
       attachedDocumentId,
-      answerLength,
     });
 
     // Invalidate cache

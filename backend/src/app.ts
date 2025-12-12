@@ -28,13 +28,13 @@ import presentationRoutes from './routes/presentation.routes';
 import presignedUrlRoutes from './routes/presigned-url.routes';
 import multipartUploadRoutes from './routes/multipart-upload.routes';
 import storageRoutes from './routes/storage.routes';
-import agentRoutes from './routes/agent.routes';
-import creativityRoutes from './routes/creativity.routes';
+// import agentRoutes from './routes/agent.routes'; // Removed - V3 cleanup
+// import creativityRoutes from './routes/creativity.routes'; // Removed - V3 cleanup
 import profileRoutes from './routes/profile.routes';
 import historyRoutes from './routes/history.routes';
 // import analyticsRoutes from './routes/analytics.routes'; // Disabled - service deleted
 import analyticsPublicRoutes from './routes/analytics-public.routes';
-import { explanationController } from './controllers/explanation.controller';
+// import { explanationController } from './controllers/explanation.controller'; // Removed - V3 cleanup
 import { profileController } from './controllers/profile.controller';
 // TODO: Temporarily disabled routes with deleted service dependencies
 // import dataProtectionRoutes from './routes/dataProtection.routes';
@@ -219,8 +219,8 @@ app.use('/api/presigned-urls', presignedUrlRoutes); // Presigned URL generation 
 app.use('/api/multipart-upload', multipartUploadRoutes); // S3 multipart upload for large files (>20MB)
 app.use('/api/storage', storageRoutes); // Storage usage and limits (5GB beta)
 app.use('/api/presentations', presentationRoutes); // Manus-style presentation generation
-app.use('/api/agent', agentRoutes); // Problem-solving agent with ReAct reasoning
-app.use('/api/creativity', creativityRoutes); // AI Creativity Engine: temperature and persona controls
+// app.use('/api/agent', agentRoutes); // Removed - V3 cleanup
+// app.use('/api/creativity', creativityRoutes); // Removed - V3 cleanup
 app.use('/api/profile', profileRoutes); // User profile and knowledge gathering
 // app.use('/api/admin/analytics', analyticsRoutes); // Disabled - service deleted
 app.use('/api/analytics', analyticsPublicRoutes); // Public analytics (feedback, tracking)
@@ -229,9 +229,9 @@ app.use('/api/analytics', analyticsPublicRoutes); // Public analytics (feedback,
 app.get('/api/profiles/:userId', profileController.getProfileByParam.bind(profileController));
 app.put('/api/profiles/:userId', profileController.updateProfileByParam.bind(profileController));
 
-// Explanation Pipeline endpoint (Chain of Thought + Fact-Checking)
-app.post('/api/explain', explanationController.generate.bind(explanationController));
-app.post('/api/explain/full', explanationController.generateFull.bind(explanationController));
+// Explanation Pipeline removed - V3 cleanup
+// app.post('/api/explain', explanationController.generate.bind(explanationController));
+// app.post('/api/explain/full', explanationController.generateFull.bind(explanationController));
 
 // DEV ONLY: Development endpoints
 if (config.NODE_ENV === 'development') {

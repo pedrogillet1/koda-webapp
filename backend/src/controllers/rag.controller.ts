@@ -1,21 +1,20 @@
 /**
- * RAG Controller V1
+ * RAG Controller V3
  *
- * Clean RAG implementation using the V1 pipeline:
- * - Intent classification via kodaIntentEngineV2
- * - Retrieval via kodaRetrievalEngineV2 (Pinecone + BM25)
- * - Answer generation via kodaAnswerEngineV1 (Gemini)
- * - 4-layer formatting pipeline
+ * Clean RAG implementation using the V3 pipeline:
+ * - Central orchestration via KodaOrchestratorService
+ * - Intent classification via KodaIntentEngineService
+ * - Retrieval via KodaRetrievalEngineV3
+ * - Answer generation via KodaAnswerEngineV3
+ * - Formatting via KodaFormattingPipelineServiceV3
  *
- * Supports 8 flows:
- * 1. Analytics (metadata queries)
- * 2. Simple factual (single doc)
- * 3. Multi-point extraction
- * 4. Multi-doc search
- * 5. Multi-doc comparison
- * 6. Follow-up
- * 7. Fallback (no docs/no match)
- * 8. Generic chat
+ * Supports 6 primary intents:
+ * 1. ANALYTICS - Document statistics
+ * 2. SEARCH - Document search
+ * 3. DOCUMENT_QNA - Question answering
+ * 4. CHITCHAT - Casual conversation
+ * 5. META_AI - Capability questions
+ * 6. PRODUCT_HELP - Product guidance
  */
 
 import { Request, Response } from 'express';
@@ -23,11 +22,13 @@ import prisma from '../config/database';
 import cacheService from '../services/cache.service';
 import { generateConversationTitle } from '../services/openai.service';
 
-// V1 Services
-import { ragServiceV2 } from '../services/core/ragV2.service';
-import { kodaIntentEngineV2 } from '../services/core/kodaIntentEngineV2.service';
-import { kodaRetrievalEngineV2 } from '../services/retrieval/kodaRetrievalEngineV2.service';
-import type { AnswerRequest, ConversationContext } from '../types/ragV2.types';
+// V3 Services
+import { KodaOrchestratorService, RagChatRequestV3 } from '../services/core/kodaOrchestrator.service';
+import { KodaIntentEngineService } from '../services/core/kodaIntentEngine.service';
+
+// Instantiate V3 services
+const orchestrator = new KodaOrchestratorService();
+const intentEngine = new KodaIntentEngineService();
 
 // ============================================================================
 // Helper Functions
@@ -42,7 +43,7 @@ async function ensureConversationExists(conversationId: string, userId: string) 
   });
 
   if (!conversation) {
-    console.log(`[RAG] Creating conversation ${conversationId}`);
+    console.log(`[RAG V3] Creating conversation ${conversationId}`);
     conversation = await prisma.conversation.create({
       data: {
         id: conversationId,
@@ -57,44 +58,13 @@ async function ensureConversationExists(conversationId: string, userId: string) 
   return conversation;
 }
 
-/**
- * Build conversation context from history
- */
-async function buildConversationContext(
-  conversationId: string,
-  userId: string
-): Promise<ConversationContext> {
-  const messages = await prisma.message.findMany({
-    where: { conversationId },
-    orderBy: { createdAt: 'desc' },
-    take: 10,
-    select: {
-      role: true,
-      content: true,
-    },
-  });
-
-  messages.reverse(); // Chronological order
-
-  return {
-    sessionId: conversationId,
-    userId,
-    lastNTurns: messages.map((m) => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content || '',
-    })),
-    activeDocIds: [],
-    lastCitations: [],
-  };
-}
-
 // ============================================================================
 // Main RAG Endpoint
 // ============================================================================
 
 /**
  * POST /api/rag/query
- * Generate an answer using RAG V1
+ * Generate an answer using RAG V3
  */
 export const queryWithRAG = async (req: Request, res: Response): Promise<void> => {
   const startTime = Date.now();
@@ -109,7 +79,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     const {
       query,
       conversationId,
-      answerLength = 'medium',
+      language = 'en',
       attachedDocuments = [],
       documentId,
     } = req.body;
@@ -119,7 +89,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    console.log(`[RAG V2] Query: "${query.substring(0, 50)}..."`);
+    console.log(`[RAG V3] Query: "${query.substring(0, 50)}..."`);
 
     // Handle document attachments
     let attachedDocumentIds: string[] = [];
@@ -127,32 +97,28 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       attachedDocumentIds = attachedDocuments
         .map((doc: any) => (typeof doc === 'string' ? doc : doc.id))
         .filter(Boolean);
-      console.log(`[RAG V2] ${attachedDocumentIds.length} documents attached`);
+      console.log(`[RAG V3] ${attachedDocumentIds.length} documents attached`);
     } else if (documentId) {
       attachedDocumentIds = [documentId];
-      console.log(`[RAG V2] Single document attached: ${documentId}`);
+      console.log(`[RAG V3] Single document attached: ${documentId}`);
     }
 
     // Ensure conversation exists
     await ensureConversationExists(conversationId, userId);
 
-    // Build conversation context
-    const conversationContext = await buildConversationContext(conversationId, userId);
-
-    // Build request
-    const request: AnswerRequest = {
-      query,
+    // Build V3 request
+    const request: RagChatRequestV3 = {
       userId,
-      sessionId: conversationId,
-      conversationContext,
-      attachedDocumentIds,
-      answerLength: answerLength as 'short' | 'medium' | 'long',
+      query,
+      language: language as 'en' | 'pt' | 'es',
+      conversationId,
+      attachedDocumentIds: attachedDocumentIds.length > 0 ? attachedDocumentIds : undefined,
     };
 
-    // Call RAG V1 service
-    const response = await ragServiceV2.handleQuery(request);
+    // Call V3 orchestrator
+    const response = await orchestrator.handleChat(request);
 
-    console.log(`[RAG V2] Status: ${response.metadata.ragStatus}, Time: ${Date.now() - startTime}ms`);
+    console.log(`[RAG V3] Intent: ${response.primaryIntent}, Time: ${Date.now() - startTime}ms`);
 
     // Save user message
     const userMessage = await prisma.message.create({
@@ -171,13 +137,12 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
       data: {
         conversationId,
         role: 'assistant',
-        content: response.text,
+        content: response.answer,
         metadata: JSON.stringify({
-          ragStatus: response.metadata.ragStatus,
-          answerType: response.answerType,
-          docsUsed: response.docsUsed,
-          citations: response.citations,
-          totalTimeMs: response.metadata.totalTimeMs,
+          primaryIntent: response.primaryIntent,
+          language: response.language,
+          sourceDocuments: response.sourceDocuments,
+          confidenceScore: response.confidenceScore,
         }),
       },
     });
@@ -197,9 +162,9 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
           where: { id: conversationId },
           data: { title },
         });
-        console.log(`[RAG V2] Generated title: "${title}"`);
+        console.log(`[RAG V3] Generated title: "${title}"`);
       } catch (err) {
-        console.warn('[RAG V2] Title generation failed:', err);
+        console.warn('[RAG V3] Title generation failed:', err);
       }
     }
 
@@ -209,14 +174,12 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
 
     // Return response
     res.status(200).json({
-      answer: response.text,
-      sources: response.citations.map((c) => ({
-        id: c.documentId,
-        filename: c.filename,
-        title: c.title,
+      answer: response.answer,
+      sources: response.sourceDocuments.map((doc: any) => ({
+        id: doc.documentId || doc.id,
+        filename: doc.documentName || doc.filename,
       })),
-      intent: response.metadata.ragStatus,
-      answerType: response.answerType,
+      intent: response.primaryIntent,
       userMessage: {
         id: userMessage.id,
         content: userMessage.content,
@@ -226,61 +189,18 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         content: assistantMessage.content,
       },
       metadata: {
-        ragStatus: response.metadata.ragStatus,
-        totalTimeMs: response.metadata.totalTimeMs,
-        retrievalTimeMs: response.metadata.retrievalTimeMs,
-        generationTimeMs: response.metadata.generationTimeMs,
+        primaryIntent: response.primaryIntent,
+        language: response.language,
+        confidenceScore: response.confidenceScore,
+        totalTimeMs: Date.now() - startTime,
       },
     });
   } catch (error: any) {
-    console.error('[RAG V2] Error:', error);
+    console.error('[RAG V3] Error:', error);
     res.status(500).json({
       error: error.message || 'Internal server error',
-      answer: 'Desculpe, ocorreu um erro ao processar sua pergunta. Por favor, tente novamente.',
+      answer: 'Sorry, an error occurred while processing your question. Please try again.',
     });
-  }
-};
-
-// ============================================================================
-// Context Endpoint
-// ============================================================================
-
-/**
- * GET /api/rag/context
- * Get RAG context for debugging
- */
-export const getContext = async (req: Request, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
-    const { query } = req.query;
-    if (!query || typeof query !== 'string') {
-      res.status(400).json({ error: 'Query parameter is required' });
-      return;
-    }
-
-    // Classify intent
-    const intent = kodaIntentEngineV2.classifyIntent(query);
-
-    // Retrieve context
-    const { context, status } = await kodaRetrievalEngineV2.retrieve(query, userId, intent);
-
-    res.status(200).json({
-      intent,
-      status,
-      context: {
-        documentsUsed: context.documentsUsed,
-        chunkCount: context.rawSourceData.length,
-        chunks: context.rawSourceData.slice(0, 5), // First 5 chunks
-      },
-    });
-  } catch (error: any) {
-    console.error('[RAG V2] Context error:', error);
-    res.status(500).json({ error: error.message });
   }
 };
 
@@ -300,33 +220,31 @@ export const answerFollowUp = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const { query, conversationId } = req.body;
+    const { query, conversationId, language = 'en' } = req.body;
     if (!query || !conversationId) {
       res.status(400).json({ error: 'Query and conversationId are required' });
       return;
     }
 
-    // Build context with follow-up flag
-    const conversationContext = await buildConversationContext(conversationId, userId);
-
-    // Let ragServiceV2 classify intent automatically - it will detect follow-up from context
-    const request: AnswerRequest = {
-      query,
+    const request: RagChatRequestV3 = {
       userId,
-      sessionId: conversationId,
-      conversationContext,
-      // No explicit intent - ragServiceV2 will classify and detect follow-up from conversationContext
+      query,
+      language: language as 'en' | 'pt' | 'es',
+      conversationId,
     };
 
-    const response = await ragServiceV2.handleQuery(request);
+    const response = await orchestrator.handleChat(request);
 
     res.status(200).json({
-      answer: response.text,
-      sources: response.citations,
-      metadata: response.metadata,
+      answer: response.answer,
+      sources: response.sourceDocuments,
+      metadata: {
+        primaryIntent: response.primaryIntent,
+        confidenceScore: response.confidenceScore,
+      },
     });
   } catch (error: any) {
-    console.error('[RAG V2] Follow-up error:', error);
+    console.error('[RAG V3] Follow-up error:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -347,7 +265,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       return;
     }
 
-    const { query, conversationId } = req.body;
+    const { query, conversationId, language = 'en' } = req.body;
     if (!query || !conversationId) {
       res.status(400).json({ error: 'Query and conversationId are required' });
       return;
@@ -366,23 +284,20 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     // Ensure conversation exists
     await ensureConversationExists(conversationId, userId);
 
-    // Build context
-    const conversationContext = await buildConversationContext(conversationId, userId);
-
-    const request: AnswerRequest = {
-      query,
+    const request: RagChatRequestV3 = {
       userId,
-      sessionId: conversationId,
-      conversationContext,
+      query,
+      language: language as 'en' | 'pt' | 'es',
+      conversationId,
     };
 
-    // Get response (non-streaming for V1)
-    const response = await ragServiceV2.handleQuery(request);
+    // Get response
+    const response = await orchestrator.handleChat(request);
 
     // Stream the response in chunks
-    const chunks = response.text.split(' ');
-    for (let i = 0; i < chunks.length; i += 5) {
-      const chunk = chunks.slice(i, i + 5).join(' ') + ' ';
+    const words = response.answer.split(' ');
+    for (let i = 0; i < words.length; i += 5) {
+      const chunk = words.slice(i, i + 5).join(' ') + ' ';
       res.write(`data: ${JSON.stringify({ type: 'content', content: chunk })}\n\n`);
     }
 
@@ -399,7 +314,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       data: {
         conversationId,
         role: 'assistant',
-        content: response.text,
+        content: response.answer,
       },
     });
 
@@ -415,7 +330,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
     res.end();
   } catch (error: any) {
-    console.error('[RAG V2] Streaming error:', error);
+    console.error('[RAG V3] Streaming error:', error);
     res.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
     res.end();
   }
@@ -431,31 +346,36 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
  */
 export const classifyIntent = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { query } = req.body;
+    const userId = req.user?.id;
+    const { query, language = 'en' } = req.body;
 
     if (!query) {
       res.status(400).json({ error: 'Query is required' });
       return;
     }
 
-    const intent = kodaIntentEngineV2.classifyIntent(query);
+    const intent = await intentEngine.classify({
+      userId: userId || 'anonymous',
+      query,
+      userLanguageHint: language as 'en' | 'pt' | 'es',
+    });
 
     res.status(200).json(intent);
   } catch (error: any) {
-    console.error('[RAG V2] Classify error:', error);
+    console.error('[RAG V3] Classify error:', error);
     res.status(500).json({ error: error.message });
   }
 };
 
 // ============================================================================
-// Retrieve Chunks Endpoint (for debugging)
+// Context Endpoint (for debugging)
 // ============================================================================
 
 /**
- * POST /api/rag/retrieve
- * Retrieve chunks only (for debugging)
+ * GET /api/rag/context
+ * Get RAG context for debugging
  */
-export const retrieveChunks = async (req: Request, res: Response): Promise<void> => {
+export const getContext = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -463,24 +383,28 @@ export const retrieveChunks = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const { query } = req.body;
-    if (!query) {
-      res.status(400).json({ error: 'Query is required' });
+    const { query, language = 'en' } = req.query;
+    if (!query || typeof query !== 'string') {
+      res.status(400).json({ error: 'Query parameter is required' });
       return;
     }
 
-    const intent = kodaIntentEngineV2.classifyIntent(query);
-    const { context, status } = await kodaRetrievalEngineV2.retrieve(query, userId, intent);
+    // Classify intent using V3
+    const intent = await intentEngine.classify({
+      userId,
+      query,
+      userLanguageHint: (language as 'en' | 'pt' | 'es') || 'en',
+    });
 
     res.status(200).json({
-      status,
       intent,
-      chunksRetrieved: context.rawSourceData.length,
-      documentsUsed: context.documentsUsed,
-      chunks: context.rawSourceData,
+      primaryIntent: intent.primaryIntent,
+      requiresRAG: intent.requiresRAG,
+      language: intent.language,
+      confidence: intent.confidence,
     });
   } catch (error: any) {
-    console.error('[RAG V2] Retrieve error:', error);
+    console.error('[RAG V3] Context error:', error);
     res.status(500).json({ error: error.message });
   }
 };

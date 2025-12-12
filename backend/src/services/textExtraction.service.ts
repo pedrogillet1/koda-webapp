@@ -1,6 +1,5 @@
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
-import * as visionService from './vision.service';
 import sharp from 'sharp';
 import fs from 'fs';
 import os from 'os';
@@ -162,13 +161,13 @@ export const extractTextFromPDF = async (buffer: Buffer): Promise<ExtractionResu
     // 2. Less than 100 characters per page (likely just page numbers/headers)
     const isLikelyScanned = avgCharsPerPage < 100;
 
-    // Use OCR if no text or low character density
+    // If PDF appears scanned (low text density), log warning but continue with native extraction
     if (!hasText || isLikelyScanned) {
       const reason = !hasText
         ? 'no text found'
         : `low text density (${avgCharsPerPage.toFixed(0)} chars/page, threshold: 100)`;
 
-      console.log(`📄 PDF appears to be scanned (${reason}), using OCR...`);
+      console.log(`📄 PDF appears to be scanned (${reason})`);
       console.log(`📊 PDF Analysis:`, {
         totalPages: data.numpages,
         totalChars: data.text?.length || 0,
@@ -177,79 +176,13 @@ export const extractTextFromPDF = async (buffer: Buffer): Promise<ExtractionResu
         reason: reason
       });
 
-      // Try Mistral OCR first (best quality), then fall back to Vision API
-      let ocrResult: { text: string; confidence?: number; language?: string } | null = null;
-
-      // Attempt 1: Mistral OCR (high-quality cloud OCR)
-      try {
-        const mistralOCR = (await import('./mistral-ocr.service')).default;
-        if (mistralOCR.isAvailable()) {
-          console.log('🔍 [PDF] Attempting Mistral OCR...');
-          const mistralResult = await mistralOCR.processScannedPDF(buffer);
-          ocrResult = {
-            text: mistralResult.text,
-            confidence: mistralResult.confidence,
-          };
-          console.log(`✅ [PDF] Mistral OCR successful: ${ocrResult.text.length} chars`);
-        } else {
-          console.log('⚠️ [PDF] Mistral OCR not available, trying fallback...');
-        }
-      } catch (mistralError: any) {
-        console.error(`❌ [PDF] Mistral OCR failed: ${mistralError.message}`);
-      }
-
-      // Attempt 2: Vision Service fallback (Google Cloud Vision)
-      if (!ocrResult || !ocrResult.text || ocrResult.text.trim().length === 0) {
-        try {
-          console.log('🔍 [PDF] Attempting Vision API OCR...');
-          const visionResult = await visionService.extractTextFromScannedPDF(buffer);
-          if (visionResult && visionResult.text && visionResult.text.trim().length > 0) {
-            ocrResult = visionResult;
-            console.log(`✅ [PDF] Vision API OCR successful: ${ocrResult.text.length} chars`);
-          }
-        } catch (visionError: any) {
-          console.error(`❌ [PDF] Vision API OCR failed: ${visionError.message}`);
-        }
-      }
-
-      // Check if we got any text
-      if (!ocrResult || !ocrResult.text || ocrResult.text.trim().length === 0) {
-        console.warn('⚠️ [PDF] All OCR attempts failed, falling back to native extraction');
-
-        // Return whatever text we have, even if minimal
-        return {
-          text: data.text || '',
-          confidence: 0.3,
-          pageCount: data.numpages,
-          wordCount: data.text ? data.text.split(/\s+/).length : 0,
-        };
-      }
-
-      // Post-process the OCR text to fix common errors
-      let cleanedText = postProcessOCRText(ocrResult.text);
-
-      // ✅ FIX: Detect and preserve table structure from OCR text
-      try {
-        cleanedText = extractPDFWithTables(cleanedText);
-      } catch (tableError) {
-        console.warn('⚠️ [PDF] Table extraction failed for OCR text, using raw text');
-      }
-
-      console.log(`📊 OCR Results:`, {
-        extractedChars: cleanedText.length,
-        extractedWords: cleanedText.split(/\s+/).length,
-        confidence: ocrResult.confidence?.toFixed(2),
-        language: ocrResult.language,
-        avgCharsPerPage: (cleanedText.length / data.numpages).toFixed(2)
-      });
-      console.log(`✅ OCR successful: ${cleanedText.length} chars, ${cleanedText.split(/\s+/).length} words`);
-
+      // Return whatever text we have from native extraction
+      console.warn('⚠️ [PDF] Scanned PDF detected - OCR not available, using native extraction');
       return {
-        text: cleanedText,
-        confidence: ocrResult.confidence,
+        text: data.text || '',
+        confidence: 0.3,
         pageCount: data.numpages,
-        wordCount: cleanedText.split(/\s+/).filter((w: any) => w.length > 0).length,
-        language: ocrResult.language,
+        wordCount: data.text ? data.text.split(/\s+/).length : 0,
       };
     }
 
@@ -279,36 +212,7 @@ export const extractTextFromPDF = async (buffer: Buffer): Promise<ExtractionResu
     };
   } catch (error: any) {
     console.error('❌ PDF text extraction failed:', error.message);
-
-    // ════════════════════════════════════════════════════════════════════════════════
-    // FALLBACK: Try OCR even if parsing failed
-    // ════════════════════════════════════════════════════════════════════════════════
-
-    console.log('🔄 Attempting OCR as fallback...');
-
-    try {
-      const ocrResult = await visionService.extractTextFromScannedPDF(buffer);
-      let cleanedText = postProcessOCRText(ocrResult.text);
-
-      // ✅ FIX: Detect and preserve table structure from OCR fallback
-      try {
-        cleanedText = extractPDFWithTables(cleanedText);
-      } catch (tableError) {
-        console.warn('⚠️ [PDF] Table extraction failed for OCR fallback');
-      }
-
-      console.log(`✅ OCR fallback successful: ${cleanedText.length} chars`);
-
-      return {
-        text: cleanedText,
-        confidence: ocrResult.confidence,
-        wordCount: cleanedText.split(/\s+/).filter((w: any) => w.length > 0).length,
-        language: ocrResult.language,
-      };
-    } catch (ocrError: any) {
-      console.error('❌ OCR fallback also failed:', ocrError.message);
-      throw new Error(`Failed to extract text from PDF: ${error.message}`);
-    }
+    throw new Error(`Failed to extract text from PDF: ${error.message}`);
   }
 };
 
@@ -747,51 +651,9 @@ export const extractTextFromPlainText = async (buffer: Buffer): Promise<Extracti
  * @returns Extracted text and metadata using OCR
  */
 export const extractTextFromImage = async (buffer: Buffer): Promise<ExtractionResult> => {
-  try {
-    // First pass: Standard preprocessing
-    const preprocessedBuffer = await preprocessImage(buffer);
-    const ocrResult = await visionService.extractTextFromImage(preprocessedBuffer);
-
-    // If confidence is low, try aggressive preprocessing
-    if (ocrResult.confidence && ocrResult.confidence < 0.7) {
-      console.log(`⚠️ Low OCR confidence (${ocrResult.confidence.toFixed(2)}), retrying with aggressive preprocessing...`);
-
-      const aggressiveBuffer = await sharp(buffer)
-        .rotate()
-        .resize(3000, null, { kernel: 'lanczos3' })
-        .grayscale()
-        .normalize()
-        .linear(1.5, -(128 * 0.5))
-        .sharpen({ sigma: 3.0, m1: 2.0, m2: 1.0 })
-        .median(5)
-        .toBuffer();
-
-      const secondOcrResult = await visionService.extractTextFromImage(aggressiveBuffer);
-
-      if (secondOcrResult.confidence && secondOcrResult.confidence > ocrResult.confidence) {
-        console.log(`✅ Aggressive preprocessing improved confidence: ${ocrResult.confidence.toFixed(2)} → ${secondOcrResult.confidence.toFixed(2)}`);
-        const cleanedText = postProcessOCRText(secondOcrResult.text);
-        return {
-          text: cleanedText,
-          confidence: secondOcrResult.confidence,
-          wordCount: cleanedText.split(/\s+/).filter(w => w.length > 0).length,
-          language: secondOcrResult.language,
-        };
-      }
-    }
-
-    // Use first result
-    const cleanedText = postProcessOCRText(ocrResult.text);
-    return {
-      text: cleanedText,
-      confidence: ocrResult.confidence,
-      wordCount: cleanedText.split(/\s+/).filter(w => w.length > 0).length,
-      language: ocrResult.language,
-    };
-  } catch (error) {
-    console.error('Error extracting text from image:', error);
-    throw new Error('Failed to extract text from image');
-  }
+  // OCR services have been removed - images are stored but text extraction is not supported
+  console.warn('⚠️ [Image] OCR services not available - image text extraction not supported');
+  throw new Error('Image text extraction (OCR) is not currently available. Images can be uploaded but text cannot be extracted from them.');
 };
 
 /**

@@ -1,17 +1,19 @@
 /**
- * Chat Service V1
+ * Chat Service V3
  *
- * Clean implementation using V1 RAG pipeline:
+ * Clean implementation using V3 RAG pipeline:
  * - Conversation management (CRUD)
- * - Message handling via RAG V1
+ * - Message handling via KodaOrchestratorService
  * - Title generation
  */
 
 import prisma from '../config/database';
 import { generateConversationTitle } from './openai.service';
-import { ragServiceV2 } from './core/ragV2.service';
+import { KodaOrchestratorService, RagChatRequestV3 } from './core/kodaOrchestrator.service';
 import cacheService from './cache.service';
-import type { AnswerRequest, ConversationContext } from '../types/ragV2.types';
+
+// V3 Orchestrator instance
+const orchestrator = new KodaOrchestratorService();
 
 // ============================================================================
 // Types
@@ -27,7 +29,7 @@ interface SendMessageParams {
   conversationId: string;
   content: string;
   attachedDocumentId?: string;
-  answerLength?: string;
+  language?: 'en' | 'pt' | 'es';
 }
 
 interface MessageResult {
@@ -149,38 +151,10 @@ async function deleteAllConversations(userId: string) {
 // ============================================================================
 
 /**
- * Build conversation context from history
- */
-async function buildConversationContext(
-  conversationId: string,
-  userId: string
-): Promise<ConversationContext> {
-  const messages = await prisma.message.findMany({
-    where: { conversationId },
-    orderBy: { createdAt: 'desc' },
-    take: 10,
-    select: { role: true, content: true },
-  });
-
-  messages.reverse();
-
-  return {
-    sessionId: conversationId,
-    userId,
-    lastNTurns: messages.map((m) => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content || '',
-    })),
-    activeDocIds: [],
-    lastCitations: [],
-  };
-}
-
-/**
  * Send a message and get AI response
  */
 async function sendMessage(params: SendMessageParams): Promise<MessageResult> {
-  const { userId, conversationId, content, attachedDocumentId, answerLength = 'medium' } = params;
+  const { userId, conversationId, content, attachedDocumentId, language = 'en' } = params;
 
   // Save user message
   const userMessage = await prisma.message.create({
@@ -192,32 +166,29 @@ async function sendMessage(params: SendMessageParams): Promise<MessageResult> {
     },
   });
 
-  // Build context
-  const conversationContext = await buildConversationContext(conversationId, userId);
-
-  // Build RAG request
-  const request: AnswerRequest = {
-    query: content,
+  // Build V3 RAG request
+  const request: RagChatRequestV3 = {
     userId,
-    sessionId: conversationId,
-    conversationContext,
-    attachedDocumentIds: attachedDocumentId ? [attachedDocumentId] : [],
-    answerLength: answerLength as 'short' | 'medium' | 'long',
+    query: content,
+    language,
+    conversationId,
+    attachedDocumentIds: attachedDocumentId ? [attachedDocumentId] : undefined,
   };
 
-  // Get AI response
-  const response = await ragServiceV2.handleQuery(request);
+  // Get AI response via V3 orchestrator
+  const response = await orchestrator.handleChat(request);
 
   // Save assistant message
   const assistantMessage = await prisma.message.create({
     data: {
       conversationId,
       role: 'assistant',
-      content: response.text,
+      content: response.answer,
       metadata: JSON.stringify({
-        ragStatus: response.metadata.ragStatus,
-        answerType: response.answerType,
-        citations: response.citations,
+        primaryIntent: response.primaryIntent,
+        language: response.language,
+        sourceDocuments: response.sourceDocuments,
+        confidenceScore: response.confidenceScore,
       }),
     },
   });
@@ -249,7 +220,7 @@ async function sendMessage(params: SendMessageParams): Promise<MessageResult> {
   return {
     userMessage,
     assistantMessage,
-    sources: response.citations,
+    sources: response.sourceDocuments,
   };
 }
 
@@ -260,7 +231,7 @@ async function sendMessageStreaming(
   params: SendMessageParams,
   onChunk: (chunk: string) => void
 ): Promise<MessageResult> {
-  const { userId, conversationId, content, attachedDocumentId } = params;
+  const { userId, conversationId, content, attachedDocumentId, language = 'en' } = params;
 
   // Save user message
   const userMessage = await prisma.message.create({
@@ -271,23 +242,20 @@ async function sendMessageStreaming(
     },
   });
 
-  // Build context
-  const conversationContext = await buildConversationContext(conversationId, userId);
-
-  // Build RAG request
-  const request: AnswerRequest = {
-    query: content,
+  // Build V3 RAG request
+  const request: RagChatRequestV3 = {
     userId,
-    sessionId: conversationId,
-    conversationContext,
-    attachedDocumentIds: attachedDocumentId ? [attachedDocumentId] : [],
+    query: content,
+    language,
+    conversationId,
+    attachedDocumentIds: attachedDocumentId ? [attachedDocumentId] : undefined,
   };
 
-  // Get AI response
-  const response = await ragServiceV2.handleQuery(request);
+  // Get AI response via V3 orchestrator
+  const response = await orchestrator.handleChat(request);
 
   // Stream the response in chunks
-  const words = response.text.split(' ');
+  const words = response.answer.split(' ');
   for (let i = 0; i < words.length; i += 3) {
     const chunk = words.slice(i, i + 3).join(' ') + ' ';
     onChunk(chunk);
@@ -298,7 +266,7 @@ async function sendMessageStreaming(
     data: {
       conversationId,
       role: 'assistant',
-      content: response.text,
+      content: response.answer,
     },
   });
 
@@ -311,7 +279,7 @@ async function sendMessageStreaming(
   return {
     userMessage,
     assistantMessage,
-    sources: response.citations,
+    sources: response.sourceDocuments,
   };
 }
 

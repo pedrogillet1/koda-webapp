@@ -536,6 +536,26 @@ export type RagStatus =
   | 'ERROR';
 
 // ============================================================================
+// ============================================================================
+// ANSWER CONFIG KEYS (V3 - New)
+// ============================================================================
+
+/**
+ * Answer config keys - keys to look up JSON configurations
+ *
+ * RATIONALE: Forces all services to use JSON configs by passing keys
+ * - styleKey: from answer_styles.json
+ * - systemPromptKey: from system_prompts.json
+ * - examplesKey: from answer_examples.json
+ * - validationPolicyKey: from validation_policies.json
+ */
+export interface AnswerConfigKeys {
+  styleKey: string;
+  systemPromptKey: string;
+  examplesKey: string;
+  validationPolicyKey: string;
+}
+
 // ORCHESTRATION CONTEXT (V3 - New)
 // ============================================================================
 
@@ -550,6 +570,7 @@ export interface OrchestrationContext {
   multiIntent?: MultiIntentResult;
   documentResolution?: DocumentResolutionResult;
   workspaceStats?: WorkspaceStats;
+  configKeys?: AnswerConfigKeys;
   startTime: number;
 }
 
