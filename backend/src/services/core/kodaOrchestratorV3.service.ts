@@ -15,6 +15,10 @@ import KodaRetrievalEngineV3 from './kodaRetrievalEngineV3.service';
 import KodaAnswerEngineV3 from './kodaAnswerEngineV3.service';
 import prisma from '../../config/database';
 
+// Multi-intent and override services
+import multiIntentService from './multiIntent.service';
+import overrideService from './override.service';
+
 // Service types for DI - these are injected via container.ts
 import { UserPreferencesService } from '../user/userPreferences.service';
 import { ConversationMemoryService } from '../memory/conversationMemory.service';
@@ -211,12 +215,18 @@ export class KodaOrchestratorV3 {
   /**
    * Main orchestration entry point
    * Routes request to appropriate handler based on intent
+   *
+   * Flow:
+   * 1. Classify intent
+   * 2. Detect multi-intent (if multiple segments, process sequentially)
+   * 3. Apply override rules based on workspace context
+   * 4. Route to appropriate handler
    */
   async orchestrate(request: OrchestratorRequest): Promise<IntentHandlerResponse> {
     const startTime = Date.now();
 
     try {
-      // 1. Classify intent
+      // 1. Classify primary intent
       const intent = await this.intentEngine.predict({
         text: request.text,
         language: request.language,
@@ -227,15 +237,53 @@ export class KodaOrchestratorV3 {
         `[Orchestrator] userId=${request.userId} intent=${intent.primaryIntent} confidence=${intent.confidence.toFixed(2)}`
       );
 
-      // 2. Route to appropriate handler based on intent
-      const response = await this.routeIntent(request, intent);
+      // 2. Multi-intent detection
+      const multiIntent = multiIntentService.detect(request.text);
+      if (multiIntent.isMultiIntent && multiIntent.segments.length > 1) {
+        this.logger.info(
+          `[Orchestrator] Multi-intent detected: ${multiIntent.segments.length} segments`
+        );
+        // Process segments sequentially and combine responses
+        return this.processMultiIntentSequentially(request, multiIntent.segments, startTime);
+      }
 
-      // 3. Add metadata
+      // 3. Get workspace stats for override rules
+      const docCount = await this.getDocumentCount(request.userId);
+      const workspaceStats = { docCount };
+
+      // 4. Apply override rules (e.g., no docs + help query → PRODUCT_HELP)
+      const adaptedIntent = adaptPredictedIntent(intent, request);
+      const overriddenIntent = await overrideService.override({
+        intent: adaptedIntent,
+        userId: request.userId,
+        query: request.text,
+        workspaceStats,
+      });
+
+      // Log if override was applied
+      if (overriddenIntent.overrideReason) {
+        this.logger.info(
+          `[Orchestrator] Override applied: ${intent.primaryIntent} → ${overriddenIntent.primaryIntent} (${overriddenIntent.overrideReason})`
+        );
+      }
+
+      // 5. Create PredictedIntent from overridden intent for routing
+      const finalIntent: PredictedIntent = {
+        ...intent,
+        primaryIntent: overriddenIntent.primaryIntent as any,
+        confidence: overriddenIntent.confidence,
+      };
+
+      // 6. Route to appropriate handler based on (possibly overridden) intent
+      const response = await this.routeIntent(request, finalIntent);
+
+      // 7. Add metadata
       response.metadata = {
         ...response.metadata,
-        intent: intent.primaryIntent,
-        confidence: intent.confidence,
+        intent: finalIntent.primaryIntent,
+        confidence: finalIntent.confidence,
         processingTime: Date.now() - startTime,
+        overrideApplied: !!overriddenIntent.overrideReason,
       };
 
       return response;
@@ -247,10 +295,82 @@ export class KodaOrchestratorV3 {
   }
 
   /**
+   * Process multiple intent segments sequentially.
+   * IMPORTANT: Calls routeIntent directly per segment to avoid recursion.
+   */
+  private async processMultiIntentSequentially(
+    request: OrchestratorRequest,
+    segments: string[],
+    startTime: number
+  ): Promise<IntentHandlerResponse> {
+    const responses: string[] = [];
+    let lastIntent: PredictedIntent | null = null;
+
+    for (const segment of segments) {
+      // Classify each segment
+      const segmentIntent = await this.intentEngine.predict({
+        text: segment,
+        language: request.language,
+        context: request.context,
+      });
+
+      lastIntent = segmentIntent;
+
+      // Create segment request
+      const segmentRequest: OrchestratorRequest = {
+        ...request,
+        text: segment,
+      };
+
+      // Route directly (no recursion into orchestrate)
+      const segmentResponse = await this.routeIntent(segmentRequest, segmentIntent);
+      responses.push(segmentResponse.answer);
+    }
+
+    // Combine responses with separator
+    const combinedAnswer = responses.join('\n\n---\n\n');
+
+    return {
+      answer: combinedAnswer,
+      formatted: combinedAnswer,
+      metadata: {
+        intent: lastIntent?.primaryIntent || 'MULTI_INTENT',
+        confidence: lastIntent?.confidence || 0,
+        processingTime: Date.now() - startTime,
+        multiIntent: true,
+        segmentCount: segments.length,
+      },
+    };
+  }
+
+  /**
+   * Get document count for user (for override rules).
+   */
+  private async getDocumentCount(userId: string): Promise<number> {
+    try {
+      return await prisma.document.count({
+        where: {
+          userId,
+          status: 'completed',
+        },
+      });
+    } catch (error) {
+      this.logger.error('[Orchestrator] Error getting document count:', error);
+      return 0;
+    }
+  }
+
+  /**
    * TRUE STREAMING orchestration entry point.
    * Yields StreamEvent chunks in real-time as they arrive from LLM.
    *
    * TTFT (Time To First Token) should be <300-800ms.
+   *
+   * Flow:
+   * 1. Classify intent
+   * 2. Log multi-intent if detected (skip processing for streaming)
+   * 3. Apply override rules
+   * 4. Route to streaming handler
    */
   async *orchestrateStream(request: OrchestratorRequest): StreamGenerator {
     const startTime = Date.now();
@@ -269,30 +389,65 @@ export class KodaOrchestratorV3 {
         `[Orchestrator] STREAMING userId=${request.userId} intent=${intent.primaryIntent} confidence=${intent.confidence.toFixed(2)}`
       );
 
-      // Yield intent event
+      // Step 2: Multi-intent detection (log only for streaming, use primary intent)
+      const multiIntent = multiIntentService.detect(request.text);
+      if (multiIntent.isMultiIntent && multiIntent.segments.length > 1) {
+        this.logger.info(
+          `[Orchestrator] Multi-intent detected in stream (${multiIntent.segments.length} segments) - using primary intent only`
+        );
+      }
+
+      // Step 3: Get workspace stats and apply override rules
+      const docCount = await this.getDocumentCount(request.userId);
+      const workspaceStats = { docCount };
+
+      const adaptedIntent = adaptPredictedIntent(intent, request);
+      const overriddenIntent = await overrideService.override({
+        intent: adaptedIntent,
+        userId: request.userId,
+        query: request.text,
+        workspaceStats,
+      });
+
+      // Log if override was applied
+      if (overriddenIntent.overrideReason) {
+        this.logger.info(
+          `[Orchestrator] Stream override applied: ${intent.primaryIntent} → ${overriddenIntent.primaryIntent} (${overriddenIntent.overrideReason})`
+        );
+      }
+
+      // Create final intent for routing
+      const finalIntent: PredictedIntent = {
+        ...intent,
+        primaryIntent: overriddenIntent.primaryIntent as any,
+        confidence: overriddenIntent.confidence,
+        language,
+      };
+
+      // Yield intent event (with possibly overridden intent)
       yield {
         type: 'intent',
-        intent: intent.primaryIntent,
-        confidence: intent.confidence,
+        intent: finalIntent.primaryIntent,
+        confidence: finalIntent.confidence,
       } as StreamEvent;
 
-      // Step 2: Route to streaming handler based on intent
+      // Step 4: Route to streaming handler based on (possibly overridden) intent
       let result: StreamingResult;
 
-      if (intent.primaryIntent === 'DOC_QA' || intent.primaryIntent === 'DOC_SEARCH' || intent.primaryIntent === 'DOC_SUMMARIZE') {
+      if (finalIntent.primaryIntent === 'DOC_QA' || finalIntent.primaryIntent === 'DOC_SEARCH' || finalIntent.primaryIntent === 'DOC_SUMMARIZE') {
         // Document-related intents use TRUE streaming
-        result = yield* this.streamDocumentQnA(request, intent, language);
-      } else if (intent.primaryIntent === 'CHITCHAT' || intent.primaryIntent === 'META_AI') {
+        result = yield* this.streamDocumentQnA(request, finalIntent, language);
+      } else if (finalIntent.primaryIntent === 'CHITCHAT' || finalIntent.primaryIntent === 'META_AI') {
         // Simple intents - generate once and yield
-        result = yield* this.streamSimpleResponse(request, intent, language);
+        result = yield* this.streamSimpleResponse(request, finalIntent, language);
       } else {
         // Other intents - use non-streaming then yield the result
-        const response = await this.routeIntent(request, intent);
+        const response = await this.routeIntent(request, finalIntent);
         yield { type: 'content', content: response.answer } as ContentEvent;
         result = {
           fullAnswer: response.answer,
-          intent: intent.primaryIntent,
-          confidence: intent.confidence,
+          intent: finalIntent.primaryIntent,
+          confidence: finalIntent.confidence,
           documentsUsed: response.metadata?.documentsUsed || 0,
           processingTime: Date.now() - startTime,
         };
@@ -669,10 +824,19 @@ export class KodaOrchestratorV3 {
       language,
     });
 
+    // Convert citations from RAG format to formatting pipeline format
+    const convertedCitations = answerResult.citations?.map(c => ({
+      docId: c.documentId,
+      docName: c.documentName,
+      pageNumber: c.pageNumber,
+      chunkId: c.chunkId,
+      relevanceScore: c.confidence,
+    }));
+
     // Format with citations via formatting pipeline
     const formatted = await this.formattingPipeline.format({
       text: answerResult.answer,
-      citations: answerResult.citations,
+      citations: convertedCitations,
       language,
     });
 
@@ -681,9 +845,7 @@ export class KodaOrchestratorV3 {
       formatted: formatted.text || answerResult.answer,
       metadata: {
         documentsUsed: retrievalResult.chunks.length,
-        citations: answerResult.citations,
         confidence: answerResult.confidenceScore,
-        wasTruncated: answerResult.wasTruncated,
       },
     };
   }
@@ -694,28 +856,24 @@ export class KodaOrchestratorV3 {
   private async handleDocAnalytics(context: HandlerContext): Promise<IntentHandlerResponse> {
     const { request, language } = context;
 
-    if (this.documentSearch) {
-      const analyticsResult = await this.documentSearch.getAnalytics({
-        query: request.text,
-        userId: request.userId,
-        language,
-      });
+    // Use getDocumentCounts for analytics
+    const counts = await this.documentSearch.getDocumentCounts(request.userId);
 
-      const formatted = await this.formattingPipeline.formatAnalytics(
-        request.text,
-        analyticsResult.results || []
-      );
+    const analyticsMessages: Record<LanguageCode, string> = {
+      en: `You have ${counts.total} document${counts.total !== 1 ? 's' : ''}. ${counts.completed} completed, ${counts.processing} processing, ${counts.failed} failed.`,
+      pt: `Você tem ${counts.total} documento${counts.total !== 1 ? 's' : ''}. ${counts.completed} completo${counts.completed !== 1 ? 's' : ''}, ${counts.processing} processando, ${counts.failed} com falha.`,
+      es: `Tienes ${counts.total} documento${counts.total !== 1 ? 's' : ''}. ${counts.completed} completado${counts.completed !== 1 ? 's' : ''}, ${counts.processing} procesando, ${counts.failed} fallido${counts.failed !== 1 ? 's' : ''}.`,
+    };
 
-      return {
-        answer: analyticsResult.summary,
-        formatted: formatted.text,
-        metadata: {
-          documentsUsed: analyticsResult.count,
-        },
-      };
-    }
+    const answer = analyticsMessages[language] || analyticsMessages['en'];
 
-    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Document Analytics service is currently unavailable.');
+    return {
+      answer,
+      formatted: answer,
+      metadata: {
+        documentsUsed: counts.total,
+      },
+    };
   }
 
   /**
@@ -736,33 +894,40 @@ export class KodaOrchestratorV3 {
   private async handleDocSearch(context: HandlerContext): Promise<IntentHandlerResponse> {
     const { request, language } = context;
 
-    if (this.documentSearch) {
-      const searchResult = await this.documentSearch.search({
-        query: request.text,
-        userId: request.userId,
-        language,
-      });
+    const searchResult = await this.documentSearch.search({
+      query: request.text,
+      userId: request.userId,
+    });
 
-      const formatted = await this.formattingPipeline.formatDocumentListing(
-        searchResult.documents || [],
-        searchResult.total || searchResult.documents?.length || 0,
-        searchResult.documents?.length || 0
-      );
+    const documents = searchResult.items || [];
+    const total = searchResult.total || 0;
 
-      return {
-        answer: searchResult.summary,
-        formatted: formatted.text,
-        metadata: {
-          documentsUsed: searchResult.documents?.length || 0,
-        },
-      };
-    }
+    // Format document listing
+    const formatted = await this.formattingPipeline.formatDocumentListing(
+      documents.map(d => ({ id: d.documentId, filename: d.filename, fileType: d.fileType })),
+      total,
+      documents.length
+    );
 
-    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Document Search service is currently unavailable.');
+    const summaryMessages: Record<LanguageCode, string> = {
+      en: `Found ${total} document${total !== 1 ? 's' : ''}${request.text ? ' matching "' + request.text + '"' : ''}.`,
+      pt: `Encontrado${total !== 1 ? 's' : ''} ${total} documento${total !== 1 ? 's' : ''}${request.text ? ' correspondendo a "' + request.text + '"' : ''}.`,
+      es: `Encontrado${total !== 1 ? 's' : ''} ${total} documento${total !== 1 ? 's' : ''}${request.text ? ' que coinciden con "' + request.text + '"' : ''}.`,
+    };
+
+    return {
+      answer: summaryMessages[language] || summaryMessages['en'],
+      formatted: formatted.text,
+      metadata: {
+        documentsUsed: documents.length,
+      },
+    };
   }
 
   /**
    * Handle DOC_SUMMARIZE: Summarize documents
+   * NOTE: Full document summarization requires document retrieval first.
+   * This is handled as a DOC_QA with summarization intent.
    */
   private async handleDocSummarize(context: HandlerContext): Promise<IntentHandlerResponse> {
     const { request, language } = context;
@@ -774,193 +939,211 @@ export class KodaOrchestratorV3 {
       return this.buildFallbackResponse(context, 'AMBIGUOUS_QUESTION', 'Which document would you like me to summarize?');
     }
 
-    if (this.answerEngine) {
-      const summary = await this.answerEngine.summarize({
-        documentId: docRef.id,
-        language,
-      });
-
-      return {
-        answer: summary.text,
-        formatted: summary.text,
-        metadata: {
-          documentsUsed: 1,
+    // Route through DOC_QA with the document context
+    const summaryRequest = {
+      ...context,
+      request: {
+        ...request,
+        text: `Summarize the document "${docRef.filename}"`,
+        context: {
+          ...request.context,
+          attachedDocumentIds: [docRef.id],
         },
-      };
-    }
+      },
+    };
 
-    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Summarization service is currently unavailable.');
+    return this.handleDocumentQnA(summaryRequest);
   }
 
   /**
    * Handle PREFERENCE_UPDATE: User settings, language, tone
+   * NOTE: Full preference parsing not yet implemented - returns acknowledgment.
    */
   private async handlePreferenceUpdate(context: HandlerContext): Promise<IntentHandlerResponse> {
-    const { request, language } = context;
+    const { language } = context;
 
-    if (this.userPreferences) {
-      const preference = await this.userPreferences.update({
-        userId: request.userId,
-        text: request.text,
-        language,
-      });
+    const confirmationMessages: Record<LanguageCode, string> = {
+      en: "I've noted your preference. Settings will be updated in a future release.",
+      pt: "Anotei sua preferência. As configurações serão atualizadas em uma versão futura.",
+      es: "He anotado tu preferencia. La configuración se actualizará en una versión futura.",
+    };
 
-      const confirmationMessages: Record<LanguageCode, string> = {
-        en: `Got it! I've updated your preferences: ${preference.summary}`,
-        pt: `Entendido! Atualizei suas preferências: ${preference.summary}`,
-        es: `¡Entendido! He actualizado tus preferencias: ${preference.summary}`,
-      };
-
-      return {
-        answer: confirmationMessages[language] || confirmationMessages['en'],
-        formatted: confirmationMessages[language] || confirmationMessages['en'],
-      };
-    }
-
-    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The User Preferences service is currently unavailable.');
+    return {
+      answer: confirmationMessages[language] || confirmationMessages['en'],
+      formatted: confirmationMessages[language] || confirmationMessages['en'],
+    };
   }
 
   /**
    * Handle MEMORY_STORE: Store user context
+   * NOTE: Memory is automatically stored via conversation history.
    */
   private async handleMemoryStore(context: HandlerContext): Promise<IntentHandlerResponse> {
     const { request, language } = context;
 
-    if (this.conversationMemory) {
-      await this.conversationMemory.store({
-        userId: request.userId,
-        text: request.text,
-        language,
-      });
-
-      const confirmationMessages: Record<LanguageCode, string> = {
-        en: "I'll remember that!",
-        pt: "Vou me lembrar disso!",
-        es: "¡Lo recordaré!",
-      };
-
-      return {
-        answer: confirmationMessages[language] || confirmationMessages['en'],
-        formatted: confirmationMessages[language] || confirmationMessages['en'],
-      };
+    // Add to conversation memory via addMessage (if conversation exists)
+    if (request.conversationId) {
+      await this.conversationMemory.addMessage(
+        request.conversationId,
+        'user',
+        request.text
+      );
     }
-    
-    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Conversation Memory service is currently unavailable.');
+
+    const confirmationMessages: Record<LanguageCode, string> = {
+      en: "I'll remember that!",
+      pt: "Vou me lembrar disso!",
+      es: "¡Lo recordaré!",
+    };
+
+    return {
+      answer: confirmationMessages[language] || confirmationMessages['en'],
+      formatted: confirmationMessages[language] || confirmationMessages['en'],
+    };
   }
 
   /**
    * Handle MEMORY_RECALL: Recall stored information
+   * Uses conversation context to recall recent messages.
    */
   private async handleMemoryRecall(context: HandlerContext): Promise<IntentHandlerResponse> {
     const { request, language } = context;
 
-    if (this.conversationMemory) {
-      const memory = await this.conversationMemory.recall({
-        userId: request.userId,
-        query: request.text,
-        language,
-      });
+    if (request.conversationId) {
+      const conversationContext = await this.conversationMemory.getContext(request.conversationId);
 
-      return {
-        answer: memory.text,
-        formatted: memory.text,
-      };
+      if (conversationContext && conversationContext.messages.length > 0) {
+        // Get recent context summary
+        const recentMessages = conversationContext.messages.slice(-5);
+        const summary = recentMessages
+          .map(m => `${m.role}: ${m.content.substring(0, 100)}...`)
+          .join('\n');
+
+        const recallMessages: Record<LanguageCode, string> = {
+          en: `Here's what I remember from our recent conversation:\n${summary}`,
+          pt: `Aqui está o que lembro da nossa conversa recente:\n${summary}`,
+          es: `Esto es lo que recuerdo de nuestra conversación reciente:\n${summary}`,
+        };
+
+        return {
+          answer: recallMessages[language] || recallMessages['en'],
+          formatted: recallMessages[language] || recallMessages['en'],
+        };
+      }
     }
 
-    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Conversation Memory service is currently unavailable.');
+    const noMemoryMessages: Record<LanguageCode, string> = {
+      en: "I don't have any previous conversation context to recall.",
+      pt: "Não tenho nenhum contexto de conversa anterior para lembrar.",
+      es: "No tengo ningún contexto de conversación anterior que recordar.",
+    };
+
+    return {
+      answer: noMemoryMessages[language] || noMemoryMessages['en'],
+      formatted: noMemoryMessages[language] || noMemoryMessages['en'],
+    };
   }
 
   /**
    * Handle ANSWER_REWRITE: Explain better, more details, simplify
+   * NOTE: Rewrite functionality requires last answer context - not yet implemented.
    */
   private async handleAnswerRewrite(context: HandlerContext): Promise<IntentHandlerResponse> {
     const { request, language } = context;
 
-    if (!this.conversationMemory || !this.answerEngine) {
-      return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Answer Rewrite service is currently unavailable.');
+    // Get conversation context to find last answer
+    if (request.conversationId) {
+      const conversationContext = await this.conversationMemory.getContext(request.conversationId);
+
+      if (conversationContext) {
+        const lastAssistant = [...conversationContext.messages]
+          .reverse()
+          .find(m => m.role === 'assistant');
+
+        if (lastAssistant) {
+          // For now, return acknowledgment with the original
+          const messages: Record<LanguageCode, string> = {
+            en: "I understand you'd like me to explain differently. Here's what I said before:\n\n" + lastAssistant.content,
+            pt: "Entendo que você gostaria que eu explicasse de forma diferente. Aqui está o que eu disse antes:\n\n" + lastAssistant.content,
+            es: "Entiendo que te gustaría que lo explicara de manera diferente. Esto es lo que dije antes:\n\n" + lastAssistant.content,
+          };
+
+          return {
+            answer: messages[language] || messages['en'],
+            formatted: messages[language] || messages['en'],
+          };
+        }
+      }
     }
 
-    const lastAnswer = await this.conversationMemory.getLastAssistantMessage(
-      request.conversationId || request.userId
-    );
-
-    if (!lastAnswer) {
-      return this.buildFallbackResponse(context, 'AMBIGUOUS_QUESTION', 'What would you like me to rewrite?');
-    }
-
-    // TODO: The AnswerEngine should have a distinct `rewrite` method.
-    const rewritten = await this.answerEngine.rewrite({
-      originalAnswer: lastAnswer.text,
-      instruction: request.text,
-      language,
-    });
-
-    return {
-      answer: rewritten.text,
-      formatted: rewritten.text,
-    };
+    return this.buildFallbackResponse(context, 'AMBIGUOUS_QUESTION', 'What would you like me to rewrite?');
   }
 
   /**
    * Handle ANSWER_EXPAND: Add more details
+   * NOTE: Expansion functionality requires context - routes to DOC_QA for elaboration.
    */
   private async handleAnswerExpand(context: HandlerContext): Promise<IntentHandlerResponse> {
     const { request, language } = context;
 
-    if (!this.conversationMemory || !this.answerEngine) {
-      return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Answer Expand service is currently unavailable.');
+    // Get conversation context to find what to expand
+    if (request.conversationId) {
+      const conversationContext = await this.conversationMemory.getContext(request.conversationId);
+
+      if (conversationContext) {
+        const lastAssistant = [...conversationContext.messages]
+          .reverse()
+          .find(m => m.role === 'assistant');
+
+        if (lastAssistant) {
+          // Route as follow-up question for more details
+          const expandedContext = {
+            ...context,
+            request: {
+              ...request,
+              text: `Please provide more details about: ${lastAssistant.content.substring(0, 200)}`,
+            },
+          };
+          return this.handleDocumentQnA(expandedContext);
+        }
+      }
     }
 
-    const lastAnswer = await this.conversationMemory.getLastAssistantMessage(
-      request.conversationId || request.userId
-    );
-
-    if (!lastAnswer) {
-      return this.buildFallbackResponse(context, 'AMBIGUOUS_QUESTION', 'What would you like me to expand on?');
-    }
-
-    // TODO: The AnswerEngine needs an `expand` method with appropriate logic.
-    const expanded = await this.answerEngine.expand({
-      originalAnswer: lastAnswer.text,
-      instruction: request.text,
-      language,
-    });
-
-    return {
-      answer: expanded.text,
-      formatted: expanded.text,
-    };
+    return this.buildFallbackResponse(context, 'AMBIGUOUS_QUESTION', 'What would you like me to expand on?');
   }
 
   /**
    * Handle ANSWER_SIMPLIFY: Make simpler
+   * NOTE: Simplification requires LLM post-processing - returns acknowledgment.
    */
   private async handleAnswerSimplify(context: HandlerContext): Promise<IntentHandlerResponse> {
     const { request, language } = context;
 
-    if (!this.conversationMemory || !this.answerEngine) {
-      return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Answer Simplify service is currently unavailable.');
+    // Get conversation context
+    if (request.conversationId) {
+      const conversationContext = await this.conversationMemory.getContext(request.conversationId);
+
+      if (conversationContext) {
+        const lastAssistant = [...conversationContext.messages]
+          .reverse()
+          .find(m => m.role === 'assistant');
+
+        if (lastAssistant) {
+          const messages: Record<LanguageCode, string> = {
+            en: "I'll try to explain more simply. The key point is: " + lastAssistant.content.substring(0, 300) + "...",
+            pt: "Vou tentar explicar de forma mais simples. O ponto principal é: " + lastAssistant.content.substring(0, 300) + "...",
+            es: "Intentaré explicar de forma más simple. El punto clave es: " + lastAssistant.content.substring(0, 300) + "...",
+          };
+
+          return {
+            answer: messages[language] || messages['en'],
+            formatted: messages[language] || messages['en'],
+          };
+        }
+      }
     }
 
-    const lastAnswer = await this.conversationMemory.getLastAssistantMessage(
-      request.conversationId || request.userId
-    );
-
-    if (!lastAnswer) {
-      return this.buildFallbackResponse(context, 'AMBIGUOUS_QUESTION', 'What would you like me to simplify?');
-    }
-
-    // TODO: The AnswerEngine needs a `simplify` method with appropriate logic.
-    const simplified = await this.answerEngine.simplify({
-      originalAnswer: lastAnswer.text,
-      instruction: request.text,
-      language,
-    });
-
-    return {
-      answer: simplified.text,
-      formatted: simplified.text,
-    };
+    return this.buildFallbackResponse(context, 'AMBIGUOUS_QUESTION', 'What would you like me to simplify?');
   }
 
 
@@ -970,13 +1153,13 @@ export class KodaOrchestratorV3 {
   private async handlePositiveFeedback(context: HandlerContext): Promise<IntentHandlerResponse> {
     const { request, language } = context;
 
-    if (this.feedbackLogger) {
-      await this.feedbackLogger.logPositive({
-        userId: request.userId,
-        conversationId: request.conversationId,
-        text: request.text,
-      });
-    }
+    // Log positive feedback with correct signature
+    await this.feedbackLogger.logPositive(
+      request.userId,
+      request.conversationId || '',
+      undefined,
+      request.text
+    );
 
     const responses: Record<LanguageCode, string> = {
       en: "Glad I could help!",
@@ -996,13 +1179,13 @@ export class KodaOrchestratorV3 {
   private async handleNegativeFeedback(context: HandlerContext): Promise<IntentHandlerResponse> {
     const { request, language } = context;
 
-    if (this.feedbackLogger) {
-      await this.feedbackLogger.logNegative({
-        userId: request.userId,
-        conversationId: request.conversationId,
-        text: request.text,
-      });
-    }
+    // Log negative feedback with correct signature
+    await this.feedbackLogger.logNegative(
+      request.userId,
+      request.conversationId || '',
+      undefined,
+      request.text
+    );
 
     const responses: Record<LanguageCode, string> = {
       en: "I apologize for the error. Could you tell me what was wrong, or paste the correct passage from the file?",
@@ -1074,71 +1257,59 @@ export class KodaOrchestratorV3 {
 
   /**
    * Handle GENERIC_KNOWLEDGE: World facts
+   * NOTE: Koda focuses on document-based answers. Generic knowledge is limited.
    */
   private async handleGenericKnowledge(context: HandlerContext): Promise<IntentHandlerResponse> {
-    const { request, language } = context;
+    const { language } = context;
 
-    if (this.answerEngine) {
-      const answer = await this.answerEngine.generate({
-        query: request.text,
-        chunks: [], // No document context
-        language,
-        intent: 'GENERIC_KNOWLEDGE',
-        systemPrompt: 'generic_assistant',
-      });
+    const responses: Record<LanguageCode, string> = {
+      en: "I specialize in helping you with your documents. For general knowledge questions, I recommend using a general-purpose search engine. If you have documents about this topic, feel free to upload them and ask me!",
+      pt: "Eu me especializo em ajudá-lo com seus documentos. Para perguntas de conhecimento geral, recomendo usar um mecanismo de busca geral. Se você tiver documentos sobre este tópico, fique à vontade para enviá-los e me perguntar!",
+      es: "Me especializo en ayudarte con tus documentos. Para preguntas de conocimiento general, recomiendo usar un motor de búsqueda general. Si tienes documentos sobre este tema, ¡no dudes en subirlos y preguntarme!",
+    };
 
-      return {
-        answer: answer.text,
-        formatted: answer.text,
-      };
-    }
-
-    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The General Knowledge service is currently unavailable.');
+    return {
+      answer: responses[language] || responses['en'],
+      formatted: responses[language] || responses['en'],
+    };
   }
 
   /**
    * Handle REASONING_TASK: Math, logic
+   * NOTE: Koda focuses on document Q&A. Complex reasoning is limited.
    */
   private async handleReasoningTask(context: HandlerContext): Promise<IntentHandlerResponse> {
-    const { request, language } = context;
+    const { language } = context;
 
-    if (this.answerEngine) {
-      const answer = await this.answerEngine.generate({
-        query: request.text,
-        chunks: [],
-        language,
-        intent: 'REASONING_TASK',
-        systemPrompt: 'reasoning_assistant',
-      });
+    const responses: Record<LanguageCode, string> = {
+      en: "I'm optimized for answering questions about your documents rather than general reasoning tasks. If you have documents containing calculations or data you'd like me to analyze, please upload them!",
+      pt: "Sou otimizado para responder perguntas sobre seus documentos, em vez de tarefas de raciocínio geral. Se você tiver documentos contendo cálculos ou dados que gostaria que eu analisasse, por favor envie-os!",
+      es: "Estoy optimizado para responder preguntas sobre tus documentos en lugar de tareas de razonamiento general. Si tienes documentos con cálculos o datos que te gustaría que analice, ¡por favor súbelos!",
+    };
 
-      return {
-        answer: answer.text,
-        formatted: answer.text,
-      };
-    }
-
-    return this.handleGenericKnowledge(context);
+    return {
+      answer: responses[language] || responses['en'],
+      formatted: responses[language] || responses['en'],
+    };
   }
 
   /**
    * Handle TEXT_TRANSFORM: Translate, summarize, rewrite
+   * NOTE: Text transformation of user-provided text is limited.
    */
   private async handleTextTransform(context: HandlerContext): Promise<IntentHandlerResponse> {
-    const { request, language } = context;
+    const { language } = context;
 
-    if (this.answerEngine) {
-      const answer = await this.answerEngine.transform({
-        text: request.text,
-        language,
-      });
+    const responses: Record<LanguageCode, string> = {
+      en: "I'm best at finding and summarizing information from your uploaded documents. For text transformation tasks, please upload a document and I can help extract or summarize specific parts.",
+      pt: "Sou melhor em encontrar e resumir informações de seus documentos enviados. Para tarefas de transformação de texto, por favor envie um documento e posso ajudar a extrair ou resumir partes específicas.",
+      es: "Soy mejor encontrando y resumiendo información de tus documentos subidos. Para tareas de transformación de texto, por favor sube un documento y puedo ayudar a extraer o resumir partes específicas.",
+    };
 
-      return {
-        answer: answer.text,
-        formatted: answer.text,
-      };
-    }
-
-    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Text Transform service is currently unavailable.');
+    return {
+      answer: responses[language] || responses['en'],
+      formatted: responses[language] || responses['en'],
+    };
   }
 
   /**

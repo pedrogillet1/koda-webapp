@@ -138,6 +138,10 @@ export interface IntentHandlerResponse {
     documentsUsed?: number;
     tokensUsed?: number;
     processingTime?: number;
+    // Multi-intent and override metadata
+    overrideApplied?: boolean;
+    multiIntent?: boolean;
+    segmentCount?: number;
   };
   requiresFollowup?: boolean;
   suggestedActions?: string[];
