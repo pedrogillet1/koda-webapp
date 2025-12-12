@@ -611,7 +611,12 @@ export class KodaOrchestratorV3 {
       citations,
     };
 
-    // Emit single done event with full metadata
+    // Extract unique document IDs for metadata persistence
+    const sourceDocumentIds = [...new Set(retrievalResult.chunks.map(
+      c => c.documentId || c.metadata?.documentId
+    ).filter(Boolean))];
+
+    // Emit single done event with full metadata including citations for save path
     yield {
       type: 'done',
       fullAnswer,
@@ -621,6 +626,7 @@ export class KodaOrchestratorV3 {
       tokensUsed: result.tokensUsed,
       processingTime: result.processingTime,
       citations,
+      sourceDocumentIds,
     } as StreamEvent;
 
     return result;
@@ -861,23 +867,103 @@ export class KodaOrchestratorV3 {
       pageNumber: c.pageNumber,
       chunkId: c.chunkId,
       relevanceScore: c.confidence,
-    }));
+    })) || [];
 
-    // Format with citations via formatting pipeline
+    // Extract unique document references for marker injection
+    const documentReferences = this.extractDocumentReferences(retrievalResult.chunks);
+
+    // Format with citations and documents via formatting pipeline
+    // Documents are passed to enable {{DOC::...}} marker injection
     const formatted = await this.formattingPipeline.format({
       text: answerResult.answer,
       citations: convertedCitations,
+      documents: documentReferences,
+      intent: intent.primaryIntent,
       language,
     });
 
+    // Build sources array for frontend display
+    const sources = this.buildSourcesFromChunks(retrievalResult.chunks);
+
+    // Extract unique document IDs for metadata
+    const sourceDocumentIds = [...new Set(retrievalResult.chunks.map(
+      c => c.documentId || c.metadata?.documentId
+    ).filter(Boolean))];
+
     return {
       answer: formatted.text || answerResult.answer,
-      formatted: formatted.text || answerResult.answer,
+      formatted: formatted.markdown || formatted.text || answerResult.answer,
+      citations: convertedCitations,
+      sources,
       metadata: {
         documentsUsed: retrievalResult.chunks.length,
         confidence: answerResult.confidenceScore,
+        sourceDocumentIds,
       },
     };
+  }
+
+  /**
+   * Extract document references from chunks for marker injection.
+   * Returns unique documents with context type for formatting pipeline.
+   */
+  private extractDocumentReferences(chunks: any[]): Array<{
+    id: string;
+    filename: string;
+    context: 'list' | 'text';
+  }> {
+    const seen = new Set<string>();
+    const refs: Array<{ id: string; filename: string; context: 'list' | 'text' }> = [];
+
+    for (const chunk of chunks) {
+      const docId = chunk.documentId || chunk.metadata?.documentId;
+      if (!docId || seen.has(docId)) continue;
+      seen.add(docId);
+
+      refs.push({
+        id: docId,
+        filename: chunk.documentName || chunk.metadata?.filename || 'Document',
+        context: 'text', // In-text context for DOC_QA answers
+      });
+    }
+
+    return refs;
+  }
+
+  /**
+   * Build sources array for frontend display from chunks.
+   */
+  private buildSourcesFromChunks(chunks: any[]): Array<{
+    documentId: string;
+    documentName: string;
+    pageNumber?: number;
+    snippet?: string;
+  }> {
+    const seen = new Set<string>();
+    const sources: Array<{
+      documentId: string;
+      documentName: string;
+      pageNumber?: number;
+      snippet?: string;
+    }> = [];
+
+    // Limit to top 5 unique documents
+    for (const chunk of chunks.slice(0, 10)) {
+      const docId = chunk.documentId || chunk.metadata?.documentId;
+      if (!docId || seen.has(docId)) continue;
+      seen.add(docId);
+
+      sources.push({
+        documentId: docId,
+        documentName: chunk.documentName || chunk.metadata?.filename || 'Document',
+        pageNumber: chunk.pageNumber || chunk.metadata?.pageNumber,
+        snippet: chunk.content?.substring(0, 150),
+      });
+
+      if (sources.length >= 5) break;
+    }
+
+    return sources;
   }
 
   /**

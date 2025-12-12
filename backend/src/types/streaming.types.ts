@@ -81,6 +81,21 @@ export interface DoneEvent extends StreamEventBase {
   assistantMessageId?: string;
   conversationId?: string;
   fullAnswer?: string;  // Complete answer for saving
+  // Citations for save path (store in message metadata)
+  citations?: Array<{
+    documentId: string;
+    documentName: string;
+    pageNumber?: number;
+    snippet?: string;
+  }>;
+  // Source document IDs for metadata persistence
+  sourceDocumentIds?: string[];
+  // Processing metadata
+  intent?: string;
+  confidence?: number;
+  documentsUsed?: number;
+  tokensUsed?: number;
+  processingTime?: number;
 }
 
 export interface ErrorEvent extends StreamEventBase {

@@ -150,8 +150,11 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         metadata: JSON.stringify({
           primaryIntent: response.metadata?.intent,
           language: request.language,
-          sourceDocuments: response.metadata?.documentsUsed ? [] : [],
+          sourceDocumentIds: response.metadata?.sourceDocumentIds || [],
+          sources: response.sources || [],
+          citations: response.citations || [],
           confidenceScore: response.metadata?.confidence,
+          documentsUsed: response.metadata?.documentsUsed,
         }),
       },
     });
@@ -181,10 +184,12 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     const cacheKey = cacheService.generateKey('conversation', conversationId, userId);
     await cacheService.set(cacheKey, null, { ttl: 0 });
 
-    // Return response
+    // Return response with sources and citations
     res.status(200).json({
       answer: response.answer,
-      sources: [], // V3 handles sources differently via metadata
+      formatted: response.formatted,  // Formatted text with {{DOC::...}} markers
+      sources: response.sources || [], // Sources from orchestrator for frontend display
+      citations: response.citations || [], // Citations for detailed reference
       intent: response.metadata?.intent,
       userMessage: {
         id: userMessage.id,
@@ -199,6 +204,8 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
         language: request.language,
         confidenceScore: response.metadata?.confidence,
         totalTimeMs: Date.now() - startTime,
+        documentsUsed: response.metadata?.documentsUsed,
+        sourceDocumentIds: response.metadata?.sourceDocumentIds,
       },
     });
   } catch (error: any) {
@@ -339,6 +346,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           tokensUsed: doneEvent.tokensUsed,
           processingTime: doneEvent.processingTime,
           citations: doneEvent.citations || citations,
+          sourceDocumentIds: doneEvent.sourceDocumentIds || [],
         };
       } else {
         // Forward other events (intent, retrieving, generating, etc.)
@@ -392,11 +400,12 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           documentsUsed: streamResult.documentsUsed,
           tokensUsed: streamResult.tokensUsed,
           citations: streamResult.citations || citations,
+          sourceDocumentIds: streamResult.sourceDocumentIds || [],
         }),
       },
     });
 
-    // Send SINGLE combined done event with message IDs and full metadata
+    // Send SINGLE combined done event with message IDs, citations, and full metadata
     res.write(
       `data: ${JSON.stringify({
         type: 'done',
@@ -409,6 +418,8 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         processingTime: streamResult.processingTime,
         documentsUsed: streamResult.documentsUsed,
         tokensUsed: streamResult.tokensUsed,
+        citations: streamResult.citations || citations,
+        sourceDocumentIds: streamResult.sourceDocumentIds || [],
       })}\n\n`
     );
 
