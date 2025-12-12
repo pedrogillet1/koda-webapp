@@ -435,6 +435,130 @@ class KodaV3Container {
     return this.services.dynamicDocBoost!;
   }
 
+  // ========== Infrastructure Services ==========
+
+  /**
+   * Get the cache service instance.
+   */
+  public getCache(): CacheService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.cache!;
+  }
+
+  /**
+   * Get the encryption service instance.
+   */
+  public getEncryption(): EncryptionService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.encryption!;
+  }
+
+  /**
+   * Get the pinecone service instance.
+   */
+  public getPinecone(): PineconeService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.pinecone!;
+  }
+
+  /**
+   * Get the embedding service instance.
+   */
+  public getEmbedding(): EmbeddingService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.embedding!;
+  }
+
+  /**
+   * Get the chunking service instance.
+   */
+  public getChunking(): ChunkingService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.chunking!;
+  }
+
+  /**
+   * Get the document progress service instance.
+   */
+  public getDocumentProgress(): DocumentProgressService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.documentProgress!;
+  }
+
+  /**
+   * Get the profile service instance.
+   */
+  public getProfile(): ProfileService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.profile!;
+  }
+
+  // ========== Core RAG Services ==========
+
+  /**
+   * Get the marker generator service instance.
+   */
+  public getMarkerGenerator(): KodaMarkerGeneratorService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.markerGenerator!;
+  }
+
+  /**
+   * Get the fallback engine service instance.
+   */
+  public getFallbackEngine(): KodaFallbackEngineV3 {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.fallbackEngine!;
+  }
+
+  /**
+   * Get the retrieval ranking service instance.
+   */
+  public getRetrievalRanking(): KodaRetrievalRankingService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.retrievalRanking!;
+  }
+
+  /**
+   * Get the language detector service instance.
+   */
+  public getLanguageDetector(): DefaultLanguageDetector {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.languageDetector!;
+  }
+
+  /**
+   * Get the pattern classifier service instance.
+   */
+  public getPatternClassifier(): PatternClassifierServiceV3 {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.patternClassifier!;
+  }
+
   /**
    * Get all services (for testing)
    */
