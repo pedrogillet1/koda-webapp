@@ -20,7 +20,7 @@ import {
   type DocMarkerData,
   type LoadMoreMarkerData,
 } from '../utils/markerUtils';
-import { truncationDetectorService, type TruncationDetectionResult } from '../utils/truncationDetector.service';
+import { TruncationDetectorService, type TruncationDetectionResult } from '../utils/truncationDetector.service';
 
 export interface Citation {
   docId: string;
@@ -65,11 +65,18 @@ export interface FormattingResult {
   };
 }
 
+export interface FormattingPipelineDependencies {
+  truncationDetector?: TruncationDetectorService;
+  logger?: any;
+}
+
 export class KodaFormattingPipelineV3Service {
   private readonly logger: any;
+  private readonly truncationDetector: TruncationDetectorService;
 
-  constructor(logger?: any) {
-    this.logger = logger || console;
+  constructor(deps: FormattingPipelineDependencies = {}) {
+    this.logger = deps.logger || console;
+    this.truncationDetector = deps.truncationDetector || new TruncationDetectorService();
   }
 
   /**
@@ -85,7 +92,7 @@ export class KodaFormattingPipelineV3Service {
       const documents = input.documents || [];
 
       // Step 1: Detect truncation BEFORE any modifications
-      const truncationResult = truncationDetectorService.detectTruncation(text);
+      const truncationResult = this.truncationDetector.detectTruncation(text);
       
       if (truncationResult.isTruncated && truncationResult.confidence === 'high') {
         this.logger.warn('High confidence truncation detected, returning early', {
@@ -114,7 +121,7 @@ export class KodaFormattingPipelineV3Service {
       const locationIssues = validateMarkerLocations(text);
       
       // Step 4: Validate markdown structure
-      const structureIssues = truncationDetectorService.validateMarkdownStructure(text);
+      const structureIssues = this.truncationDetector.validateMarkdownStructure(text);
       
       // Step 5: Extract metadata
       const metadata = this.extractMetadata(text);

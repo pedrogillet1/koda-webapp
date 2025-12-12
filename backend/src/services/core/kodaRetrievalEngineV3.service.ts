@@ -22,9 +22,9 @@ import type {
 
 import embeddingService from '../embedding.service';
 import pineconeService from '../pinecone.service';
-import { KodaHybridSearchService, kodaHybridSearchService } from '../retrieval/kodaHybridSearch.service';
-import DynamicDocBoostService, { dynamicDocBoostService, DocumentBoostMap } from '../retrieval/dynamicDocBoost.service';
-import { kodaRetrievalRankingService } from '../retrieval/kodaRetrievalRanking.service';
+import { KodaHybridSearchService } from '../retrieval/kodaHybridSearch.service';
+import { DynamicDocBoostService, DocumentBoostMap } from '../retrieval/dynamicDocBoost.service';
+import { KodaRetrievalRankingService } from '../retrieval/kodaRetrievalRanking.service';
 import {
   getTokenBudgetEstimator,
   getContextWindowBudgeting,
@@ -51,10 +51,23 @@ export interface RetrieveParams {
 // KODA RETRIEVAL ENGINE V3
 // ============================================================================
 
+export interface RetrievalEngineDependencies {
+  hybridSearch: KodaHybridSearchService;
+  dynamicDocBoost: DynamicDocBoostService;
+  retrievalRanking: KodaRetrievalRankingService;
+}
+
 export class KodaRetrievalEngineV3 {
   private defaultMaxChunks = 10;
-  private hybridSearch = kodaHybridSearchService;
-  private dynamicDocBoost = dynamicDocBoostService;
+  private hybridSearch: KodaHybridSearchService;
+  private dynamicDocBoost: DynamicDocBoostService;
+  private retrievalRanking: KodaRetrievalRankingService;
+
+  constructor(deps: RetrievalEngineDependencies) {
+    this.hybridSearch = deps.hybridSearch;
+    this.dynamicDocBoost = deps.dynamicDocBoost;
+    this.retrievalRanking = deps.retrievalRanking;
+  }
 
   /**
    * Retrieve relevant document chunks for a query.
@@ -204,7 +217,7 @@ export class KodaRetrievalEngineV3 {
       console.log(`[KodaRetrievalEngineV3] Computed boosts for ${Object.keys(boostMap).length} documents`);
 
       // Step 4: Rank chunks using dedicated ranking service (applies boosts, position weighting, question-type weighting)
-      const rankedChunks = await kodaRetrievalRankingService.rankChunks({
+      const rankedChunks = await this.retrievalRanking.rankChunks({
         query,
         intent,
         chunks: hybridResults.map(chunk => ({

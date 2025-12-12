@@ -50,6 +50,7 @@ import { KodaFallbackEngineV3 } from '../services/core/kodaFallbackEngineV3.serv
 import { KodaRetrievalRankingService } from '../services/retrieval/kodaRetrievalRanking.service';
 import { DefaultLanguageDetector } from '../services/core/languageDetector.service';
 import PatternClassifierServiceV3 from '../services/core/patternClassifierV3.service';
+import { TruncationDetectorService } from '../services/utils/truncationDetector.service';
 
 // ============================================================================
 // BOOTSTRAP ERROR
@@ -101,6 +102,7 @@ export interface KodaV3Services {
   retrievalRanking: KodaRetrievalRankingService;
   languageDetector: DefaultLanguageDetector;
   patternClassifier: PatternClassifierServiceV3;
+  truncationDetector: TruncationDetectorService;
 }
 
 // ============================================================================
@@ -154,12 +156,22 @@ class KodaV3Container {
       this.services.markerGenerator = new KodaMarkerGeneratorService();
       this.services.retrievalRanking = new KodaRetrievalRankingService();
       this.services.languageDetector = new DefaultLanguageDetector();
+      this.services.truncationDetector = new TruncationDetectorService();
 
       // ========== STEP 3: Create leaf services (no dependencies) ==========
       console.log('📦 [Container] Creating leaf services...');
-      this.services.retrievalEngine = new KodaRetrievalEngineV3();
+      this.services.hybridSearch = new KodaHybridSearchService();
+      this.services.dynamicDocBoost = new DynamicDocBoostService();
+      // retrievalEngine depends on hybridSearch, dynamicDocBoost, retrievalRanking
+      this.services.retrievalEngine = new KodaRetrievalEngineV3({
+        hybridSearch: this.services.hybridSearch,
+        dynamicDocBoost: this.services.dynamicDocBoost,
+        retrievalRanking: this.services.retrievalRanking!,
+      });
       this.services.answerEngine = new KodaAnswerEngineV3();
-      this.services.formattingPipeline = new KodaFormattingPipelineV3Service();
+      this.services.formattingPipeline = new KodaFormattingPipelineV3Service({
+        truncationDetector: this.services.truncationDetector,
+      });
       this.services.multiIntent = new MultiIntentService();
       this.services.override = new OverrideService();
       this.services.userPreferences = new UserPreferencesService();
@@ -167,8 +179,6 @@ class KodaV3Container {
       this.services.feedbackLogger = new FeedbackLoggerService();
       this.services.analyticsEngine = new AnalyticsEngineService();
       this.services.documentSearch = new DocumentSearchService();
-      this.services.hybridSearch = new KodaHybridSearchService();
-      this.services.dynamicDocBoost = new DynamicDocBoostService();
 
       // ========== STEP 4: Load JSON configurations ==========
       console.log('📦 [Container] Loading JSON configurations...');
@@ -566,6 +576,16 @@ class KodaV3Container {
       throw new BootstrapWiringError('Container not initialized');
     }
     return this.services.patternClassifier!;
+  }
+
+  /**
+   * Get the truncation detector service instance.
+   */
+  public getTruncationDetector(): TruncationDetectorService {
+    if (!this._isInitialized) {
+      throw new BootstrapWiringError('Container not initialized');
+    }
+    return this.services.truncationDetector!;
   }
 
   /**
