@@ -1,151 +1,164 @@
 /**
- * ============================================================================
- * LOAD MORE BUTTON V3 - LAYER 4 (FRONTEND)
- * ============================================================================
+ * LoadMoreButton.tsx
  *
- * PURPOSE: Render "See all X documents" button
+ * A reusable React component that renders a "Load more documents" button for paginated document lists.
+ * It displays the number of currently shown documents and the total available documents.
+ * When clicked, it triggers a callback to load more documents.
  *
- * FEATURES:
- * - Localized text (en, pt, es)
- * - Shows remaining count
- * - Click loads all documents or navigates to documents page
- * - Block layout (full width)
+ * This component is fully typed with TypeScript and includes comprehensive error handling and accessibility features.
  */
 
-import React from 'react';
-import PropTypes from 'prop-types';
-import { useNavigate } from 'react-router-dom';
+import React, { MouseEvent } from 'react';
 
-// Localized strings
-const STRINGS = {
-  en: {
-    seeAll: 'See all',
-    documents: 'documents',
-    document: 'document',
-    showing: 'Showing',
-    of: 'of'
-  },
-  pt: {
-    seeAll: 'Ver todos',
-    documents: 'documentos',
-    document: 'documento',
-    showing: 'Mostrando',
-    of: 'de'
-  },
-  es: {
-    seeAll: 'Ver todos',
-    documents: 'documentos',
-    document: 'documento',
-    showing: 'Mostrando',
-    of: 'de'
-  }
-};
+interface LoadMoreButtonProps {
+  /**
+   * The number of documents currently displayed.
+   */
+  shownCount: number;
 
-function getStrings(language) {
-  return STRINGS[language] || STRINGS.en;
+  /**
+   * The total number of documents available.
+   */
+  totalCount: number;
+
+  /**
+   * The number of documents to load when the button is clicked.
+   */
+  loadCount: number;
+
+  /**
+   * Callback function invoked when the "Load more" button is clicked.
+   * Should trigger loading additional documents.
+   */
+  onLoadMore: () => void;
+
+  /**
+   * Optional boolean to disable the button (e.g., while loading).
+   */
+  disabled?: boolean;
+
+  /**
+   * Optional className to allow custom styling.
+   */
+  className?: string;
 }
 
-function LoadMoreButtonV3({
-  remainingCount,
+/**
+ * LoadMoreButton Component
+ *
+ * Displays a button to load more documents in a paginated list.
+ * Shows the current count of displayed documents and the total available.
+ *
+ * @param {LoadMoreButtonProps} props - Component props
+ * @returns {JSX.Element | null} The rendered LoadMoreButton component or null if no more documents to load
+ */
+const LoadMoreButton: React.FC<LoadMoreButtonProps> = ({
+  shownCount,
   totalCount,
-  loadedCount,
-  onClick,
-  language = 'en',
-  navigateToDocuments = true,
+  loadCount,
+  onLoadMore,
+  disabled = false,
   className = '',
-  style = {}
-}) {
-  const navigate = useNavigate();
-  const strings = getStrings(language);
+}) => {
+  // Validate props to avoid inconsistent UI states
+  if (shownCount < 0 || totalCount < 0 || loadCount <= 0) {
+    console.error(
+      `LoadMoreButton: Invalid prop values detected. shownCount=${shownCount}, totalCount=${totalCount}, loadCount=${loadCount}`
+    );
+    // Do not render the button if props are invalid
+    return null;
+  }
 
-  // Handle both direct props and loadMoreData object
-  const total = totalCount || 0;
-  const loaded = loadedCount || 0;
-  const remaining = remainingCount || (total - loaded);
+  // If all documents are already shown, do not render the button
+  if (shownCount >= totalCount) {
+    return (
+      <p
+        className={`load-more-info ${className}`}
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        Showing {shownCount} of {totalCount} documents.
+      </p>
+    );
+  }
 
-  const handleClick = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  // Calculate how many documents will be loaded on next click
+  const remaining = totalCount - shownCount;
+  const nextLoadCount = Math.min(loadCount, remaining);
 
-    if (onClick) {
-      onClick({
-        remainingCount: remaining,
-        totalCount: total,
-        loadedCount: loaded
-      });
-    } else if (navigateToDocuments) {
-      // Default behavior: navigate to documents page
-      navigate('/documents');
+  /**
+   * Handles the click event on the Load More button.
+   * Prevents default behavior and calls the onLoadMore callback.
+   *
+   * @param {MouseEvent<HTMLButtonElement>} event - The click event
+   */
+  const handleClick = (event: MouseEvent<HTMLButtonElement>): void => {
+    event.preventDefault();
+    if (disabled) {
+      return;
+    }
+    try {
+      onLoadMore();
+    } catch (error) {
+      // Log error but do not crash the app
+      console.error('LoadMoreButton: Error during onLoadMore callback', error);
     }
   };
 
-  const docWord = remaining === 1 ? strings.document : strings.documents;
-
-  // Inline styles
-  const containerStyles = {
-    display: 'block',
-    margin: '16px 0',
-    textAlign: 'center',
-    ...style
-  };
-
-  const buttonStyles = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '12px 24px',
-    backgroundColor: '#f8f8f8',
-    border: '2px solid #e0e0e0',
-    borderRadius: '8px',
-    fontSize: '0.95em',
-    fontFamily: 'Plus Jakarta Sans, sans-serif',
-    color: '#333',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease'
-  };
-
   return (
-    <div className={`load-more-container ${className}`} style={containerStyles}>
+    <div className={`load-more-container ${className}`}>
+      <p
+        className="load-more-info"
+        aria-live="polite"
+        aria-atomic="true"
+        role="status"
+      >
+        Showing {shownCount} of {totalCount} documents.
+      </p>
       <button
         type="button"
         className="load-more-button"
         onClick={handleClick}
-        aria-label={`${strings.seeAll} ${total} ${docWord}`}
-        style={buttonStyles}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = '#e8e8e8';
-          e.currentTarget.style.borderColor = '#c0c0c0';
-          e.currentTarget.style.transform = 'translateY(-2px)';
-          e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = '#f8f8f8';
-          e.currentTarget.style.borderColor = '#e0e0e0';
-          e.currentTarget.style.transform = 'none';
-          e.currentTarget.style.boxShadow = 'none';
-        }}
+        disabled={disabled}
+        aria-label={`Load ${nextLoadCount} more documents`}
       >
-        <span className="load-more-icon" style={{ fontSize: '1.2em', lineHeight: 1 }}>📂</span>
-        <span className="load-more-text" style={{ fontWeight: 600 }}>
-          {strings.seeAll} {total} {docWord}
-        </span>
-        <span className="load-more-count" style={{ fontSize: '0.9em', color: '#666', fontWeight: 400 }}>
-          ({strings.showing} {loaded} {strings.of} {total})
-        </span>
+        Load {nextLoadCount} more document{nextLoadCount > 1 ? 's' : ''}
       </button>
+      <style jsx>{`
+        .load-more-container {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          margin: 1rem 0;
+          font-family: Arial, sans-serif;
+        }
+        .load-more-info {
+          font-size: 0.9rem;
+          color: #555;
+          margin: 0;
+        }
+        .load-more-button {
+          background-color: #007bff;
+          border: none;
+          color: white;
+          padding: 0.5rem 1rem;
+          font-size: 1rem;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: background-color 0.2s ease-in-out;
+        }
+        .load-more-button:disabled {
+          background-color: #a0a0a0;
+          cursor: not-allowed;
+        }
+        .load-more-button:not(:disabled):hover,
+        .load-more-button:not(:disabled):focus {
+          background-color: #0056b3;
+          outline: none;
+        }
+      `}</style>
     </div>
   );
-}
-
-LoadMoreButtonV3.propTypes = {
-  remainingCount: PropTypes.number,
-  totalCount: PropTypes.number,
-  loadedCount: PropTypes.number,
-  onClick: PropTypes.func,
-  language: PropTypes.oneOf(['en', 'pt', 'es']),
-  navigateToDocuments: PropTypes.bool,
-  className: PropTypes.string,
-  style: PropTypes.object
 };
 
-export default LoadMoreButtonV3;
+export default LoadMoreButton;

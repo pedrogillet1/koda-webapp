@@ -1,367 +1,413 @@
 /**
- * ============================================================================
- * KODA MARKER GENERATOR SERVICE - LAYER 1
- * ============================================================================
- *
- * PURPOSE: Single source of truth for all inline marker generation
- *
- * MARKER FORMATS:
- * - Document: {{DOC::id=...::name="..."::type=...::size=...::language=...::topics=[...]::folder="..."::created=...::updated=...::pages=...}}
- * - LoadMore: {{LOADMORE::total=...::shown=...::context=...}}
- *
- * KEY PRINCIPLE:
- * - Markers contain ALL metadata
- * - But only filename is visible in markdown
- * - Frontend parses marker and renders button with filename
+ * KODA Marker Generator Service V3
+ * 
+ * Generates document markers for embedding in answer text.
+ * 
+ * MARKER FORMAT:
+ * {{DOC::id=doc_123::name="file.pdf"::type=pdf::size=1048576::language=pt::...}}
+ * 
+ * USER SEES: **file.pdf** (bold, optionally underlined based on context)
+ * MARKER CONTAINS: Full metadata for frontend parsing
+ * 
+ * VERSION: 3.0.0
+ * DATE: 2025-12-11
+ * LOCATION: backend/src/utils/kodaMarkerGenerator.service.ts
+ * 
+ * DESIGN RATIONALE:
+ * - Centralized marker generation (single source of truth)
+ * - Consistent format across all services
+ * - Easy to parse on frontend
+ * - Extensible for future metadata
+ * - Type-safe with ragV3.types.ts
  */
 
-// ============================================================================
-// TYPE DEFINITIONS
-// ============================================================================
+import type { DocumentMarker, LoadMoreMarker } from '../types/ragV3.types';
 
-export interface InlineDocument {
-  documentId: string;
+/**
+ * Document info for marker generation
+ * This is what services pass to generate a marker
+ */
+export interface DocumentInfo {
+  id: string;
   filename: string;
-  mimeType: string;
+  extension?: string;
+  mimeType?: string;
   fileSize?: number;
   folderPath?: string;
-  extension?: string;
   language?: string;
   topics?: string[];
-  createdAt?: string;
-  updatedAt?: string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
   pageCount?: number;
   slideCount?: number;
 }
 
-export interface LoadMoreData {
-  totalCount: number;
-  shownCount: number;
-  contextId: string;
-}
+class KodaMarkerGeneratorService {
+  /**
+   * Generate document marker
+   * 
+   * RATIONALE: Marker contains full metadata but user only sees filename
+   * Frontend parses marker to render clickable button with preview
+   * 
+   * @param doc - Document information
+   * @returns Marker string to embed in answer text
+   */
+  generateDocumentMarker(doc: DocumentInfo): string {
+    // Build marker parts
+    const parts: string[] = [
+      `id=${doc.id}`,
+      `name="${this.escapeMarkerValue(doc.filename)}"`,
+    ];
 
-// ============================================================================
-// MARKER GENERATION FUNCTIONS
-// ============================================================================
+    // Add optional fields if present
+    if (doc.extension) {
+      parts.push(`type=${doc.extension}`);
+    }
 
-/**
- * Create inline document marker with FULL metadata
- *
- * Format: {{DOC::id=...::name="..."::type=...::size=...::language=...::topics=[...]::folder="..."::created=...::updated=...::pages=...}}
- *
- * Visual output: **filename.pdf** {{DOC::...}}
- * User sees: **filename.pdf**
- * Frontend parses: All metadata from marker
- *
- * @param doc - Document data with all metadata
- * @returns Formatted marker string
- */
-export function createInlineDocumentMarker(doc: InlineDocument): string {
-  if (!doc.documentId || !doc.filename) {
-    throw new Error('Document ID and filename are required');
+    if (doc.mimeType) {
+      parts.push(`mime="${this.escapeMarkerValue(doc.mimeType)}"`);
+    }
+
+    if (doc.fileSize !== undefined) {
+      parts.push(`size=${doc.fileSize}`);
+    }
+
+    if (doc.folderPath) {
+      parts.push(`folder="${this.escapeMarkerValue(doc.folderPath)}"`);
+    }
+
+    if (doc.language) {
+      parts.push(`lang=${doc.language}`);
+    }
+
+    if (doc.topics && doc.topics.length > 0) {
+      const topicsStr = doc.topics.map(t => this.escapeMarkerValue(t)).join(',');
+      parts.push(`topics="${topicsStr}"`);
+    }
+
+    if (doc.createdAt) {
+      const created = typeof doc.createdAt === 'string' 
+        ? doc.createdAt 
+        : doc.createdAt.toISOString();
+      parts.push(`created="${created}"`);
+    }
+
+    if (doc.updatedAt) {
+      const updated = typeof doc.updatedAt === 'string'
+        ? doc.updatedAt
+        : doc.updatedAt.toISOString();
+      parts.push(`updated="${updated}"`);
+    }
+
+    if (doc.pageCount !== undefined) {
+      parts.push(`pages=${doc.pageCount}`);
+    }
+
+    if (doc.slideCount !== undefined) {
+      parts.push(`slides=${doc.slideCount}`);
+    }
+
+    // Assemble marker
+    const marker = `{{DOC::${parts.join('::')}}}`;
+
+    return marker;
   }
 
-  const parts: string[] = [];
-
-  // Required fields
-  parts.push(`id=${doc.documentId}`);
-  parts.push(`name="${encodeURIComponent(doc.filename)}"`);
-
-  // Extension/type
-  if (doc.extension) {
-    parts.push(`type=${doc.extension}`);
-  } else if (doc.mimeType) {
-    const ext = mimeTypeToExtension(doc.mimeType);
-    parts.push(`type=${ext}`);
+  /**
+   * Generate load more marker
+   * 
+   * RATIONALE: Used in document listings to show pagination
+   * Frontend renders "Load more" button when this marker is found
+   * 
+   * @param total - Total number of documents
+   * @param shown - Number of documents shown
+   * @returns Load more marker string
+   */
+  generateLoadMoreMarker(total: number, shown: number): string {
+    const remaining = total - shown;
+    return `{{LOAD_MORE::total=${total}::shown=${shown}::remaining=${remaining}}}`;
   }
 
-  // File size
-  if (doc.fileSize) {
-    parts.push(`size=${doc.fileSize}`);
+  /**
+   * Extract filename from marker (for display)
+   * 
+   * RATIONALE: When rendering, we need to extract just the filename
+   * to show to the user (the rest is hidden in the marker)
+   * 
+   * @param marker - Full marker string
+   * @returns Filename only
+   */
+  extractFilename(marker: string): string | null {
+    const match = marker.match(/name="([^"]+)"/);
+    return match ? match[1] : null;
   }
 
-  // Language
-  if (doc.language) {
-    parts.push(`language=${doc.language}`);
+  /**
+   * Parse document marker into DocumentMarker object
+   * 
+   * RATIONALE: Backend might need to parse its own markers
+   * (though frontend does this more often)
+   * 
+   * @param marker - Marker string
+   * @returns Parsed DocumentMarker object
+   */
+  parseDocumentMarker(marker: string): DocumentMarker | null {
+    if (!marker.startsWith('{{DOC::') || !marker.endsWith('}}')) {
+      return null;
+    }
+
+    try {
+      // Remove {{DOC:: and }}
+      const content = marker.slice(7, -2);
+      const parts = content.split('::');
+
+      const parsed: Partial<DocumentMarker> = {};
+
+      for (const part of parts) {
+        const [key, value] = part.split('=');
+        
+        switch (key) {
+          case 'id':
+            parsed.documentId = value;
+            break;
+          case 'name':
+            parsed.filename = this.unescapeMarkerValue(value);
+            break;
+          case 'type':
+            parsed.extension = value;
+            break;
+          case 'mime':
+            parsed.mimeType = this.unescapeMarkerValue(value);
+            break;
+          case 'size':
+            parsed.fileSize = parseInt(value, 10);
+            break;
+          case 'folder':
+            parsed.folderPath = this.unescapeMarkerValue(value);
+            break;
+          case 'lang':
+            parsed.language = value;
+            break;
+          case 'topics':
+            parsed.topics = this.unescapeMarkerValue(value).split(',');
+            break;
+          case 'created':
+            parsed.createdAt = this.unescapeMarkerValue(value);
+            break;
+          case 'updated':
+            parsed.updatedAt = this.unescapeMarkerValue(value);
+            break;
+          case 'pages':
+            parsed.pageCount = parseInt(value, 10);
+            break;
+          case 'slides':
+            parsed.slideCount = parseInt(value, 10);
+            break;
+        }
+      }
+
+      // Validate required fields
+      if (!parsed.documentId || !parsed.filename) {
+        return null;
+      }
+
+      return parsed as DocumentMarker;
+    } catch (error) {
+      console.error('[KodaMarkerGenerator] Error parsing marker:', error);
+      return null;
+    }
   }
 
-  // Topics (array)
-  if (doc.topics && doc.topics.length > 0) {
-    const topicsStr = JSON.stringify(doc.topics);
-    parts.push(`topics=${encodeURIComponent(topicsStr)}`);
+  /**
+   * Parse load more marker
+   * 
+   * @param marker - Load more marker string
+   * @returns Parsed LoadMoreMarker object
+   */
+  parseLoadMoreMarker(marker: string): LoadMoreMarker | null {
+    if (!marker.startsWith('{{LOAD_MORE::') || !marker.endsWith('}}')) {
+      return null;
+    }
+
+    try {
+      const content = marker.slice(13, -2);
+      const parts = content.split('::');
+
+      const parsed: Partial<LoadMoreMarker> = { action: 'load_more' };
+
+      for (const part of parts) {
+        const [key, value] = part.split('=');
+        
+        switch (key) {
+          case 'total':
+            parsed.totalDocs = parseInt(value, 10);
+            break;
+          case 'shown':
+            parsed.shownDocs = parseInt(value, 10);
+            break;
+          case 'remaining':
+            parsed.remainingDocs = parseInt(value, 10);
+            break;
+        }
+      }
+
+      return parsed as LoadMoreMarker;
+    } catch (error) {
+      console.error('[KodaMarkerGenerator] Error parsing load more marker:', error);
+      return null;
+    }
   }
 
-  // Folder path
-  if (doc.folderPath) {
-    parts.push(`folder="${encodeURIComponent(doc.folderPath)}"`);
+  /**
+   * Check if string contains document markers
+   * 
+   * @param text - Text to check
+   * @returns True if contains markers
+   */
+  hasDocumentMarkers(text: string): boolean {
+    return text.includes('{{DOC::');
   }
 
-  // Created date
-  if (doc.createdAt) {
-    parts.push(`created=${doc.createdAt}`);
+  /**
+   * Check if string contains load more marker
+   * 
+   * @param text - Text to check
+   * @returns True if contains load more marker
+   */
+  hasLoadMoreMarker(text: string): boolean {
+    return text.includes('{{LOAD_MORE::');
   }
 
-  // Updated date
-  if (doc.updatedAt) {
-    parts.push(`updated=${doc.updatedAt}`);
+  /**
+   * Extract all document markers from text
+   * 
+   * @param text - Text containing markers
+   * @returns Array of marker strings
+   */
+  extractAllMarkers(text: string): string[] {
+    const markers: string[] = [];
+    const regex = /\{\{DOC::[^\}]+\}\}/g;
+    let match;
+
+    while ((match = regex.exec(text)) !== null) {
+      markers.push(match[0]);
+    }
+
+    return markers;
   }
 
-  // Page/slide count
-  if (doc.pageCount) {
-    parts.push(`pages=${doc.pageCount}`);
-  } else if (doc.slideCount) {
-    parts.push(`slides=${doc.slideCount}`);
+  /**
+   * Replace marker with visible filename
+   * 
+   * RATIONALE: For testing or backend rendering
+   * Frontend does this with proper styling
+   * 
+   * @param text - Text with markers
+   * @returns Text with markers replaced by filenames
+   */
+  replaceMarkersWithFilenames(text: string): string {
+    return text.replace(/\{\{DOC::([^\}]+)\}\}/g, (match) => {
+      const filename = this.extractFilename(match);
+      return filename ? `**${filename}**` : match;
+    });
   }
 
-  return `{{DOC::${parts.join('::')}}}`;
-}
-
-/**
- * Create load more marker
- *
- * Format: {{LOADMORE::total=...::shown=...::context=...}}
- *
- * @param data - Load more data
- * @returns Formatted marker string
- */
-export function createLoadMoreMarker(data: LoadMoreData): string {
-  if (data.totalCount < 0 || data.shownCount < 0) {
-    throw new Error('Counts must be non-negative');
+  /**
+   * Escape special characters in marker values
+   * 
+   * RATIONALE: Prevent marker parsing issues with special chars
+   * 
+   * @param value - Value to escape
+   * @returns Escaped value
+   */
+  private escapeMarkerValue(value: string): string {
+    return value
+      .replace(/"/g, '\\"')   // Escape quotes
+      .replace(/::/g, '::');  // Keep :: as is (it's our delimiter)
   }
 
-  if (data.shownCount > data.totalCount) {
-    throw new Error('shownCount cannot exceed totalCount');
+  /**
+   * Unescape marker values
+   * 
+   * @param value - Escaped value
+   * @returns Unescaped value
+   */
+  private unescapeMarkerValue(value: string): string {
+    // Remove surrounding quotes if present
+    let unescaped = value.replace(/^"(.*)"$/, '$1');
+    
+    // Unescape quotes
+    unescaped = unescaped.replace(/\\"/g, '"');
+    
+    return unescaped;
   }
 
-  const parts = [
-    `total=${data.totalCount}`,
-    `shown=${data.shownCount}`,
-    `context=${data.contextId}`
-  ];
-
-  return `{{LOADMORE::${parts.join('::')}}}`;
-}
-
-/**
- * Inject inline documents into text with prefix and suffix
- *
- * @param documents - Array of documents to inject
- * @param maxInline - Maximum number of documents to show inline (default: 10)
- * @param prefix - Text to show before documents (default: empty)
- * @param suffix - Text to show after documents (default: empty)
- * @param contextId - Context ID for load more marker
- * @returns Formatted text with document markers
- */
-export function injectInlineDocuments(
-  documents: InlineDocument[],
-  maxInline: number = 10,
-  prefix: string = '',
-  suffix: string = '',
-  contextId: string = 'default'
-): string {
-  if (!documents || documents.length === 0) {
-    return '';
-  }
-
-  const displayDocs = documents.slice(0, maxInline);
-  const markers = displayDocs.map(doc => {
-    // Visual: **filename** {{DOC::...}}
-    return `**${doc.filename}** ${createInlineDocumentMarker(doc)}`;
-  });
-
-  let result = prefix + markers.join('\n');
-
-  // Add load more marker if there are remaining documents
-  if (documents.length > maxInline) {
-    const loadMoreData: LoadMoreData = {
-      totalCount: documents.length,
-      shownCount: maxInline,
-      contextId: contextId
+  /**
+   * Generate marker from database document
+   * 
+   * RATIONALE: Convenience method for common use case
+   * Converts Prisma document to marker
+   * 
+   * @param dbDoc - Document from database
+   * @returns Document marker
+   */
+  fromDatabaseDocument(dbDoc: any): string {
+    const docInfo: DocumentInfo = {
+      id: dbDoc.id,
+      filename: dbDoc.filename,
+      extension: this.getExtension(dbDoc.filename),
+      mimeType: dbDoc.mimeType,
+      fileSize: dbDoc.size,
+      folderPath: dbDoc.folder?.path,
+      language: dbDoc.language,
+      topics: dbDoc.topics?.map((t: any) => t.name),
+      createdAt: dbDoc.createdAt,
+      updatedAt: dbDoc.updatedAt,
+      pageCount: dbDoc.pageCount,
+      slideCount: dbDoc.slideCount,
     };
-    result += '\n\n' + createLoadMoreMarker(loadMoreData);
+
+    return this.generateDocumentMarker(docInfo);
   }
 
-  result += suffix;
+  /**
+   * Get file extension from filename
+   * 
+   * @param filename - Filename
+   * @returns Extension (without dot)
+   */
+  private getExtension(filename: string): string {
+    const match = filename.match(/\.([^.]+)$/);
+    return match ? match[1].toLowerCase() : '';
+  }
 
-  return result;
+  /**
+   * Validate marker format
+   * 
+   * @param marker - Marker to validate
+   * @returns True if valid
+   */
+  isValidMarker(marker: string): boolean {
+    if (!marker.startsWith('{{DOC::') && !marker.startsWith('{{LOAD_MORE::')) {
+      return false;
+    }
+
+    if (!marker.endsWith('}}')) {
+      return false;
+    }
+
+    // Try to parse
+    if (marker.startsWith('{{DOC::')) {
+      return this.parseDocumentMarker(marker) !== null;
+    } else {
+      return this.parseLoadMoreMarker(marker) !== null;
+    }
+  }
 }
 
 // ============================================================================
-// DOCUMENT NAME NORMALIZATION
+// EXPORT SINGLETON
 // ============================================================================
 
-/**
- * Normalize document name for matching
- *
- * Converts: "My Document.pdf" -> "my document pdf"
- *
- * @param name - Document name to normalize
- * @returns Normalized name
- */
-export function normalizeDocumentName(name: string): string {
-  if (!name) return '';
-
-  return name
-    .toLowerCase()
-    .replace(/[_-]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/**
- * Check if two document names match (case-insensitive, ignoring separators)
- *
- * @param name1 - First document name
- * @param name2 - Second document name
- * @returns True if names match
- */
-export function documentsMatch(name1: string, name2: string): boolean {
-  return normalizeDocumentName(name1) === normalizeDocumentName(name2);
-}
-
-// ============================================================================
-// MARKER VALIDATION
-// ============================================================================
-
-/**
- * Validate document marker format
- *
- * @param marker - Marker string to validate
- * @returns True if valid document marker
- */
-export function isValidDocumentMarker(marker: string): boolean {
-  if (!marker || typeof marker !== 'string') return false;
-
-  const pattern = /^\{\{DOC::(id=[^:]+)::(name="[^"]+")(::.+)?\}\}$/;
-  return pattern.test(marker);
-}
-
-/**
- * Validate load more marker format
- *
- * @param marker - Marker string to validate
- * @returns True if valid load more marker
- */
-export function isValidLoadMoreMarker(marker: string): boolean {
-  if (!marker || typeof marker !== 'string') return false;
-
-  const pattern = /^\{\{LOADMORE::total=\d+::shown=\d+::context=.+\}\}$/;
-  return pattern.test(marker);
-}
-
-/**
- * Check if text contains any markers
- *
- * @param text - Text to check
- * @returns True if text contains markers
- */
-export function hasMarkers(text: string): boolean {
-  if (!text || typeof text !== 'string') return false;
-  return /\{\{(DOC|LOADMORE)::/.test(text);
-}
-
-// ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
-
-/**
- * Extract all document markers from text
- *
- * @param text - Text containing markers
- * @returns Array of document marker strings
- */
-export function extractDocumentMarkers(text: string): string[] {
-  if (!text || typeof text !== 'string') return [];
-
-  const pattern = /\{\{DOC::[^\}]+\}\}/g;
-  return text.match(pattern) || [];
-}
-
-/**
- * Extract all load more markers from text
- *
- * @param text - Text containing markers
- * @returns Array of load more marker strings
- */
-export function extractLoadMoreMarkers(text: string): string[] {
-  if (!text || typeof text !== 'string') return [];
-
-  const pattern = /\{\{LOADMORE::[^\}]+\}\}/g;
-  return text.match(pattern) || [];
-}
-
-/**
- * Count markers in text
- *
- * @param text - Text to analyze
- * @returns Object with counts of each marker type
- */
-export function countMarkers(text: string): { documents: number; loadMore: number } {
-  return {
-    documents: extractDocumentMarkers(text).length,
-    loadMore: extractLoadMoreMarkers(text).length
-  };
-}
-
-/**
- * Convert MIME type to file extension
- *
- * @param mimeType - MIME type string
- * @returns File extension
- */
-function mimeTypeToExtension(mimeType: string): string {
-  const mimeMap: { [key: string]: string } = {
-    'application/pdf': 'pdf',
-    'application/msword': 'doc',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-    'application/vnd.ms-excel': 'xls',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
-    'application/vnd.ms-powerpoint': 'ppt',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
-    'text/plain': 'txt',
-    'text/csv': 'csv',
-    'application/json': 'json',
-    'text/markdown': 'md',
-    'image/png': 'png',
-    'image/jpeg': 'jpg',
-    'image/gif': 'gif',
-    'image/svg+xml': 'svg'
-  };
-
-  return mimeMap[mimeType] || 'file';
-}
-
-/**
- * Humanize file size
- *
- * @param bytes - File size in bytes
- * @returns Human-readable size string
- */
-export function humanizeFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
-
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-}
-
-// ============================================================================
-// EXPORTS
-// ============================================================================
-
-export default {
-  createInlineDocumentMarker,
-  createLoadMoreMarker,
-  injectInlineDocuments,
-  normalizeDocumentName,
-  documentsMatch,
-  isValidDocumentMarker,
-  isValidLoadMoreMarker,
-  hasMarkers,
-  extractDocumentMarkers,
-  extractLoadMoreMarkers,
-  countMarkers,
-  humanizeFileSize
-};
+export const kodaMarkerGenerator = new KodaMarkerGeneratorService();
+export default kodaMarkerGenerator;
