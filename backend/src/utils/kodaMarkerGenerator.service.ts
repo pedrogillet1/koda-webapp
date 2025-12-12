@@ -411,6 +411,6 @@ export class KodaMarkerGeneratorService {
 // EXPORTS
 // ============================================================================
 
-// Singleton instance for direct import
-export const kodaMarkerGenerator = new KodaMarkerGeneratorService();
-export default kodaMarkerGenerator;
+// Export class only - use container.getMarkerGenerator() for instance
+// Class is already exported at declaration (line 50)
+export default KodaMarkerGeneratorService;
