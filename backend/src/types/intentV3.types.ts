@@ -127,11 +127,34 @@ export interface IntentClassificationRequest {
 }
 
 /**
+ * Citation reference for response (from formatting pipeline)
+ */
+export interface CitationReference {
+  docId: string;
+  docName: string;
+  pageNumber?: number;
+  chunkId?: string;
+  relevanceScore?: number;
+}
+
+/**
+ * Source reference for response (frontend-facing)
+ */
+export interface SourceReference {
+  documentId: string;
+  documentName: string;
+  pageNumber?: number;
+  snippet?: string;
+}
+
+/**
  * Intent handler response
  */
 export interface IntentHandlerResponse {
   answer: string;
-  formatted?: string;           // Formatted with markers
+  formatted?: string;           // Formatted with markers (contains {{DOC::...}} markers)
+  citations?: CitationReference[];  // Citations from formatting pipeline
+  sources?: SourceReference[];      // Sources for frontend display
   metadata?: {
     intent?: IntentName;
     confidence?: number;
@@ -142,6 +165,8 @@ export interface IntentHandlerResponse {
     overrideApplied?: boolean;
     multiIntent?: boolean;
     segmentCount?: number;
+    // Source tracking for persistence
+    sourceDocumentIds?: string[];
   };
   requiresFollowup?: boolean;
   suggestedActions?: string[];

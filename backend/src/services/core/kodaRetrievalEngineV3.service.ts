@@ -191,29 +191,34 @@ export class KodaRetrievalEngineV3 {
         return { chunks: [], usedHybrid: true };  // Hybrid was attempted
       }
 
-      // Step 3: Calculate document boosts based on intent
-      const boosts = this.calculateBoosts(intent, documentIds);
-
-      // Step 4: Apply boosts to hybrid results
-      const boostedChunks: RetrievedChunk[] = hybridResults.map(chunk => {
-        const boostFactor = boosts.get(chunk.documentId) || 1.0;
-        const boostedScore = chunk.score * boostFactor;
-
-        return {
-          ...chunk,
-          score: boostedScore,
-          metadata: {
-            ...chunk.metadata,
-            originalScore: chunk.score,
-            boostFactor,
-            retrievalMethod: 'hybrid',
-          },
-        };
+      // Step 3: Compute dynamic document boosts using dedicated service
+      const candidateDocumentIds = [...new Set(hybridResults.map(c => c.documentId))];
+      const boostMap = await dynamicDocBoostService.computeBoosts({
+        userId,
+        intent,
+        candidateDocumentIds,
       });
 
-      // Step 5: Sort by boosted score and apply context budget
-      const sortedChunks = boostedChunks.sort((a, b) => b.score - a.score);
-      const budgetedChunks = this.applyContextBudget(sortedChunks);
+      console.log(`[KodaRetrievalEngineV3] Computed boosts for ${Object.keys(boostMap).length} documents`);
+
+      // Step 4: Rank chunks using dedicated ranking service (applies boosts, position weighting, question-type weighting)
+      const rankedChunks = await kodaRetrievalRankingService.rankChunks({
+        query,
+        intent,
+        chunks: hybridResults.map(chunk => ({
+          ...chunk,
+          metadata: {
+            ...chunk.metadata,
+            retrievalMethod: 'hybrid',
+          },
+        })),
+        boostMap,
+      });
+
+      console.log(`[KodaRetrievalEngineV3] Ranked ${rankedChunks.length} chunks`);
+
+      // Step 5: Apply context budget to ranked chunks
+      const budgetedChunks = this.applyContextBudget(rankedChunks);
 
       console.log(`[KodaRetrievalEngineV3] Returning ${budgetedChunks.length} chunks after budgeting (hybrid)`);
 

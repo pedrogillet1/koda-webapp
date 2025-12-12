@@ -1,8 +1,10 @@
 /**
- * Intent Override Service
+ * Intent Override Service (V3)
  *
  * Applies deterministic rules to override intent classification
  * based on workspace context and query patterns.
+ *
+ * NOTE: Uses V3 intent names (DOC_QA, DOC_SEARCH) not legacy names (DOCUMENT_QNA, SEARCH)
  */
 
 import { IntentClassificationV3 } from '../../types/ragV3.types';
@@ -34,7 +36,7 @@ class OverrideService {
    *
    * Rules:
    * 1. If no documents and asking for help → PRODUCT_HELP
-   * 2. If query starts with / and is short → COMMAND
+   * 2. (Removed) Slash commands handled at application layer
    * 3. If asking about documents but none exist → PRODUCT_HELP with guidance
    */
   public async override(params: OverrideParams): Promise<OverrideResult> {
@@ -55,24 +57,18 @@ class OverrideService {
       };
     }
 
-    // Rule 2: Short command-like query → COMMAND
-    if (
-      normalizedQuery.startsWith('/') &&
-      normalizedQuery.length <= 10 &&
-      intent.primaryIntent !== 'COMMAND'
-    ) {
-      return {
-        ...intent,
-        primaryIntent: 'COMMAND',
-        confidence: 1.0,
-        overrideReason: 'Query starting with "/" treated as COMMAND',
-      };
-    }
+    // Rule 2: Short command-like query (removed)
+    // NOTE: Slash commands are handled at the application/route layer, not intent system.
+    // Queries like "/help" or "/clear" should be intercepted before reaching orchestrator.
 
     // Rule 3: Document query but no documents → Add guidance
+    // NOTE: Uses V3 intent names (DOC_QA, DOC_SEARCH, DOC_SUMMARIZE, DOC_ANALYTICS)
     if (
       workspaceStats.docCount === 0 &&
-      (intent.primaryIntent === 'DOCUMENT_QNA' || intent.primaryIntent === 'SEARCH')
+      (intent.primaryIntent === 'DOC_QA' ||
+        intent.primaryIntent === 'DOC_SEARCH' ||
+        intent.primaryIntent === 'DOC_SUMMARIZE' ||
+        intent.primaryIntent === 'DOC_ANALYTICS')
     ) {
       return {
         ...intent,
@@ -112,6 +108,9 @@ class OverrideService {
   }
 }
 
-export const overrideService = new OverrideService();
+// Export class for DI container injection
 export { OverrideService };
+
+// Singleton for backward compatibility (prefer DI injection via constructor)
+export const overrideService = new OverrideService();
 export default overrideService;
