@@ -22,7 +22,7 @@ import KodaIntentEngineV3 from '../services/core/kodaIntentEngineV3.service';
 import IntentConfigService, { intentConfigService } from '../services/core/intentConfig.service';
 import KodaRetrievalEngineV3 from '../services/core/kodaRetrievalEngineV3.service';
 import { KodaHybridSearchService } from '../services/retrieval/kodaHybridSearch.service';
-import DynamicDocBoostService from '../services/retrieval/dynamicDocBoost.service';
+import { DynamicDocBoostService } from '../services/retrieval/dynamicDocBoost.service';
 import KodaAnswerEngineV3 from '../services/core/kodaAnswerEngineV3.service';
 import KodaFormattingPipelineV3Service from '../services/core/kodaFormattingPipelineV3.service';
 import KodaProductHelpServiceV3, { kodaProductHelpServiceV3 } from '../services/core/kodaProductHelpV3.service';
