@@ -9,12 +9,13 @@
 
 import prisma from '../config/database';
 import { generateConversationTitle } from './openai.service';
-import { kodaOrchestratorV3, OrchestratorRequest } from './core/kodaOrchestratorV3.service';
+import { OrchestratorRequest } from './core/kodaOrchestratorV3.service';
+import { getOrchestrator } from '../bootstrap/container';
 import { LanguageCode } from '../types/intentV3.types';
 import cacheService from './cache.service';
 
-// V3 Orchestrator instance (singleton)
-const orchestrator = kodaOrchestratorV3;
+// V3 Orchestrator - get from container (properly injected)
+const getOrchestratorInstance = () => getOrchestrator();
 
 // ============================================================================
 // Types
@@ -177,7 +178,7 @@ async function sendMessage(params: SendMessageParams): Promise<MessageResult> {
   };
 
   // Get AI response via V3 orchestrator
-  const response = await orchestrator.orchestrate(request);
+  const response = await getOrchestrator().orchestrate(request);
 
   // Save assistant message
   const assistantMessage = await prisma.message.create({
@@ -253,7 +254,7 @@ async function sendMessageStreaming(
   };
 
   // Get AI response via V3 orchestrator
-  const response = await orchestrator.orchestrate(request);
+  const response = await getOrchestrator().orchestrate(request);
 
   // Stream the response in chunks
   const words = response.answer.split(' ');

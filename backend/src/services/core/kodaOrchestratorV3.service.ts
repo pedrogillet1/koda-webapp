@@ -13,6 +13,8 @@ import { KodaProductHelpServiceV3, kodaProductHelpServiceV3 } from './kodaProduc
 import { KodaFormattingPipelineV3Service, kodaFormattingPipelineV3 } from './kodaFormattingPipelineV3.service';
 import KodaRetrievalEngineV3 from './kodaRetrievalEngineV3.service';
 import KodaAnswerEngineV3 from './kodaAnswerEngineV3.service';
+import prisma from '../../config/database';
+// Services are now injected via container.ts - no direct imports needed
 import {
   IntentName,
   LanguageCode,
@@ -42,42 +44,53 @@ export class KodaOrchestratorV3 {
   private readonly formattingPipeline: KodaFormattingPipelineV3Service;
   private readonly logger: any;
 
-  // Injected services (these would be actual service instances in production)
+  // Injected services - REQUIRED (from container.ts DI)
   private readonly retrievalEngine: any;
   private readonly answerEngine: any;
   private readonly documentSearch: any;
   private readonly userPreferences: any;
   private readonly conversationMemory: any;
   private readonly feedbackLogger: any;
+  private readonly analyticsEngine: any;
 
   constructor(
-    services?: {
-      intentEngine?: KodaIntentEngineV3;
-      fallbackConfig?: FallbackConfigService;
-      productHelp?: KodaProductHelpServiceV3;
-      formattingPipeline?: KodaFormattingPipelineV3Service;
-      retrievalEngine?: any;
-      answerEngine?: any;
+    services: {
+      intentEngine: KodaIntentEngineV3;
+      fallbackConfig: FallbackConfigService;
+      productHelp: KodaProductHelpServiceV3;
+      formattingPipeline: KodaFormattingPipelineV3Service;
+      retrievalEngine: any;
+      answerEngine: any;
       documentSearch?: any;
       userPreferences?: any;
       conversationMemory?: any;
       feedbackLogger?: any;
+      analyticsEngine?: any;
     },
     logger?: any
   ) {
-    this.intentEngine = services?.intentEngine || kodaIntentEngineV3;
-    this.fallbackConfig = services?.fallbackConfig || fallbackConfigService;
-    this.productHelp = services?.productHelp || kodaProductHelpServiceV3;
-    this.formattingPipeline = services?.formattingPipeline || kodaFormattingPipelineV3;
+    // CRITICAL: All core services MUST be provided (fail-fast pattern)
+    if (!services.intentEngine) throw new Error('[Orchestrator] intentEngine is required');
+    if (!services.fallbackConfig) throw new Error('[Orchestrator] fallbackConfig is required');
+    if (!services.productHelp) throw new Error('[Orchestrator] productHelp is required');
+    if (!services.formattingPipeline) throw new Error('[Orchestrator] formattingPipeline is required');
+    if (!services.retrievalEngine) throw new Error('[Orchestrator] retrievalEngine is required');
+    if (!services.answerEngine) throw new Error('[Orchestrator] answerEngine is required');
+
+    this.intentEngine = services.intentEngine;
+    this.fallbackConfig = services.fallbackConfig;
+    this.productHelp = services.productHelp;
+    this.formattingPipeline = services.formattingPipeline;
     this.logger = logger || console;
 
-    // Inject services
-    this.retrievalEngine = services?.retrievalEngine;
-    this.answerEngine = services?.answerEngine;
-    this.documentSearch = services?.documentSearch;
-    this.userPreferences = services?.userPreferences;
-    this.conversationMemory = services?.conversationMemory;
-    this.feedbackLogger = services?.feedbackLogger;
+    // Inject optional services (analytics, etc.)
+    this.retrievalEngine = services.retrievalEngine;
+    this.answerEngine = services.answerEngine;
+    this.documentSearch = services.documentSearch;
+    this.userPreferences = services.userPreferences;
+    this.conversationMemory = services.conversationMemory;
+    this.feedbackLogger = services.feedbackLogger;
+    this.analyticsEngine = services.analyticsEngine;
   }
 
   /**
@@ -256,6 +269,7 @@ export class KodaOrchestratorV3 {
         query: request.text,
         userId: request.userId,
         language,
+        intent: context.intent, // FIX: Pass intent for intent-aware retrieval
       });
 
       const answerResult = await this.answerEngine.generate({
@@ -281,11 +295,7 @@ export class KodaOrchestratorV3 {
       };
     }
 
-    // Fallback: Return placeholder response
-    return {
-      answer: 'Document Q&A processing is initializing. Please try again.',
-      formatted: 'Document Q&A processing is initializing. Please try again.',
-    };
+    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Document Q&A service is currently unavailable.');
   }
 
   /**
@@ -315,10 +325,7 @@ export class KodaOrchestratorV3 {
       };
     }
 
-    return {
-      answer: 'Analytics processing is initializing. Please try again.',
-      formatted: 'Analytics processing is initializing. Please try again.',
-    };
+    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Document Analytics service is currently unavailable.');
   }
 
   /**
@@ -361,10 +368,7 @@ export class KodaOrchestratorV3 {
       };
     }
 
-    return {
-      answer: 'Search processing is initializing. Please try again.',
-      formatted: 'Search processing is initializing. Please try again.',
-    };
+    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Document Search service is currently unavailable.');
   }
 
   /**
@@ -395,10 +399,7 @@ export class KodaOrchestratorV3 {
       };
     }
 
-    return {
-      answer: 'Summarization is initializing. Please try again.',
-      formatted: 'Summarization is initializing. Please try again.',
-    };
+    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Summarization service is currently unavailable.');
   }
 
   /**
@@ -426,16 +427,7 @@ export class KodaOrchestratorV3 {
       };
     }
 
-    const defaultResponses: Record<LanguageCode, string> = {
-      en: "I've noted your preference. This feature is being enhanced.",
-      pt: "Anotei sua preferência. Este recurso está sendo aprimorado.",
-      es: "He anotado tu preferencia. Esta función se está mejorando.",
-    };
-
-    return {
-      answer: defaultResponses[language] || defaultResponses['en'],
-      formatted: defaultResponses[language] || defaultResponses['en'],
-    };
+    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The User Preferences service is currently unavailable.');
   }
 
   /**
@@ -450,18 +442,20 @@ export class KodaOrchestratorV3 {
         text: request.text,
         language,
       });
+
+      const confirmationMessages: Record<LanguageCode, string> = {
+        en: "I'll remember that!",
+        pt: "Vou me lembrar disso!",
+        es: "¡Lo recordaré!",
+      };
+
+      return {
+        answer: confirmationMessages[language] || confirmationMessages['en'],
+        formatted: confirmationMessages[language] || confirmationMessages['en'],
+      };
     }
-
-    const confirmationMessages: Record<LanguageCode, string> = {
-      en: "I'll remember that!",
-      pt: "Vou me lembrar disso!",
-      es: "¡Lo recordaré!",
-    };
-
-    return {
-      answer: confirmationMessages[language] || confirmationMessages['en'],
-      formatted: confirmationMessages[language] || confirmationMessages['en'],
-    };
+    
+    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Conversation Memory service is currently unavailable.');
   }
 
   /**
@@ -483,16 +477,7 @@ export class KodaOrchestratorV3 {
       };
     }
 
-    const defaultResponses: Record<LanguageCode, string> = {
-      en: "I don't have any stored memories for you yet.",
-      pt: "Ainda não tenho memórias armazenadas para você.",
-      es: "Aún no tengo memorias almacenadas para ti.",
-    };
-
-    return {
-      answer: defaultResponses[language] || defaultResponses['en'],
-      formatted: defaultResponses[language] || defaultResponses['en'],
-    };
+    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Conversation Memory service is currently unavailable.');
   }
 
   /**
@@ -501,36 +486,28 @@ export class KodaOrchestratorV3 {
   private async handleAnswerRewrite(context: HandlerContext): Promise<IntentHandlerResponse> {
     const { request, language } = context;
 
-    if (this.conversationMemory && this.answerEngine) {
-      const lastAnswer = await this.conversationMemory.getLastAssistantMessage(
-        request.conversationId || request.userId
-      );
-
-      if (!lastAnswer) {
-        return this.buildFallbackResponse(context, 'AMBIGUOUS_QUESTION', 'What would you like me to rewrite?');
-      }
-
-      const rewritten = await this.answerEngine.rewrite({
-        originalAnswer: lastAnswer.text,
-        instruction: request.text,
-        language,
-      });
-
-      return {
-        answer: rewritten.text,
-        formatted: rewritten.text,
-      };
+    if (!this.conversationMemory || !this.answerEngine) {
+      return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Answer Rewrite service is currently unavailable.');
     }
 
-    const defaultResponses: Record<LanguageCode, string> = {
-      en: "I don't have a previous answer to rewrite. Could you ask me a new question?",
-      pt: "Não tenho uma resposta anterior para reescrever. Você poderia me fazer uma nova pergunta?",
-      es: "No tengo una respuesta anterior para reescribir. ¿Podrías hacerme una nueva pregunta?",
-    };
+    const lastAnswer = await this.conversationMemory.getLastAssistantMessage(
+      request.conversationId || request.userId
+    );
+
+    if (!lastAnswer) {
+      return this.buildFallbackResponse(context, 'AMBIGUOUS_QUESTION', 'What would you like me to rewrite?');
+    }
+
+    // TODO: The AnswerEngine should have a distinct `rewrite` method.
+    const rewritten = await this.answerEngine.rewrite({
+      originalAnswer: lastAnswer.text,
+      instruction: request.text,
+      language,
+    });
 
     return {
-      answer: defaultResponses[language] || defaultResponses['en'],
-      formatted: defaultResponses[language] || defaultResponses['en'],
+      answer: rewritten.text,
+      formatted: rewritten.text,
     };
   }
 
@@ -538,15 +515,64 @@ export class KodaOrchestratorV3 {
    * Handle ANSWER_EXPAND: Add more details
    */
   private async handleAnswerExpand(context: HandlerContext): Promise<IntentHandlerResponse> {
-    return this.handleAnswerRewrite(context); // Same logic
+    const { request, language } = context;
+
+    if (!this.conversationMemory || !this.answerEngine) {
+      return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Answer Expand service is currently unavailable.');
+    }
+
+    const lastAnswer = await this.conversationMemory.getLastAssistantMessage(
+      request.conversationId || request.userId
+    );
+
+    if (!lastAnswer) {
+      return this.buildFallbackResponse(context, 'AMBIGUOUS_QUESTION', 'What would you like me to expand on?');
+    }
+
+    // TODO: The AnswerEngine needs an `expand` method with appropriate logic.
+    const expanded = await this.answerEngine.expand({
+      originalAnswer: lastAnswer.text,
+      instruction: request.text,
+      language,
+    });
+
+    return {
+      answer: expanded.text,
+      formatted: expanded.text,
+    };
   }
 
   /**
    * Handle ANSWER_SIMPLIFY: Make simpler
    */
   private async handleAnswerSimplify(context: HandlerContext): Promise<IntentHandlerResponse> {
-    return this.handleAnswerRewrite(context); // Same logic
+    const { request, language } = context;
+
+    if (!this.conversationMemory || !this.answerEngine) {
+      return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Answer Simplify service is currently unavailable.');
+    }
+
+    const lastAnswer = await this.conversationMemory.getLastAssistantMessage(
+      request.conversationId || request.userId
+    );
+
+    if (!lastAnswer) {
+      return this.buildFallbackResponse(context, 'AMBIGUOUS_QUESTION', 'What would you like me to simplify?');
+    }
+
+    // TODO: The AnswerEngine needs a `simplify` method with appropriate logic.
+    const simplified = await this.answerEngine.simplify({
+      originalAnswer: lastAnswer.text,
+      instruction: request.text,
+      language,
+    });
+
+    return {
+      answer: simplified.text,
+      formatted: simplified.text,
+    };
   }
+
 
   /**
    * Handle FEEDBACK_POSITIVE: "Perfect", "Thanks"
@@ -677,16 +703,7 @@ export class KodaOrchestratorV3 {
       };
     }
 
-    const responses: Record<LanguageCode, string> = {
-      en: "I'm primarily designed to help with your documents. For general knowledge questions, I recommend using a search engine or general AI assistant.",
-      pt: "Fui projetado principalmente para ajudar com seus documentos. Para perguntas de conhecimento geral, recomendo usar um mecanismo de busca ou assistente de IA geral.",
-      es: "Estoy diseñado principalmente para ayudar con tus documentos. Para preguntas de conocimiento general, recomiendo usar un motor de búsqueda o un asistente de IA general.",
-    };
-
-    return {
-      answer: responses[language] || responses['en'],
-      formatted: responses[language] || responses['en'],
-    };
+    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The General Knowledge service is currently unavailable.');
   }
 
   /**
@@ -731,7 +748,7 @@ export class KodaOrchestratorV3 {
       };
     }
 
-    return this.handleGenericKnowledge(context);
+    return this.buildFallbackResponse(context, 'SERVICE_UNAVAILABLE', 'The Text Transform service is currently unavailable.');
   }
 
   /**
@@ -881,29 +898,48 @@ export class KodaOrchestratorV3 {
    * Check if user has documents
    */
   private async checkUserHasDocuments(userId: string): Promise<boolean> {
-    // Implementation would check database
-    // Placeholder for now - always return true to allow processing
-    return true;
+    const docCount = await prisma.document.count({
+      where: {
+        userId: userId,
+        status: 'completed',
+      },
+    });
+    return docCount > 0;
   }
 
   /**
    * Extract document reference from text
    */
   private async extractDocumentReference(text: string, userId: string): Promise<any> {
-    // Implementation would parse text and find document
-    // Placeholder for now
-    return null;
+    // A simple implementation: look for a document name in double quotes
+    const match = text.match(/"(.*?)"/);
+    if (!match) {
+      return null;
+    }
+
+    const docName = match[1];
+    if (!docName) {
+      return null;
+    }
+
+    // Find a document for the user that matches the extracted name
+    const document = await prisma.document.findFirst({
+      where: {
+        userId,
+        filename: {
+          contains: docName,
+          mode: 'insensitive',
+        },
+        status: 'completed',
+      },
+    });
+
+    return document;
   }
 }
 
-// Create singleton instances of core engines
-const retrievalEngine = new KodaRetrievalEngineV3();
-const answerEngine = new KodaAnswerEngineV3();
+// NOTE: Do NOT export singleton instance here!
+// Controllers MUST get the orchestrator from bootstrap/container.ts
+// This ensures proper dependency injection and fail-fast on missing services.
 
-// Singleton instance with injected services
-export const kodaOrchestratorV3 = new KodaOrchestratorV3({
-  retrievalEngine,
-  answerEngine,
-});
-
-export default kodaOrchestratorV3;
+export default KodaOrchestratorV3;

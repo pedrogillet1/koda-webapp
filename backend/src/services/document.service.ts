@@ -1086,6 +1086,11 @@ async function processDocumentWithTimeout(
               console.log(`✅ [CHUNKING] Created ${chunks.length} chunks with overlap + classification`);
             }
 
+            // 🛡️ GUARD: Fail if no chunks were produced (prevents "completed" documents with no searchable content)
+            if (chunks.length === 0) {
+              throw new Error(`Document produced 0 chunks - text extraction likely failed. Extracted text length: ${extractedText?.length || 0}`);
+            }
+
             // 🆕 Generate embeddings using OpenAI embedding service
             const texts = chunks.map(c => c.content);
             const embeddingResult = await embeddingService.default.generateBatchEmbeddings(texts);
@@ -1951,6 +1956,11 @@ async function processDocumentAsync(
               }));
 
               console.log(`✅ [CHUNKING-BG] Created ${chunks.length} chunks with overlap`);
+            }
+
+            // 🛡️ GUARD: Fail if no chunks were produced (prevents "completed" documents with no searchable content)
+            if (chunks.length === 0) {
+              throw new Error(`Document produced 0 chunks - text extraction likely failed. Extracted text length: ${extractedText?.length || 0}`);
             }
 
             // 🆕 Generate embeddings using OpenAI embedding service

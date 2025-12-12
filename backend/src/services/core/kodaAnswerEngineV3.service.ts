@@ -267,14 +267,17 @@ export class KodaAnswerEngineV3 {
 
   /**
    * Build context string from documents.
+   * NOTE: Do NOT truncate content here - retrieval engine already handles token budgeting.
+   * Truncating here would waste the careful budgeting done upstream.
    */
   private buildContext(documents: any[]): string {
     return documents
-      .slice(0, 5) // Limit to top 5 documents
+      .slice(0, 10) // Safety limit - retrieval typically returns fewer
       .map((doc, idx) => {
         const content = doc.content || doc.text || '';
         const name = doc.documentName || doc.filename || `Document ${idx + 1}`;
-        return `[${name}]\n${content.substring(0, 1000)}`;
+        const page = doc.pageNumber ? ` (Page ${doc.pageNumber})` : '';
+        return `[${name}${page}]\n${content}`; // Full content - already budgeted by retrieval
       })
       .join('\n\n---\n\n');
   }

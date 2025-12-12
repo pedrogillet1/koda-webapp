@@ -20,6 +20,7 @@ import { initPromptConfig } from './services/core/promptConfig.service';
 import { initTokenBudgetEstimator } from './services/utils/tokenBudgetEstimator.service';
 import { initContextWindowBudgeting } from './services/utils/contextWindowBudgeting.service';
 import { intentConfigService } from './services/core/intentConfig.service';
+import { initializeContainer } from './bootstrap/container';
 // ============================================================================
 // Global Error Handlers
 // ============================================================================
@@ -186,6 +187,10 @@ async function startServer() {
     // 4. Initialize intent config (loads intent patterns)
     await intentConfigService.loadPatterns();
     console.log('[Server] IntentConfig initialized');
+
+    // 5. Initialize service container (CRITICAL - wires all services with DI)
+    initializeContainer();
+    console.log('[Server] ✅ Service container initialized with proper DI');
 
     // Test database connection
     await prisma.$connect();

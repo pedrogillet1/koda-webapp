@@ -23,14 +23,21 @@ import prisma from '../config/database';
 import cacheService from '../services/cache.service';
 import { generateConversationTitle } from '../services/openai.service';
 
-// V3 Services
-import { KodaOrchestratorV3, kodaOrchestratorV3, OrchestratorRequest } from '../services/core/kodaOrchestratorV3.service';
-import { KodaIntentEngineV3, kodaIntentEngineV3 } from '../services/core/kodaIntentEngineV3.service';
+// V3 Services - Get from container (proper DI)
+import { getContainer } from '../bootstrap/container';
+import { KodaOrchestratorV3, OrchestratorRequest } from '../services/core/kodaOrchestratorV3.service';
+import { KodaIntentEngineV3 } from '../services/core/kodaIntentEngineV3.service';
 import { LanguageCode } from '../types/intentV3.types';
 
-// Use singleton instances
-const orchestrator = kodaOrchestratorV3;
-const intentEngine = kodaIntentEngineV3;
+// IMPORTANT: Get services from container (not singleton imports)
+// This ensures proper dependency injection
+function getOrchestrator(): KodaOrchestratorV3 {
+  return getContainer().getOrchestrator();
+}
+
+function getIntentEngine(): KodaIntentEngineV3 {
+  return getContainer().getIntentEngine();
+}
 
 // ============================================================================
 // Helper Functions
@@ -118,7 +125,7 @@ export const queryWithRAG = async (req: Request, res: Response): Promise<void> =
     };
 
     // Call V3 orchestrator
-    const response = await orchestrator.orchestrate(request);
+    const response = await getOrchestrator().orchestrate(request);
 
     console.log(`[RAG V3] Intent: ${response.metadata?.intent}, Time: ${Date.now() - startTime}ms`);
 
@@ -232,7 +239,7 @@ export const answerFollowUp = async (req: Request, res: Response): Promise<void>
       conversationId,
     };
 
-    const response = await orchestrator.orchestrate(request);
+    const response = await getOrchestrator().orchestrate(request);
 
     res.status(200).json({
       answer: response.answer,
@@ -291,7 +298,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     };
 
     // Get response
-    const response = await orchestrator.orchestrate(request);
+    const response = await getOrchestrator().orchestrate(request);
 
     // Stream the response in chunks
     const words = response.answer.split(' ');
@@ -353,7 +360,7 @@ export const classifyIntent = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const intent = await intentEngine.predict({
+    const intent = await getIntentEngine().predict({
       text: query,
       language: (language as LanguageCode) || 'en',
       context: { userId: userId || 'anonymous' },
@@ -389,7 +396,7 @@ export const getContext = async (req: Request, res: Response) => {
     }
 
     // Classify intent using V3
-    const intent = await intentEngine.predict({
+    const intent = await getIntentEngine().predict({
       text: query,
       language: ((language as string) || 'en') as LanguageCode,
       context: { userId },
