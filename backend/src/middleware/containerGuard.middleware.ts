@@ -59,4 +59,36 @@ export function isContainerReady(): boolean {
   }
 }
 
+/**
+ * Assert that container is initialized (throws if not).
+ * Use in health checks or startup validation for strict mode.
+ */
+export function assertContainerReady(): void {
+  if (!isContainerReady()) {
+    throw new Error('CONTAINER_NOT_INITIALIZED: Service container must be initialized before use');
+  }
+}
+
+/**
+ * Ensure container is initialized for alternate entrypoints (e.g., tests).
+ * Call this at the start of test files that import app.ts directly.
+ *
+ * @example
+ * // In test file:
+ * import { ensureContainerInitialized } from '../middleware/containerGuard.middleware';
+ * beforeAll(async () => {
+ *   await ensureContainerInitialized();
+ * });
+ */
+export async function ensureContainerInitialized(): Promise<void> {
+  if (isContainerReady()) {
+    return; // Already initialized
+  }
+
+  // Dynamically import to avoid circular dependencies
+  const { initializeContainer } = await import('../bootstrap/container');
+  await initializeContainer();
+  console.log('[ContainerGuard] Container initialized for alternate entrypoint');
+}
+
 export default containerGuard;

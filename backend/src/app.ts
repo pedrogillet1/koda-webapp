@@ -48,6 +48,20 @@ import { auditLog } from './middleware/auditLog.middleware';
 import { initSentry, sentryErrorHandler } from './config/sentry.config';
 import containerGuard from './middleware/containerGuard.middleware';
 
+/**
+ * ALTERNATE ENTRYPOINT WARNING:
+ * 
+ * If importing app.ts directly (e.g., in tests) without going through server.ts,
+ * the service container will NOT be initialized. The containerGuard middleware
+ * will return 503 for any /api/* requests until initialized.
+ * 
+ * For tests, use:
+ *   import { ensureContainerInitialized } from './middleware/containerGuard.middleware';
+ *   beforeAll(async () => await ensureContainerInitialized());
+ * 
+ * For production, always start via server.ts which calls initializeContainer().
+ */
+
 const app: Application = express();
 
 // Initialize Sentry (MUST be first, before other middleware)
