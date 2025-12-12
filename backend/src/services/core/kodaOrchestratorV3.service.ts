@@ -567,32 +567,31 @@ export class KodaOrchestratorV3 {
       language,
     });
 
-    // Forward all content events from answer engine
+    // FIXED: Manually iterate to capture generator return value
+    // (for await doesn't give access to return value after completion)
     let fullAnswer = '';
-    for await (const event of answerStream) {
+    let tokensUsed = 0;
+    let iterResult = await answerStream.next();
+
+    while (!iterResult.done) {
+      const event = iterResult.value;
       yield event;
+
       if (event.type === 'content') {
         fullAnswer += (event as ContentEvent).content;
       }
+
+      iterResult = await answerStream.next();
     }
 
-    // Get the final result from the generator
-    const finalResult = await answerStream.next();
-    let result: StreamingResult;
-    if (finalResult.done && finalResult.value) {
-      result = finalResult.value;
-      fullAnswer = result.fullAnswer || fullAnswer;
-    } else {
-      result = {
-        fullAnswer,
-        intent: intent.primaryIntent,
-        confidence: intent.confidence,
-        documentsUsed: retrievalResult.chunks.length,
-        processingTime: Date.now() - startTime,
-      };
+    // Capture generator return value (when iterResult.done === true)
+    const generatorReturn = iterResult.value as StreamingResult | undefined;
+    if (generatorReturn) {
+      fullAnswer = generatorReturn.fullAnswer || fullAnswer;
+      tokensUsed = generatorReturn.tokensUsed || 0;
     }
 
-    // Extract citations from retrieval chunks and yield citation event
+    // Extract citations from retrieval chunks
     const citations = this.extractCitationsFromChunks(retrievalResult.chunks);
     if (citations.length > 0) {
       yield {
@@ -601,9 +600,28 @@ export class KodaOrchestratorV3 {
       } as StreamEvent;
     }
 
-    // Update result with final processing time
-    result.processingTime = Date.now() - startTime;
-    result.documentsUsed = retrievalResult.chunks.length;
+    // Build final result with all metadata
+    const result: StreamingResult = {
+      fullAnswer,
+      intent: intent.primaryIntent,
+      confidence: intent.confidence,
+      documentsUsed: retrievalResult.chunks.length,
+      tokensUsed,
+      processingTime: Date.now() - startTime,
+      citations,
+    };
+
+    // Emit single done event with full metadata
+    yield {
+      type: 'done',
+      fullAnswer,
+      intent: result.intent,
+      confidence: result.confidence,
+      documentsUsed: result.documentsUsed,
+      tokensUsed: result.tokensUsed,
+      processingTime: result.processingTime,
+      citations,
+    } as StreamEvent;
 
     return result;
   }

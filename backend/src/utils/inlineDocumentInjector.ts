@@ -1,14 +1,21 @@
 /**
  * ============================================================================
- * ENHANCED INLINE DOCUMENT INJECTOR
+ * INLINE DOCUMENT INJECTOR (LEGACY - TRIPLE-COLON FORMAT)
  * ============================================================================
  *
- * PURPOSE: Generate inline document/folder/load-more markers for all query types
+ * @deprecated This module uses the LEGACY triple-colon (:::) marker format.
+ * Prefer using markerUtils.ts for the canonical double-colon (::) format:
+ *   - markerUtils.createDocMarker() for simple markers
+ *   - kodaMarkerGenerator.service.ts for rich metadata markers
  *
- * MARKER FORMATS:
+ * LEGACY MARKER FORMATS (triple-colon - deprecated):
  * - Document: {{DOC:::id:::filename:::mimeType:::fileSize:::folderPath}}
  * - Folder: {{FOLDER:::id:::folderName:::fileCount:::folderPath}}
  * - Load More: {{LOADMORE:::remainingCount:::totalCount:::loadedCount}}
+ *
+ * CANONICAL MARKER FORMATS (double-colon - preferred):
+ * - Document: {{DOC::id=X::name="Y"::ctx=Z}}
+ * - Load More: {{LOAD_MORE::total=X::shown=Y::remaining=Z}}
  *
  * QUERY TYPES:
  * - show_file: "show me trabalho projeto"
@@ -120,8 +127,9 @@ export function detectQueryType(query: string): QueryType {
  */
 
 /**
- * Generate inline document marker
+ * Generate inline document marker (LEGACY triple-colon format)
  * Format: {{DOC:::id:::filename:::mimeType:::fileSize:::folderPath}}
+ * @deprecated Use markerUtils.createDocMarker() instead
  */
 export function createInlineDocumentMarker(doc: InlineDocument): string {
   const parts = [
@@ -137,8 +145,9 @@ export function createInlineDocumentMarker(doc: InlineDocument): string {
 }
 
 /**
- * Generate inline folder marker (NEW)
+ * Generate inline folder marker (LEGACY triple-colon format)
  * Format: {{FOLDER:::id:::folderName:::fileCount:::folderPath}}
+ * @deprecated No canonical replacement yet - folder markers not in canonical format
  */
 export function createInlineFolderMarker(folder: InlineFolder): string {
   const parts = [
@@ -153,8 +162,9 @@ export function createInlineFolderMarker(folder: InlineFolder): string {
 }
 
 /**
- * Generate load more marker (NEW)
+ * Generate load more marker (LEGACY triple-colon format)
  * Format: {{LOADMORE:::remainingCount:::totalCount:::loadedCount}}
+ * @deprecated Use markerUtils.createLoadMoreMarker() instead
  */
 export function createLoadMoreMarker(data: LoadMoreData): string {
   const parts = [
@@ -574,7 +584,8 @@ export function injectInlineDocuments(
 }
 
 /**
- * Parse inline document markers from response text (LEGACY)
+ * Parse inline document markers from response text (LEGACY triple-colon format)
+ * @deprecated Use kodaMarkerGenerator.parseDocumentMarker() for canonical format
  */
 export function parseInlineDocuments(text: string): {
   cleanText: string;
@@ -601,7 +612,8 @@ export function parseInlineDocuments(text: string): {
 }
 
 /**
- * Check if response contains inline document markers (LEGACY)
+ * Check if response contains inline document markers (LEGACY triple-colon format)
+ * @deprecated Use markerUtils.containsMarkers() instead
  */
 export function hasInlineDocuments(text: string): boolean {
   return /\{\{DOC:::/g.test(text);

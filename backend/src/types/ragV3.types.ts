@@ -318,8 +318,8 @@ export type RankedChunks = RetrievedChunk[];
  */
 export interface DocumentSearchParams {
   userId: string;
-  limit: number;
-  offset: number;
+  limit?: number;    // Default: 20
+  offset?: number;   // Default: 0
   filters?: {
     folderId?: string;
     tagId?: string;

@@ -166,14 +166,11 @@ export class KodaFormattingPipelineV3Service {
   /**
    * Insert document markers at safe locations
    * Uses ID-based approach (no global filename replace)
+   *
+   * IMPORTANT: Safe points are recomputed after each insertion to account
+   * for position shifts caused by previous insertions.
    */
   private insertDocumentMarkers(text: string, documents: DocumentReference[]): string {
-    // Build document registry (id → data)
-    const docRegistry = new Map<string, DocumentReference>();
-    for (const doc of documents) {
-      docRegistry.set(doc.id, doc);
-    }
-
     // Strategy: Insert markers after first mention of each document
     // This is safer than global replace and respects context
 
@@ -185,18 +182,19 @@ export class KodaFormattingPipelineV3Service {
         continue;
       }
 
-      // Find first safe mention of this document's filename
+      // Find first safe mention of this document's filename in CURRENT result
+      // (not original text, since positions shift after each insertion)
       const filename = doc.filename;
       const filenameRegex = new RegExp(this.escapeRegex(filename), 'gi');
-      
+
       let match;
-      while ((match = filenameRegex.exec(text)) !== null) {
+      while ((match = filenameRegex.exec(result)) !== null) {
         const position = match.index + match[0].length;
-        
-        // Check if this position is safe
-        const safePoints = getSafeInsertionPoints(text);
+
+        // Recompute safe points on current result (after previous insertions)
+        const safePoints = getSafeInsertionPoints(result);
         const isSafe = safePoints.includes(position);
-        
+
         if (isSafe) {
           // Insert marker after the filename
           const marker = createDocMarker({
@@ -204,7 +202,7 @@ export class KodaFormattingPipelineV3Service {
             name: filename,
             ctx: doc.context,
           });
-          
+
           result = result.slice(0, position) + ' ' + marker + result.slice(position);
           inserted.add(doc.id);
           break;
@@ -392,6 +390,7 @@ export class KodaFormattingPipelineV3Service {
   }
 }
 
-// Singleton instance
+// Class is exported via 'export class' above
+// Singleton for backward compatibility (prefer DI injection via constructor)
 export const kodaFormattingPipelineV3 = new KodaFormattingPipelineV3Service();
 export default kodaFormattingPipelineV3;

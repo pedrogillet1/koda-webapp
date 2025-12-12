@@ -23,6 +23,8 @@ import type {
 import embeddingService from '../embedding.service';
 import pineconeService from '../pinecone.service';
 import { kodaHybridSearchService } from '../retrieval/kodaHybridSearch.service';
+import { dynamicDocBoostService } from '../retrieval/dynamicDocBoost.service';
+import { kodaRetrievalRankingService } from '../retrieval/kodaRetrievalRanking.service';
 import {
   getTokenBudgetEstimator,
   getContextWindowBudgeting,

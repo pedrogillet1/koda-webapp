@@ -123,6 +123,12 @@ export interface StreamingResult {
   tokensUsed?: number;
   processingTime: number;
   wasTruncated?: boolean;
+  citations?: Array<{
+    documentId: string;
+    documentName: string;
+    pageNumber?: number;
+    snippet?: string;
+  }>;
 }
 
 // ============================================================================

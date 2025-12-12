@@ -298,7 +298,8 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     const stream = getOrchestrator().orchestrateStream(request);
 
     let fullAnswer = '';
-    let streamResult: any;
+    let streamResult: any = {};
+    let citations: any[] = [];
 
     // Handle client disconnect (abort)
     let aborted = false;
@@ -307,11 +308,10 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       console.log('[RAG V3] Client disconnected, aborting stream');
     });
 
-    // FIXED: Consume generator ONCE using manual iteration to capture return value
-    // (for await doesn't give access to return value after completion)
+    // FIXED: Consume generator with manual iteration to capture return value
+    // Forward all events EXCEPT done (we'll send a combined done with message IDs)
     let iterResult = await stream.next();
     while (!iterResult.done) {
-      // Check for abort
       if (aborted) {
         console.log('[RAG V3] Stream aborted by client');
         break;
@@ -319,27 +319,50 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
 
       const event = iterResult.value;
 
-      // Write each event immediately to SSE
-      res.write(`data: ${JSON.stringify(event)}\n\n`);
-
       // Accumulate content for saving
       if (event.type === 'content') {
         fullAnswer += (event as any).content;
+        // Forward content events immediately
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      } else if (event.type === 'citation') {
+        // Capture and forward citation events
+        citations = (event as any).citations || [];
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      } else if (event.type === 'done') {
+        // Capture done event metadata but DON'T forward (we'll send combined done later)
+        const doneEvent = event as any;
+        fullAnswer = doneEvent.fullAnswer || fullAnswer;
+        streamResult = {
+          intent: doneEvent.intent,
+          confidence: doneEvent.confidence,
+          documentsUsed: doneEvent.documentsUsed,
+          tokensUsed: doneEvent.tokensUsed,
+          processingTime: doneEvent.processingTime,
+          citations: doneEvent.citations || citations,
+        };
+      } else {
+        // Forward other events (intent, retrieving, generating, etc.)
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
       }
 
-      // Capture result data from done event if emitted
-      if (event.type === 'done' && (event as any).fullAnswer) {
-        fullAnswer = (event as any).fullAnswer;
-      }
-
-      // Get next iteration
       iterResult = await stream.next();
     }
 
-    // Capture the generator return value (when done: true)
+    // Also capture generator return value as fallback
     if (iterResult.done && iterResult.value) {
-      streamResult = iterResult.value;
-      fullAnswer = streamResult.fullAnswer || fullAnswer;
+      const returnValue = iterResult.value;
+      fullAnswer = returnValue.fullAnswer || fullAnswer;
+      if (!streamResult.intent) {
+        streamResult = {
+          ...streamResult,
+          intent: returnValue.intent,
+          confidence: returnValue.confidence,
+          documentsUsed: returnValue.documentsUsed,
+          tokensUsed: returnValue.tokensUsed,
+          processingTime: returnValue.processingTime,
+          citations: returnValue.citations || citations,
+        };
+      }
     }
 
     // Don't save if aborted
@@ -348,7 +371,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       return;
     }
 
-    // Save messages to database
+    // Save messages to database with FULL metadata
     const userMessage = await prisma.message.create({
       data: {
         conversationId,
@@ -363,21 +386,29 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         role: 'assistant',
         content: fullAnswer,
         metadata: JSON.stringify({
-          primaryIntent: streamResult?.intent,
-          confidence: streamResult?.confidence,
-          processingTime: streamResult?.processingTime,
+          primaryIntent: streamResult.intent,
+          confidence: streamResult.confidence,
+          processingTime: streamResult.processingTime,
+          documentsUsed: streamResult.documentsUsed,
+          tokensUsed: streamResult.tokensUsed,
+          citations: streamResult.citations || citations,
         }),
       },
     });
 
-    // Send done event with message IDs
+    // Send SINGLE combined done event with message IDs and full metadata
     res.write(
       `data: ${JSON.stringify({
         type: 'done',
         messageId: userMessage.id,
         assistantMessageId: assistantMessage.id,
         conversationId,
-        processingTime: streamResult?.processingTime,
+        fullAnswer,
+        intent: streamResult.intent,
+        confidence: streamResult.confidence,
+        processingTime: streamResult.processingTime,
+        documentsUsed: streamResult.documentsUsed,
+        tokensUsed: streamResult.tokensUsed,
       })}\n\n`
     );
 

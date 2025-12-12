@@ -9,8 +9,8 @@
  * USER SEES: **file.pdf** (bold, optionally underlined based on context)
  * MARKER CONTAINS: Full metadata for frontend parsing
  * 
- * VERSION: 3.0.0
- * DATE: 2025-12-11
+ * VERSION: 3.1.0
+ * DATE: 2025-12-12
  * LOCATION: backend/src/utils/kodaMarkerGenerator.service.ts
  * 
  * DESIGN RATIONALE:
@@ -22,6 +22,11 @@
  */
 
 import type { DocumentMarker, LoadMoreMarker } from '../types/ragV3.types';
+import {
+  encodeMarkerValue,
+  decodeMarkerValue,
+  createLoadMoreMarker as createLoadMoreMarkerBase,
+} from '../services/utils/markerUtils';
 
 /**
  * Document info for marker generation
@@ -125,7 +130,8 @@ class KodaMarkerGeneratorService {
    */
   generateLoadMoreMarker(total: number, shown: number): string {
     const remaining = total - shown;
-    return `{{LOAD_MORE::total=${total}::shown=${shown}::remaining=${remaining}}}`;
+    // Delegate to markerUtils for consistent format
+    return createLoadMoreMarkerBase({ total, shown, remaining });
   }
 
   /**
@@ -321,9 +327,8 @@ class KodaMarkerGeneratorService {
    * @returns Escaped value
    */
   private escapeMarkerValue(value: string): string {
-    return value
-      .replace(/"/g, '\\"')   // Escape quotes
-      .replace(/::/g, '::');  // Keep :: as is (it's our delimiter)
+    // Use URL-encoding for consistent escaping (delegates to markerUtils)
+    return encodeMarkerValue(value);
   }
 
   /**
@@ -335,11 +340,8 @@ class KodaMarkerGeneratorService {
   private unescapeMarkerValue(value: string): string {
     // Remove surrounding quotes if present
     let unescaped = value.replace(/^"(.*)"$/, '$1');
-    
-    // Unescape quotes
-    unescaped = unescaped.replace(/\\"/g, '"');
-    
-    return unescaped;
+    // Use URL-decoding for consistent unescaping (delegates to markerUtils)
+    return decodeMarkerValue(unescaped);
   }
 
   /**
@@ -406,8 +408,12 @@ class KodaMarkerGeneratorService {
 }
 
 // ============================================================================
-// EXPORT SINGLETON
+// EXPORTS
 // ============================================================================
 
+// Export class for DI container injection
+export { KodaMarkerGeneratorService };
+
+// Singleton for backward compatibility (prefer DI injection)
 export const kodaMarkerGenerator = new KodaMarkerGeneratorService();
 export default kodaMarkerGenerator;

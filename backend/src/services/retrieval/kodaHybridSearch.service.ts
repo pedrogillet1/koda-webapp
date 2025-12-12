@@ -10,6 +10,7 @@
  */
 
 import prisma from '../../config/database';  // FIXED: Use shared Prisma client
+import { Prisma } from '@prisma/client';  // For parameterized queries
 import pineconeService from '../pinecone.service';
 import embeddingService from '../embedding.service';
 import { RetrievedChunk, RetrievalFilters } from '../../types/ragV3.types';
@@ -140,7 +141,7 @@ export class KodaHybridSearchService {
    *
    * FIXES:
    * - Uses chunkIndex to compute canonical chunkId (documentId-chunkIndex)
-   * - Parameterized query for document IDs (no SQL injection)
+   * - SECURITY: Uses Prisma.sql tagged template for parameterized queries (no SQL injection)
    * - Uses shared Prisma client
    */
   private async bm25Search(
@@ -150,53 +151,52 @@ export class KodaHybridSearchService {
     topK: number
   ): Promise<RetrievedChunk[]> {
     try {
-      const sanitizedQuery = query.trim().replace(/'/g, "''");
+      // SECURITY: Query text is properly parameterized via Prisma.sql - no manual escaping needed
+      const queryText = query.trim();
 
-      // FIXED: Use parameterized query for document IDs to prevent SQL injection
+      // Get document filter
       const documentIds = filters.documentIds || [];
       const hasDocFilter = documentIds.length > 0;
 
-      // Build the query with proper parameterization
-      // Note: Using $queryRaw with Prisma.sql for type-safe parameterization
+      // FIXED: Use Prisma.sql tagged template for type-safe parameterized queries
+      // This prevents SQL injection by properly escaping all parameters
       let results: any[];
 
       if (hasDocFilter) {
-        // With document filter - use parameterized IN clause
-        const rawQuery = `
+        // With document filter - use parameterized query with Prisma.sql
+        results = await prisma.$queryRaw<any[]>`
           SELECT
             dc."documentId",
             dc."chunkIndex",
             dc.text as content,
             dc.page as "pageNumber",
             d.filename as "documentName",
-            ts_rank_cd(to_tsvector('simple', dc.text), plainto_tsquery('simple', $1)) AS bm25_score
+            ts_rank_cd(to_tsvector('simple', dc.text), plainto_tsquery('simple', ${queryText})) AS bm25_score
           FROM document_chunks dc
           INNER JOIN documents d ON dc."documentId" = d.id
-          WHERE d."userId" = $2
-            AND dc."documentId" = ANY($3::text[])
-            AND to_tsvector('simple', dc.text) @@ plainto_tsquery('simple', $1)
+          WHERE d."userId" = ${userId}
+            AND dc."documentId" = ANY(${documentIds}::text[])
+            AND to_tsvector('simple', dc.text) @@ plainto_tsquery('simple', ${queryText})
           ORDER BY bm25_score DESC
-          LIMIT $4
+          LIMIT ${topK}
         `;
-        results = await prisma.$queryRawUnsafe(rawQuery, sanitizedQuery, userId, documentIds, topK);
       } else {
-        // Without document filter
-        const rawQuery = `
+        // Without document filter - use parameterized query with Prisma.sql
+        results = await prisma.$queryRaw<any[]>`
           SELECT
             dc."documentId",
             dc."chunkIndex",
             dc.text as content,
             dc.page as "pageNumber",
             d.filename as "documentName",
-            ts_rank_cd(to_tsvector('simple', dc.text), plainto_tsquery('simple', $1)) AS bm25_score
+            ts_rank_cd(to_tsvector('simple', dc.text), plainto_tsquery('simple', ${queryText})) AS bm25_score
           FROM document_chunks dc
           INNER JOIN documents d ON dc."documentId" = d.id
-          WHERE d."userId" = $2
-            AND to_tsvector('simple', dc.text) @@ plainto_tsquery('simple', $1)
+          WHERE d."userId" = ${userId}
+            AND to_tsvector('simple', dc.text) @@ plainto_tsquery('simple', ${queryText})
           ORDER BY bm25_score DESC
-          LIMIT $3
+          LIMIT ${topK}
         `;
-        results = await prisma.$queryRawUnsafe(rawQuery, sanitizedQuery, userId, topK);
       }
 
       // FIXED: Compute canonical chunkId using documentId-chunkIndex
