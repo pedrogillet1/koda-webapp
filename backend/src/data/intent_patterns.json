@@ -6,364 +6,1439 @@
     "priority": 80,
     "description": "Questions about document content",
     "keywords": {
-      "en": ["what does", "according to", "based on", "in the document", "in the file", "says about", "mention", "explain", "describe", "tell me about", "extract", "quote", "what is", "what are", "who", "when", "where", "why", "how"],
-      "pt": ["o que diz", "de acordo com", "baseado em", "no documento", "no arquivo", "fala sobre", "menciona", "explicar", "descrever", "me diga sobre", "extrair", "citar", "o que é", "quais são", "quem", "quando", "onde", "por que", "como"],
-      "es": ["qué dice", "según", "basado en", "en el documento", "en el archivo", "habla sobre", "menciona", "explicar", "describir", "dime sobre", "extraer", "citar", "qué es", "cuáles son", "quién", "cuándo", "dónde", "por qué", "cómo"]
+      "en": [
+        "what does",
+        "according to",
+        "based on",
+        "in the document",
+        "in the file",
+        "says about",
+        "mention",
+        "explain",
+        "describe",
+        "tell me about",
+        "extract",
+        "quote",
+        "what is",
+        "what are",
+        "who",
+        "when",
+        "where",
+        "why",
+        "how"
+      ],
+      "pt": [
+        "o que diz",
+        "de acordo com",
+        "baseado em",
+        "no documento",
+        "no arquivo",
+        "fala sobre",
+        "menciona",
+        "explicar",
+        "descrever",
+        "me diga sobre",
+        "extrair",
+        "citar",
+        "o que é",
+        "quais são",
+        "quem",
+        "quando",
+        "onde",
+        "por que",
+        "como"
+      ],
+      "es": [
+        "qué dice",
+        "según",
+        "basado en",
+        "en el documento",
+        "en el archivo",
+        "habla sobre",
+        "menciona",
+        "explicar",
+        "describir",
+        "dime sobre",
+        "extraer",
+        "citar",
+        "qué es",
+        "cuáles son",
+        "quién",
+        "cuándo",
+        "dónde",
+        "por qué",
+        "cómo"
+      ]
     },
     "patterns": {
-      "en": ["what does .+ say about", "according to .+", "in .+ (document|file|contract)", "extract .+ from", "what is .+ in (the|my)"],
-      "pt": ["o que .+ diz sobre", "de acordo com .+", "no .+ (documento|arquivo|contrato)", "extrair .+ de"],
-      "es": ["qué .+ dice sobre", "según .+", "en .+ (documento|archivo|contrato)", "extraer .+ de"]
+      "en": [
+        "what does .+ say about",
+        "according to .+",
+        "in .+ (document|file|contract)",
+        "extract .+ from",
+        "what is .+ in (the|my)"
+      ],
+      "pt": [
+        "o que .+ diz sobre",
+        "de acordo com .+",
+        "no .+ (documento|arquivo|contrato)",
+        "extrair .+ de"
+      ],
+      "es": [
+        "qué .+ dice sobre",
+        "según .+",
+        "en .+ (documento|archivo|contrato)",
+        "extraer .+ de"
+      ]
     }
   },
   "DOC_ANALYTICS": {
     "priority": 75,
     "description": "Analytics and statistics about documents",
     "keywords": {
-      "en": ["how many", "count", "total", "number of", "statistics", "stats", "analytics", "metrics", "documents do i have", "files do i have"],
-      "pt": ["quantos", "quantas", "contagem", "total", "número de", "estatísticas", "métricas", "documentos eu tenho", "arquivos eu tenho"],
-      "es": ["cuántos", "cuántas", "conteo", "total", "número de", "estadísticas", "métricas", "documentos tengo", "archivos tengo"]
+      "en": [
+        "how many",
+        "count",
+        "total",
+        "number of",
+        "statistics",
+        "stats",
+        "analytics",
+        "metrics",
+        "documents do i have",
+        "files do i have"
+      ],
+      "pt": [
+        "quantos",
+        "quantas",
+        "contagem",
+        "total",
+        "número de",
+        "estatísticas",
+        "métricas",
+        "documentos eu tenho",
+        "arquivos eu tenho"
+      ],
+      "es": [
+        "cuántos",
+        "cuántas",
+        "conteo",
+        "total",
+        "número de",
+        "estadísticas",
+        "métricas",
+        "documentos tengo",
+        "archivos tengo"
+      ]
     },
     "patterns": {
-      "en": ["how many (documents|files|contracts)", "count (all|my) (documents|files)", "what is the total"],
-      "pt": ["quantos (documentos|arquivos|contratos)", "contar (todos|meus) (documentos|arquivos)"],
-      "es": ["cuántos (documentos|archivos|contratos)", "contar (todos|mis) (documentos|archivos)"]
+      "en": [
+        "how many (documents|files|contracts)",
+        "count (all|my) (documents|files)",
+        "what is the total"
+      ],
+      "pt": [
+        "quantos (documentos|arquivos|contratos)",
+        "contar (todos|meus) (documentos|arquivos)"
+      ],
+      "es": [
+        "cuántos (documentos|archivos|contratos)",
+        "contar (todos|mis) (documentos|archivos)"
+      ]
     }
   },
   "DOC_MANAGEMENT": {
     "priority": 70,
     "description": "Document management operations",
     "keywords": {
-      "en": ["delete", "remove", "rename", "move", "organize", "create folder", "manage", "archive", "restore"],
-      "pt": ["deletar", "remover", "renomear", "mover", "organizar", "criar pasta", "gerenciar", "arquivar", "restaurar"],
-      "es": ["eliminar", "borrar", "renombrar", "mover", "organizar", "crear carpeta", "gestionar", "archivar", "restaurar"]
+      "en": [
+        "delete",
+        "remove",
+        "rename",
+        "move",
+        "organize",
+        "create folder",
+        "manage",
+        "archive",
+        "restore"
+      ],
+      "pt": [
+        "deletar",
+        "remover",
+        "renomear",
+        "mover",
+        "organizar",
+        "criar pasta",
+        "gerenciar",
+        "arquivar",
+        "restaurar"
+      ],
+      "es": [
+        "eliminar",
+        "borrar",
+        "renombrar",
+        "mover",
+        "organizar",
+        "crear carpeta",
+        "gestionar",
+        "archivar",
+        "restaurar"
+      ]
     },
     "patterns": {
-      "en": ["(delete|remove|rename|move) (the|my|this) (document|file)", "create (a |)folder", "organize my (documents|files)"],
-      "pt": ["(deletar|remover|renomear|mover) (o|meu|este) (documento|arquivo)", "criar (uma |)pasta"],
-      "es": ["(eliminar|borrar|renombrar|mover) (el|mi|este) (documento|archivo)", "crear (una |)carpeta"]
+      "en": [
+        "(delete|remove|rename|move) (the|my|this) (document|file)",
+        "create (a |)folder",
+        "organize my (documents|files)"
+      ],
+      "pt": [
+        "(deletar|remover|renomear|mover) (o|meu|este) (documento|arquivo)",
+        "criar (uma |)pasta"
+      ],
+      "es": [
+        "(eliminar|borrar|renombrar|mover) (el|mi|este) (documento|archivo)",
+        "crear (una |)carpeta"
+      ]
     }
   },
   "DOC_SEARCH": {
     "priority": 75,
     "description": "Search across documents",
     "keywords": {
-      "en": ["find", "search", "look for", "locate", "show me", "list", "get", "retrieve", "where is", "filter", "browse", "discover"],
-      "pt": ["encontrar", "buscar", "procurar", "localizar", "mostrar", "listar", "obter", "onde está", "filtrar", "navegar", "descobrir"],
-      "es": ["encontrar", "buscar", "localizar", "mostrar", "listar", "obtener", "dónde está", "filtrar", "navegar", "descubrir"]
+      "en": [
+        "find",
+        "search",
+        "look for",
+        "locate",
+        "show me",
+        "list",
+        "get",
+        "retrieve",
+        "where is",
+        "filter",
+        "browse",
+        "discover"
+      ],
+      "pt": [
+        "encontrar",
+        "buscar",
+        "procurar",
+        "localizar",
+        "mostrar",
+        "listar",
+        "obter",
+        "onde está",
+        "filtrar",
+        "navegar",
+        "descobrir"
+      ],
+      "es": [
+        "encontrar",
+        "buscar",
+        "localizar",
+        "mostrar",
+        "listar",
+        "obtener",
+        "dónde está",
+        "filtrar",
+        "navegar",
+        "descubrir"
+      ]
     },
     "patterns": {
-      "en": ["find (all|my) (documents|files|contracts)", "search for", "show me (all|my)", "list (all|my)", "where (is|are)"],
-      "pt": ["encontrar (todos|meus) (documentos|arquivos)", "buscar por", "mostrar (todos|meus)", "listar"],
-      "es": ["encontrar (todos|mis) (documentos|archivos)", "buscar por", "mostrar (todos|mis)", "listar"]
+      "en": [
+        "find (all|my) (documents|files|contracts)",
+        "search for",
+        "show me (all|my)",
+        "list (all|my)",
+        "where (is|are)"
+      ],
+      "pt": [
+        "encontrar (todos|meus) (documentos|arquivos)",
+        "buscar por",
+        "mostrar (todos|meus)",
+        "listar"
+      ],
+      "es": [
+        "encontrar (todos|mis) (documentos|archivos)",
+        "buscar por",
+        "mostrar (todos|mis)",
+        "listar"
+      ]
     }
   },
   "DOC_SUMMARIZE": {
     "priority": 78,
     "description": "Summarize document content",
     "keywords": {
-      "en": ["summarize", "summary", "brief", "overview", "highlight", "main points", "key points", "tldr", "recap", "condense"],
-      "pt": ["resumir", "resumo", "breve", "visão geral", "destaque", "pontos principais", "recapitular", "condensar"],
-      "es": ["resumir", "resumen", "breve", "descripción general", "destacar", "puntos principales", "recapitular", "condensar"]
+      "en": [
+        "summarize",
+        "summary",
+        "brief",
+        "overview",
+        "highlight",
+        "main points",
+        "key points",
+        "tldr",
+        "recap",
+        "condense"
+      ],
+      "pt": [
+        "resumir",
+        "resumo",
+        "breve",
+        "visão geral",
+        "destaque",
+        "pontos principais",
+        "recapitular",
+        "condensar"
+      ],
+      "es": [
+        "resumir",
+        "resumen",
+        "breve",
+        "descripción general",
+        "destacar",
+        "puntos principales",
+        "recapitular",
+        "condensar"
+      ]
     },
     "patterns": {
-      "en": ["summarize (the|this|my)", "give me (a |the )summary", "(what are|list) the (main|key) points", "overview of"],
-      "pt": ["resumir (o|este|meu)", "me (dê|faça) (um |o )resumo", "(quais são|liste) os pontos (principais|chave)"],
-      "es": ["resumir (el|este|mi)", "(dame|hazme) (un |el )resumen", "(cuáles son|lista) los puntos (principales|clave)"]
+      "en": [
+        "summarize (the|this|my)",
+        "give me (a |the )summary",
+        "(what are|list) the (main|key) points",
+        "overview of"
+      ],
+      "pt": [
+        "resumir (o|este|meu)",
+        "me (dê|faça) (um |o )resumo",
+        "(quais são|liste) os pontos (principais|chave)"
+      ],
+      "es": [
+        "resumir (el|este|mi)",
+        "(dame|hazme) (un |el )resumen",
+        "(cuáles son|lista) los puntos (principales|clave)"
+      ]
     }
   },
   "PREFERENCE_UPDATE": {
     "priority": 65,
     "description": "Update user preferences",
     "keywords": {
-      "en": ["change", "update", "set", "modify", "preference", "settings", "language", "default", "configure"],
-      "pt": ["mudar", "atualizar", "definir", "modificar", "preferência", "configurações", "idioma", "padrão", "configurar"],
-      "es": ["cambiar", "actualizar", "establecer", "modificar", "preferencia", "configuración", "idioma", "predeterminado", "configurar"]
+      "en": [
+        "change",
+        "update",
+        "set",
+        "modify",
+        "preference",
+        "settings",
+        "language",
+        "default",
+        "configure"
+      ],
+      "pt": [
+        "mudar",
+        "atualizar",
+        "definir",
+        "modificar",
+        "preferência",
+        "configurações",
+        "idioma",
+        "padrão",
+        "configurar"
+      ],
+      "es": [
+        "cambiar",
+        "actualizar",
+        "establecer",
+        "modificar",
+        "preferencia",
+        "configuración",
+        "idioma",
+        "predeterminado",
+        "configurar"
+      ]
     },
     "patterns": {
-      "en": ["change (my|the) (language|settings|preference)", "set (my|the) (default|preference)", "update (my|the) settings"],
-      "pt": ["mudar (meu|o) (idioma|configurações|preferência)", "definir (meu|o) (padrão|preferência)"],
-      "es": ["cambiar (mi|el) (idioma|configuración|preferencia)", "establecer (mi|el) (predeterminado|preferencia)"]
+      "en": [
+        "change (my|the) (language|settings|preference)",
+        "set (my|the) (default|preference)",
+        "update (my|the) settings"
+      ],
+      "pt": [
+        "mudar (meu|o) (idioma|configurações|preferência)",
+        "definir (meu|o) (padrão|preferência)"
+      ],
+      "es": [
+        "cambiar (mi|el) (idioma|configuración|preferencia)",
+        "establecer (mi|el) (predeterminado|preferencia)"
+      ]
     }
   },
   "MEMORY_STORE": {
     "priority": 60,
     "description": "Store information in memory",
     "keywords": {
-      "en": ["remember", "save", "store", "keep track", "note", "memorize", "record", "don't forget"],
-      "pt": ["lembrar", "salvar", "guardar", "anotar", "memorizar", "registrar", "não esquecer"],
-      "es": ["recordar", "guardar", "almacenar", "anotar", "memorizar", "registrar", "no olvides"]
+      "en": [
+        "remember",
+        "save",
+        "store",
+        "keep track",
+        "note",
+        "memorize",
+        "record",
+        "don't forget"
+      ],
+      "pt": [
+        "lembrar",
+        "salvar",
+        "guardar",
+        "anotar",
+        "memorizar",
+        "registrar",
+        "não esquecer"
+      ],
+      "es": [
+        "recordar",
+        "guardar",
+        "almacenar",
+        "anotar",
+        "memorizar",
+        "registrar",
+        "no olvides"
+      ]
     },
     "patterns": {
-      "en": ["remember (that|this|my)", "save (this|that) (for later|information)", "keep track of", "note (that|this)"],
-      "pt": ["lembrar (que|isso|meu)", "salvar (isso|essa) (informação|para depois)", "anotar (que|isso)"],
-      "es": ["recordar (que|esto|mi)", "guardar (esto|esa) (información|para después)", "anotar (que|esto)"]
+      "en": [
+        "remember (that|this|my)",
+        "save (this|that) (for later|information)",
+        "keep track of",
+        "note (that|this)"
+      ],
+      "pt": [
+        "lembrar (que|isso|meu)",
+        "salvar (isso|essa) (informação|para depois)",
+        "anotar (que|isso)"
+      ],
+      "es": [
+        "recordar (que|esto|mi)",
+        "guardar (esto|esa) (información|para después)",
+        "anotar (que|esto)"
+      ]
     }
   },
   "MEMORY_RECALL": {
     "priority": 60,
     "description": "Recall stored information",
     "keywords": {
-      "en": ["what did i", "recall", "remember", "what was", "remind me", "you mentioned", "i told you", "earlier"],
-      "pt": ["o que eu", "lembrar", "recordar", "qual era", "me lembre", "você mencionou", "eu disse", "antes"],
-      "es": ["qué dije", "recordar", "cuál era", "recuérdame", "mencionaste", "te dije", "antes"]
+      "en": [
+        "what did i",
+        "recall",
+        "remember",
+        "what was",
+        "remind me",
+        "you mentioned",
+        "i told you",
+        "earlier"
+      ],
+      "pt": [
+        "o que eu",
+        "lembrar",
+        "recordar",
+        "qual era",
+        "me lembre",
+        "você mencionou",
+        "eu disse",
+        "antes"
+      ],
+      "es": [
+        "qué dije",
+        "recordar",
+        "cuál era",
+        "recuérdame",
+        "mencionaste",
+        "te dije",
+        "antes"
+      ]
     },
     "patterns": {
-      "en": ["what did i (say|tell|mention) (about|earlier)", "remind me (of|about|what)", "what was (my|the)", "recall (what|my)"],
-      "pt": ["o que eu (disse|falei|mencionei)", "me lembre (de|o que)", "qual era (meu|o)"],
-      "es": ["qué (dije|mencioné) (sobre|antes)", "recuérdame (de|qué)", "cuál era (mi|el)"]
+      "en": [
+        "what did i (say|tell|mention) (about|earlier)",
+        "remind me (of|about|what)",
+        "what was (my|the)",
+        "recall (what|my)"
+      ],
+      "pt": [
+        "o que eu (disse|falei|mencionei)",
+        "me lembre (de|o que)",
+        "qual era (meu|o)"
+      ],
+      "es": [
+        "qué (dije|mencioné) (sobre|antes)",
+        "recuérdame (de|qué)",
+        "cuál era (mi|el)"
+      ]
     }
   },
   "ANSWER_REWRITE": {
     "priority": 55,
     "description": "Rewrite previous answer differently",
     "keywords": {
-      "en": ["rewrite", "rephrase", "say it differently", "another way", "reword", "different style", "formal", "casual", "professional"],
-      "pt": ["reescrever", "reformular", "dizer de outra forma", "de outro jeito", "formal", "casual", "profissional"],
-      "es": ["reescribir", "reformular", "decirlo de otra forma", "de otra manera", "formal", "casual", "profesional"]
+      "en": [
+        "rewrite",
+        "rephrase",
+        "say it differently",
+        "another way",
+        "reword",
+        "different style",
+        "formal",
+        "casual",
+        "professional"
+      ],
+      "pt": [
+        "reescrever",
+        "reformular",
+        "dizer de outra forma",
+        "de outro jeito",
+        "formal",
+        "casual",
+        "profissional"
+      ],
+      "es": [
+        "reescribir",
+        "reformular",
+        "decirlo de otra forma",
+        "de otra manera",
+        "formal",
+        "casual",
+        "profesional"
+      ]
     },
     "patterns": {
-      "en": ["(rewrite|rephrase|reword) (that|this|it)", "say (it|that) (differently|another way)", "make (it|that) more (formal|casual|professional)"],
-      "pt": ["(reescrever|reformular) (isso|isto)", "dizer (de outro jeito|de outra forma)", "tornar (mais formal|mais casual)"],
-      "es": ["(reescribir|reformular) (eso|esto)", "decir (de otra forma|de otra manera)", "hacerlo más (formal|casual)"]
+      "en": [
+        "(rewrite|rephrase|reword) (that|this|it)",
+        "say (it|that) (differently|another way)",
+        "make (it|that) more (formal|casual|professional)"
+      ],
+      "pt": [
+        "(reescrever|reformular) (isso|isto)",
+        "dizer (de outro jeito|de outra forma)",
+        "tornar (mais formal|mais casual)"
+      ],
+      "es": [
+        "(reescribir|reformular) (eso|esto)",
+        "decir (de otra forma|de otra manera)",
+        "hacerlo más (formal|casual)"
+      ]
     }
   },
   "ANSWER_EXPAND": {
     "priority": 55,
     "description": "Expand on previous answer",
     "keywords": {
-      "en": ["expand", "more details", "elaborate", "tell me more", "explain more", "go deeper", "more information", "continue"],
-      "pt": ["expandir", "mais detalhes", "elaborar", "me conte mais", "explique mais", "aprofundar", "mais informações", "continuar"],
-      "es": ["expandir", "más detalles", "elaborar", "cuéntame más", "explica más", "profundizar", "más información", "continuar"]
+      "en": [
+        "expand",
+        "more details",
+        "elaborate",
+        "tell me more",
+        "explain more",
+        "go deeper",
+        "more information",
+        "continue"
+      ],
+      "pt": [
+        "expandir",
+        "mais detalhes",
+        "elaborar",
+        "me conte mais",
+        "explique mais",
+        "aprofundar",
+        "mais informações",
+        "continuar"
+      ],
+      "es": [
+        "expandir",
+        "más detalles",
+        "elaborar",
+        "cuéntame más",
+        "explica más",
+        "profundizar",
+        "más información",
+        "continuar"
+      ]
     },
     "patterns": {
-      "en": ["(expand|elaborate) on (that|this|it)", "tell me more (about|)", "more (details|information)", "go (deeper|into more detail)"],
-      "pt": ["(expandir|elaborar) (isso|sobre isso)", "me (conte|diga) mais", "mais (detalhes|informações)"],
-      "es": ["(expandir|elaborar) (eso|sobre eso)", "(cuéntame|dime) más", "más (detalles|información)"]
+      "en": [
+        "(expand|elaborate) on (that|this|it)",
+        "tell me more (about|)",
+        "more (details|information)",
+        "go (deeper|into more detail)"
+      ],
+      "pt": [
+        "(expandir|elaborar) (isso|sobre isso)",
+        "me (conte|diga) mais",
+        "mais (detalhes|informações)"
+      ],
+      "es": [
+        "(expandir|elaborar) (eso|sobre eso)",
+        "(cuéntame|dime) más",
+        "más (detalles|información)"
+      ]
     }
   },
   "ANSWER_SIMPLIFY": {
     "priority": 55,
     "description": "Simplify previous answer",
     "keywords": {
-      "en": ["simplify", "simpler", "shorter", "brief", "summarize", "in simple terms", "eli5", "dumb it down", "make it simple"],
-      "pt": ["simplificar", "mais simples", "mais curto", "breve", "resumir", "em termos simples", "de forma simples"],
-      "es": ["simplificar", "más simple", "más corto", "breve", "resumir", "en términos simples", "hazlo simple"]
+      "en": [
+        "simplify",
+        "simpler",
+        "shorter",
+        "brief",
+        "summarize",
+        "in simple terms",
+        "eli5",
+        "dumb it down",
+        "make it simple"
+      ],
+      "pt": [
+        "simplificar",
+        "mais simples",
+        "mais curto",
+        "breve",
+        "resumir",
+        "em termos simples",
+        "de forma simples"
+      ],
+      "es": [
+        "simplificar",
+        "más simple",
+        "más corto",
+        "breve",
+        "resumir",
+        "en términos simples",
+        "hazlo simple"
+      ]
     },
     "patterns": {
-      "en": ["(simplify|shorten) (that|this|it)", "make (it|that) (simpler|shorter|brief)", "in (simple terms|layman's terms)", "eli5"],
-      "pt": ["(simplificar|encurtar) (isso|isto)", "tornar (mais simples|mais curto)", "em termos simples"],
-      "es": ["(simplificar|acortar) (eso|esto)", "hacerlo (más simple|más corto)", "en términos simples"]
+      "en": [
+        "(simplify|shorten) (that|this|it)",
+        "make (it|that) (simpler|shorter|brief)",
+        "in (simple terms|layman's terms)",
+        "eli5"
+      ],
+      "pt": [
+        "(simplificar|encurtar) (isso|isto)",
+        "tornar (mais simples|mais curto)",
+        "em termos simples"
+      ],
+      "es": [
+        "(simplificar|acortar) (eso|esto)",
+        "hacerlo (más simple|más corto)",
+        "en términos simples"
+      ]
     }
   },
   "FEEDBACK_POSITIVE": {
     "priority": 40,
     "description": "Positive feedback on answer",
     "keywords": {
-      "en": ["great", "perfect", "excellent", "awesome", "good job", "thanks", "helpful", "exactly", "correct", "right"],
-      "pt": ["ótimo", "perfeito", "excelente", "incrível", "bom trabalho", "obrigado", "útil", "exatamente", "correto", "certo"],
-      "es": ["genial", "perfecto", "excelente", "increíble", "buen trabajo", "gracias", "útil", "exactamente", "correcto"]
+      "en": [
+        "great",
+        "perfect",
+        "excellent",
+        "awesome",
+        "good job",
+        "thanks",
+        "helpful",
+        "exactly",
+        "correct",
+        "right"
+      ],
+      "pt": [
+        "ótimo",
+        "perfeito",
+        "excelente",
+        "incrível",
+        "bom trabalho",
+        "obrigado",
+        "útil",
+        "exatamente",
+        "correto",
+        "certo"
+      ],
+      "es": [
+        "genial",
+        "perfecto",
+        "excelente",
+        "increíble",
+        "buen trabajo",
+        "gracias",
+        "útil",
+        "exactamente",
+        "correcto"
+      ]
     },
     "patterns": {
-      "en": ["^(great|perfect|excellent|awesome|thanks)$", "that('s| is) (great|perfect|helpful)", "good (job|answer)"],
-      "pt": ["^(ótimo|perfeito|excelente|obrigado)$", "(isso é|está) (ótimo|perfeito|útil)"],
-      "es": ["^(genial|perfecto|excelente|gracias)$", "(eso es|está) (genial|perfecto|útil)"]
+      "en": [
+        "^(great|perfect|excellent|awesome|thanks)$",
+        "that('s| is) (great|perfect|helpful)",
+        "good (job|answer)"
+      ],
+      "pt": [
+        "^(ótimo|perfeito|excelente|obrigado)$",
+        "(isso é|está) (ótimo|perfeito|útil)"
+      ],
+      "es": [
+        "^(genial|perfecto|excelente|gracias)$",
+        "(eso es|está) (genial|perfecto|útil)"
+      ]
     }
   },
   "FEEDBACK_NEGATIVE": {
     "priority": 45,
     "description": "Negative feedback on answer",
     "keywords": {
-      "en": ["wrong", "incorrect", "not right", "bad", "unhelpful", "that's not", "no that's", "actually", "you're wrong"],
-      "pt": ["errado", "incorreto", "não está certo", "ruim", "não ajuda", "isso não é", "na verdade", "você está errado"],
-      "es": ["mal", "incorrecto", "no está bien", "malo", "no ayuda", "eso no es", "en realidad", "estás equivocado"]
+      "en": [
+        "wrong",
+        "incorrect",
+        "not right",
+        "bad",
+        "unhelpful",
+        "that's not",
+        "no that's",
+        "actually",
+        "you're wrong"
+      ],
+      "pt": [
+        "errado",
+        "incorreto",
+        "não está certo",
+        "ruim",
+        "não ajuda",
+        "isso não é",
+        "na verdade",
+        "você está errado"
+      ],
+      "es": [
+        "mal",
+        "incorrecto",
+        "no está bien",
+        "malo",
+        "no ayuda",
+        "eso no es",
+        "en realidad",
+        "estás equivocado"
+      ]
     },
     "patterns": {
-      "en": ["that('s| is) (wrong|incorrect|not right)", "no,? that's not", "you('re| are) wrong", "actually,?"],
-      "pt": ["(isso está|está) (errado|incorreto)", "não,? isso não é", "você está errado"],
-      "es": ["(eso está|está) (mal|incorrecto)", "no,? eso no es", "estás equivocado"]
+      "en": [
+        "that('s| is) (wrong|incorrect|not right)",
+        "no,? that's not",
+        "you('re| are) wrong",
+        "actually,?"
+      ],
+      "pt": [
+        "(isso está|está) (errado|incorreto)",
+        "não,? isso não é",
+        "você está errado"
+      ],
+      "es": [
+        "(eso está|está) (mal|incorrecto)",
+        "no,? eso no es",
+        "estás equivocado"
+      ]
     }
   },
   "PRODUCT_HELP": {
     "priority": 70,
     "description": "Help with product features",
     "keywords": {
-      "en": ["how to", "how do i", "upload", "download", "settings", "configure", "tutorial", "guide", "instructions", "troubleshoot", "problem", "issue", "not working"],
-      "pt": ["como fazer", "como eu", "enviar", "baixar", "configurações", "configurar", "tutorial", "guia", "instruções", "resolver", "problema", "não funciona"],
-      "es": ["cómo hacer", "cómo", "subir", "descargar", "configuración", "configurar", "tutorial", "guía", "instrucciones", "resolver", "problema", "no funciona"]
+      "en": [
+        "how to",
+        "how do i",
+        "upload",
+        "download",
+        "settings",
+        "configure",
+        "tutorial",
+        "guide",
+        "instructions",
+        "troubleshoot",
+        "problem",
+        "issue",
+        "not working"
+      ],
+      "pt": [
+        "como fazer",
+        "como eu",
+        "enviar",
+        "baixar",
+        "configurações",
+        "configurar",
+        "tutorial",
+        "guia",
+        "instruções",
+        "resolver",
+        "problema",
+        "não funciona"
+      ],
+      "es": [
+        "cómo hacer",
+        "cómo",
+        "subir",
+        "descargar",
+        "configuración",
+        "configurar",
+        "tutorial",
+        "guía",
+        "instrucciones",
+        "resolver",
+        "problema",
+        "no funciona"
+      ]
     },
     "patterns": {
-      "en": ["how (do i|to|can i) (upload|download|configure|use)", "help with (upload|download|settings)", "having (trouble|issues|problems) with"],
-      "pt": ["como (eu|posso) (enviar|baixar|configurar|usar)", "ajuda com (envio|download|configurações)"],
-      "es": ["cómo (puedo|hacer para) (subir|descargar|configurar|usar)", "ayuda con (subida|descarga|configuración)"]
+      "en": [
+        "how (do i|to|can i) (upload|download|configure|use)",
+        "help with (upload|download|settings)",
+        "having (trouble|issues|problems) with"
+      ],
+      "pt": [
+        "como (eu|posso) (enviar|baixar|configurar|usar)",
+        "ajuda com (envio|download|configurações)"
+      ],
+      "es": [
+        "cómo (puedo|hacer para) (subir|descargar|configurar|usar)",
+        "ayuda con (subida|descarga|configuración)"
+      ]
     }
   },
   "ONBOARDING_HELP": {
     "priority": 65,
     "description": "Help for new users",
     "keywords": {
-      "en": ["new here", "getting started", "first time", "beginner", "start", "basics", "introduction", "new user", "just started"],
-      "pt": ["novo aqui", "começar", "primeira vez", "iniciante", "começar", "básico", "introdução", "novo usuário", "acabei de começar"],
-      "es": ["nuevo aquí", "empezar", "primera vez", "principiante", "comenzar", "básico", "introducción", "nuevo usuario", "acabo de empezar"]
+      "en": [
+        "new here",
+        "getting started",
+        "first time",
+        "beginner",
+        "start",
+        "basics",
+        "introduction",
+        "new user",
+        "just started"
+      ],
+      "pt": [
+        "novo aqui",
+        "começar",
+        "primeira vez",
+        "iniciante",
+        "começar",
+        "básico",
+        "introdução",
+        "novo usuário",
+        "acabei de começar"
+      ],
+      "es": [
+        "nuevo aquí",
+        "empezar",
+        "primera vez",
+        "principiante",
+        "comenzar",
+        "básico",
+        "introducción",
+        "nuevo usuario",
+        "acabo de empezar"
+      ]
     },
     "patterns": {
-      "en": ["i('m| am) new (here|to this)", "getting started", "how do i (start|begin)", "first time (using|here)"],
-      "pt": ["sou novo (aqui|nisso)", "como começar", "como (começo|inicio)", "primeira vez (usando|aqui)"],
-      "es": ["soy nuevo (aquí|en esto)", "cómo empezar", "cómo (empiezo|comienzo)", "primera vez (usando|aquí)"]
+      "en": [
+        "i('m| am) new (here|to this)",
+        "getting started",
+        "how do i (start|begin)",
+        "first time (using|here)"
+      ],
+      "pt": [
+        "sou novo (aqui|nisso)",
+        "como começar",
+        "como (começo|inicio)",
+        "primeira vez (usando|aqui)"
+      ],
+      "es": [
+        "soy nuevo (aquí|en esto)",
+        "cómo empezar",
+        "cómo (empiezo|comienzo)",
+        "primera vez (usando|aquí)"
+      ]
     }
   },
   "FEATURE_REQUEST": {
     "priority": 50,
     "description": "Request new features",
     "keywords": {
-      "en": ["feature request", "suggest", "would be nice", "can you add", "please add", "wish", "want", "need feature", "missing"],
-      "pt": ["sugestão", "seria bom", "pode adicionar", "por favor adicione", "gostaria", "quero", "preciso", "falta"],
-      "es": ["sugerencia", "sería bueno", "puedes agregar", "por favor agrega", "deseo", "quiero", "necesito", "falta"]
+      "en": [
+        "feature request",
+        "suggest",
+        "would be nice",
+        "can you add",
+        "please add",
+        "wish",
+        "want",
+        "need feature",
+        "missing"
+      ],
+      "pt": [
+        "sugestão",
+        "seria bom",
+        "pode adicionar",
+        "por favor adicione",
+        "gostaria",
+        "quero",
+        "preciso",
+        "falta"
+      ],
+      "es": [
+        "sugerencia",
+        "sería bueno",
+        "puedes agregar",
+        "por favor agrega",
+        "deseo",
+        "quiero",
+        "necesito",
+        "falta"
+      ]
     },
     "patterns": {
-      "en": ["(can you|could you|please) add", "it would be (nice|great) if", "feature request", "i wish (you|it) could"],
-      "pt": ["(pode|poderia|por favor) adicionar", "seria (bom|ótimo) se", "sugestão de funcionalidade"],
-      "es": ["(puedes|podrías|por favor) agregar", "sería (bueno|genial) si", "sugerencia de función"]
+      "en": [
+        "(can you|could you|please) add",
+        "it would be (nice|great) if",
+        "feature request",
+        "i wish (you|it) could"
+      ],
+      "pt": [
+        "(pode|poderia|por favor) adicionar",
+        "seria (bom|ótimo) se",
+        "sugestão de funcionalidade"
+      ],
+      "es": [
+        "(puedes|podrías|por favor) agregar",
+        "sería (bueno|genial) si",
+        "sugerencia de función"
+      ]
     }
   },
   "GENERIC_KNOWLEDGE": {
     "priority": 45,
     "description": "General knowledge questions",
     "keywords": {
-      "en": ["what is", "define", "explain", "tell me about", "who is", "history of", "meaning of", "general", "knowledge"],
-      "pt": ["o que é", "definir", "explicar", "me diga sobre", "quem é", "história de", "significado de", "geral", "conhecimento"],
-      "es": ["qué es", "definir", "explicar", "dime sobre", "quién es", "historia de", "significado de", "general", "conocimiento"]
+      "en": [
+        "what is",
+        "define",
+        "explain",
+        "tell me about",
+        "who is",
+        "history of",
+        "meaning of",
+        "general",
+        "knowledge"
+      ],
+      "pt": [
+        "o que é",
+        "definir",
+        "explicar",
+        "me diga sobre",
+        "quem é",
+        "história de",
+        "significado de",
+        "geral",
+        "conhecimento"
+      ],
+      "es": [
+        "qué es",
+        "definir",
+        "explicar",
+        "dime sobre",
+        "quién es",
+        "historia de",
+        "significado de",
+        "general",
+        "conocimiento"
+      ]
     },
     "patterns": {
-      "en": ["what is (a |an |the |)", "define (the term |)", "explain (what|the concept of)", "tell me about"],
-      "pt": ["o que é (um |uma |o |a |)", "defina (o termo |)", "explique (o que|o conceito de)"],
-      "es": ["qué es (un |una |el |la |)", "define (el término |)", "explica (qué|el concepto de)"]
+      "en": [
+        "what is (a |an |the |)",
+        "define (the term |)",
+        "explain (what|the concept of)",
+        "tell me about"
+      ],
+      "pt": [
+        "o que é (um |uma |o |a |)",
+        "defina (o termo |)",
+        "explique (o que|o conceito de)"
+      ],
+      "es": [
+        "qué es (un |una |el |la |)",
+        "define (el término |)",
+        "explica (qué|el concepto de)"
+      ]
     }
   },
   "REASONING_TASK": {
     "priority": 50,
     "description": "Math and logic tasks",
     "keywords": {
-      "en": ["calculate", "compute", "solve", "math", "equation", "logic", "reasoning", "if then", "what if", "analyze"],
-      "pt": ["calcular", "computar", "resolver", "matemática", "equação", "lógica", "raciocínio", "se então", "e se", "analisar"],
-      "es": ["calcular", "computar", "resolver", "matemáticas", "ecuación", "lógica", "razonamiento", "si entonces", "qué si", "analizar"]
+      "en": [
+        "calculate",
+        "compute",
+        "solve",
+        "math",
+        "equation",
+        "logic",
+        "reasoning",
+        "if then",
+        "what if",
+        "analyze"
+      ],
+      "pt": [
+        "calcular",
+        "computar",
+        "resolver",
+        "matemática",
+        "equação",
+        "lógica",
+        "raciocínio",
+        "se então",
+        "e se",
+        "analisar"
+      ],
+      "es": [
+        "calcular",
+        "computar",
+        "resolver",
+        "matemáticas",
+        "ecuación",
+        "lógica",
+        "razonamiento",
+        "si entonces",
+        "qué si",
+        "analizar"
+      ]
     },
     "patterns": {
-      "en": ["(calculate|compute|solve) (this|the)", "what is \\d+", "if .+ then", "what (would|if)"],
-      "pt": ["(calcular|resolver) (isso|o)", "quanto é \\d+", "se .+ então"],
-      "es": ["(calcular|resolver) (esto|el)", "cuánto es \\d+", "si .+ entonces"]
+      "en": [
+        "(calculate|compute|solve) (this|the)",
+        "what is \\d+",
+        "if .+ then",
+        "what (would|if)"
+      ],
+      "pt": [
+        "(calcular|resolver) (isso|o)",
+        "quanto é \\d+",
+        "se .+ então"
+      ],
+      "es": [
+        "(calcular|resolver) (esto|el)",
+        "cuánto es \\d+",
+        "si .+ entonces"
+      ]
     }
   },
   "TEXT_TRANSFORM": {
     "priority": 55,
     "description": "Transform or translate text",
     "keywords": {
-      "en": ["translate", "convert", "transform", "to english", "to portuguese", "to spanish", "format", "reformat"],
-      "pt": ["traduzir", "converter", "transformar", "para inglês", "para português", "para espanhol", "formatar", "reformatar"],
-      "es": ["traducir", "convertir", "transformar", "al inglés", "al portugués", "al español", "formatear", "reformatear"]
+      "en": [
+        "translate",
+        "convert",
+        "transform",
+        "to english",
+        "to portuguese",
+        "to spanish",
+        "format",
+        "reformat"
+      ],
+      "pt": [
+        "traduzir",
+        "converter",
+        "transformar",
+        "para inglês",
+        "para português",
+        "para espanhol",
+        "formatar",
+        "reformatar"
+      ],
+      "es": [
+        "traducir",
+        "convertir",
+        "transformar",
+        "al inglés",
+        "al portugués",
+        "al español",
+        "formatear",
+        "reformatear"
+      ]
     },
     "patterns": {
-      "en": ["translate (this|that|it) to", "convert (this|that|it) to", "in (english|portuguese|spanish)"],
-      "pt": ["traduzir (isso|isto) para", "converter (isso|isto) para", "em (inglês|português|espanhol)"],
-      "es": ["traducir (esto|eso) al", "convertir (esto|eso) al", "en (inglés|portugués|español)"]
+      "en": [
+        "translate (this|that|it) to",
+        "convert (this|that|it) to",
+        "in (english|portuguese|spanish)"
+      ],
+      "pt": [
+        "traduzir (isso|isto) para",
+        "converter (isso|isto) para",
+        "em (inglês|português|espanhol)"
+      ],
+      "es": [
+        "traducir (esto|eso) al",
+        "convertir (esto|eso) al",
+        "en (inglés|portugués|español)"
+      ]
     }
   },
   "CHITCHAT": {
     "priority": 35,
     "description": "Casual conversation",
     "keywords": {
-      "en": ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "thanks", "thank you", "bye", "goodbye", "how are you", "nice to meet you", "what's up"],
-      "pt": ["olá", "oi", "bom dia", "boa tarde", "boa noite", "obrigado", "obrigada", "tchau", "até logo", "como vai", "prazer", "tudo bem"],
-      "es": ["hola", "buenos días", "buenas tardes", "buenas noches", "gracias", "adiós", "hasta luego", "cómo estás", "mucho gusto", "qué tal"]
+      "en": [
+        "hello",
+        "hi",
+        "hey",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "thanks",
+        "thank you",
+        "bye",
+        "goodbye",
+        "how are you",
+        "nice to meet you",
+        "what's up"
+      ],
+      "pt": [
+        "olá",
+        "oi",
+        "bom dia",
+        "boa tarde",
+        "boa noite",
+        "obrigado",
+        "obrigada",
+        "tchau",
+        "até logo",
+        "como vai",
+        "prazer",
+        "tudo bem"
+      ],
+      "es": [
+        "hola",
+        "buenos días",
+        "buenas tardes",
+        "buenas noches",
+        "gracias",
+        "adiós",
+        "hasta luego",
+        "cómo estás",
+        "mucho gusto",
+        "qué tal"
+      ]
     },
     "patterns": {
-      "en": ["^(hello|hi|hey|good morning|good afternoon|good evening)$", "^(thanks|thank you|bye|goodbye)$", "how are you"],
-      "pt": ["^(olá|oi|bom dia|boa tarde|boa noite)$", "^(obrigado|obrigada|tchau|até logo)$", "como (vai|você está)"],
-      "es": ["^(hola|buenos días|buenas tardes|buenas noches)$", "^(gracias|adiós|hasta luego)$", "cómo estás"]
+      "en": [
+        "^(hello|hi|hey|good morning|good afternoon|good evening)$",
+        "^(thanks|thank you|bye|goodbye)$",
+        "how are you"
+      ],
+      "pt": [
+        "^(olá|oi|bom dia|boa tarde|boa noite)$",
+        "^(obrigado|obrigada|tchau|até logo)$",
+        "como (vai|você está)"
+      ],
+      "es": [
+        "^(hola|buenos días|buenas tardes|buenas noches)$",
+        "^(gracias|adiós|hasta luego)$",
+        "cómo estás"
+      ]
     }
   },
   "META_AI": {
     "priority": 50,
     "description": "Questions about the AI",
     "keywords": {
-      "en": ["what can you do", "your capabilities", "help me", "what are you", "who are you", "your features", "how do you work", "are you ai", "are you human", "are you real"],
-      "pt": ["o que você pode fazer", "suas capacidades", "me ajude", "o que você é", "quem é você", "suas funcionalidades", "como você funciona", "você é ia", "você é humano", "você é real"],
-      "es": ["qué puedes hacer", "tus capacidades", "ayúdame", "qué eres", "quién eres", "tus funcionalidades", "cómo funcionas", "eres ia", "eres humano", "eres real"]
+      "en": [
+        "what can you do",
+        "your capabilities",
+        "help me",
+        "what are you",
+        "who are you",
+        "your features",
+        "how do you work",
+        "are you ai",
+        "are you human",
+        "are you real"
+      ],
+      "pt": [
+        "o que você pode fazer",
+        "suas capacidades",
+        "me ajude",
+        "o que você é",
+        "quem é você",
+        "suas funcionalidades",
+        "como você funciona",
+        "você é ia",
+        "você é humano",
+        "você é real"
+      ],
+      "es": [
+        "qué puedes hacer",
+        "tus capacidades",
+        "ayúdame",
+        "qué eres",
+        "quién eres",
+        "tus funcionalidades",
+        "cómo funcionas",
+        "eres ia",
+        "eres humano",
+        "eres real"
+      ]
     },
     "patterns": {
-      "en": ["what can you (do|help with)", "what are (your|you) (capabilities|features)", "tell me about yourself", "are you (ai|human|real|a bot)"],
-      "pt": ["o que você pode (fazer|ajudar)", "quais são (suas|as suas) (capacidades|funcionalidades)", "você é (ia|humano|real|um robô)"],
-      "es": ["qué puedes (hacer|ayudar)", "cuáles son (tus|las) (capacidades|funcionalidades)", "eres (ia|humano|real|un robot)"]
+      "en": [
+        "what can you (do|help with)",
+        "what are (your|you) (capabilities|features)",
+        "tell me about yourself",
+        "are you (ai|human|real|a bot)"
+      ],
+      "pt": [
+        "o que você pode (fazer|ajudar)",
+        "quais são (suas|as suas) (capacidades|funcionalidades)",
+        "você é (ia|humano|real|um robô)"
+      ],
+      "es": [
+        "qué puedes (hacer|ayudar)",
+        "cuáles son (tus|las) (capacidades|funcionalidades)",
+        "eres (ia|humano|real|un robot)"
+      ]
     }
   },
   "OUT_OF_SCOPE": {
     "priority": 90,
     "description": "Harmful or out-of-scope requests",
     "keywords": {
-      "en": ["hack", "illegal", "steal", "break into", "bypass", "exploit", "malware", "virus", "attack", "harm", "violence", "weapon"],
-      "pt": ["hackear", "ilegal", "roubar", "invadir", "burlar", "explorar", "malware", "vírus", "atacar", "prejudicar", "violência", "arma"],
-      "es": ["hackear", "ilegal", "robar", "entrar", "eludir", "explotar", "malware", "virus", "atacar", "dañar", "violencia", "arma"]
+      "en": [
+        "hack",
+        "illegal",
+        "steal",
+        "break into",
+        "bypass",
+        "exploit",
+        "malware",
+        "virus",
+        "attack",
+        "harm",
+        "violence",
+        "weapon"
+      ],
+      "pt": [
+        "hackear",
+        "ilegal",
+        "roubar",
+        "invadir",
+        "burlar",
+        "explorar",
+        "malware",
+        "vírus",
+        "atacar",
+        "prejudicar",
+        "violência",
+        "arma"
+      ],
+      "es": [
+        "hackear",
+        "ilegal",
+        "robar",
+        "entrar",
+        "eludir",
+        "explotar",
+        "malware",
+        "virus",
+        "atacar",
+        "dañar",
+        "violencia",
+        "arma"
+      ]
     },
     "patterns": {
-      "en": ["how (to|do i|can i) (hack|steal|break into|bypass)", "(create|make|build) (a |)(malware|virus|weapon)"],
-      "pt": ["como (hackear|roubar|invadir|burlar)", "(criar|fazer) (um |)(malware|vírus|arma)"],
-      "es": ["cómo (hackear|robar|entrar|eludir)", "(crear|hacer) (un |)(malware|virus|arma)"]
+      "en": [
+        "how (to|do i|can i) (hack|steal|break into|bypass)",
+        "(create|make|build) (a |)(malware|virus|weapon)"
+      ],
+      "pt": [
+        "como (hackear|roubar|invadir|burlar)",
+        "(criar|fazer) (um |)(malware|vírus|arma)"
+      ],
+      "es": [
+        "cómo (hackear|robar|entrar|eludir)",
+        "(crear|hacer) (un |)(malware|virus|arma)"
+      ]
     }
   },
   "AMBIGUOUS": {
     "priority": 20,
     "description": "Unclear or vague queries",
     "keywords": {
-      "en": ["it", "this", "that", "thing", "stuff", "something", "whatever"],
-      "pt": ["isso", "isto", "aquilo", "coisa", "algo"],
-      "es": ["eso", "esto", "aquello", "cosa", "algo"]
+      "en": [
+        "it",
+        "this",
+        "that",
+        "thing",
+        "stuff",
+        "something",
+        "whatever"
+      ],
+      "pt": [
+        "isso",
+        "isto",
+        "aquilo",
+        "coisa",
+        "algo"
+      ],
+      "es": [
+        "eso",
+        "esto",
+        "aquello",
+        "cosa",
+        "algo"
+      ]
     },
     "patterns": {
-      "en": ["^(it|this|that)$", "^(yes|no|ok|okay)$"],
-      "pt": ["^(isso|isto|sim|não|ok)$"],
-      "es": ["^(eso|esto|sí|no|ok)$"]
+      "en": [
+        "^(it|this|that)$",
+        "^(yes|no|ok|okay)$"
+      ],
+      "pt": [
+        "^(isso|isto|sim|não|ok)$"
+      ],
+      "es": [
+        "^(eso|esto|sí|no|ok)$"
+      ]
     }
   },
   "SAFETY_CONCERN": {
     "priority": 95,
     "description": "Mental health and safety concerns",
     "keywords": {
-      "en": ["suicide", "suicidal", "kill myself", "end my life", "self harm", "hurt myself", "depressed", "depression", "crisis", "emergency", "help me please"],
-      "pt": ["suicídio", "suicida", "me matar", "acabar com minha vida", "autolesão", "me machucar", "deprimido", "depressão", "crise", "emergência", "me ajude por favor"],
-      "es": ["suicidio", "suicida", "matarme", "acabar con mi vida", "autolesión", "hacerme daño", "deprimido", "depresión", "crisis", "emergencia", "ayúdame por favor"]
+      "en": [
+        "suicide",
+        "suicidal",
+        "kill myself",
+        "end my life",
+        "self harm",
+        "hurt myself",
+        "depressed",
+        "depression",
+        "crisis",
+        "emergency",
+        "help me please"
+      ],
+      "pt": [
+        "suicídio",
+        "suicida",
+        "me matar",
+        "acabar com minha vida",
+        "autolesão",
+        "me machucar",
+        "deprimido",
+        "depressão",
+        "crise",
+        "emergência",
+        "me ajude por favor"
+      ],
+      "es": [
+        "suicidio",
+        "suicida",
+        "matarme",
+        "acabar con mi vida",
+        "autolesión",
+        "hacerme daño",
+        "deprimido",
+        "depresión",
+        "crisis",
+        "emergencia",
+        "ayúdame por favor"
+      ]
     },
     "patterns": {
-      "en": ["(want to|going to|thinking of) (kill|hurt|harm) (myself|yourself)", "(suicidal|suicide) (thoughts|ideation)", "end (my|it all)"],
-      "pt": ["(quero|vou|pensando em) (me matar|me machucar)", "(pensamentos|ideação) suicida", "acabar com (minha vida|tudo)"],
-      "es": ["(quiero|voy a|pensando en) (matarme|hacerme daño)", "(pensamientos|ideación) suicida", "acabar con (mi vida|todo)"]
+      "en": [
+        "(want to|going to|thinking of) (kill|hurt|harm) (myself|yourself)",
+        "(suicidal|suicide) (thoughts|ideation)",
+        "end (my|it all)"
+      ],
+      "pt": [
+        "(quero|vou|pensando em) (me matar|me machucar)",
+        "(pensamentos|ideação) suicida",
+        "acabar com (minha vida|tudo)"
+      ],
+      "es": [
+        "(quiero|voy a|pensando en) (matarme|hacerme daño)",
+        "(pensamientos|ideación) suicida",
+        "acabar con (mi vida|todo)"
+      ]
     }
   },
   "MULTI_INTENT": {
     "priority": 85,
     "description": "Multiple intents in one query",
     "keywords": {
-      "en": ["and also", "and then", "after that", "plus", "additionally", "as well as", "together with", "both", "first then"],
-      "pt": ["e também", "e depois", "depois disso", "além disso", "além de", "junto com", "ambos", "primeiro então"],
-      "es": ["y también", "y después", "después de eso", "además", "además de", "junto con", "ambos", "primero luego"]
+      "en": [
+        "and also",
+        "and then",
+        "after that",
+        "plus",
+        "additionally",
+        "as well as",
+        "together with",
+        "both",
+        "first then"
+      ],
+      "pt": [
+        "e também",
+        "e depois",
+        "depois disso",
+        "além disso",
+        "além de",
+        "junto com",
+        "ambos",
+        "primeiro então"
+      ],
+      "es": [
+        "y también",
+        "y después",
+        "después de eso",
+        "además",
+        "además de",
+        "junto con",
+        "ambos",
+        "primero luego"
+      ]
     },
     "patterns": {
-      "en": [".+ (and|then|also|plus) .+", "(first|after) .+ (then|and) .+", "(summarize|list|find) .+ (and|then) (compare|analyze)"],
-      "pt": [".+ (e|depois|também|além) .+", "(primeiro|depois) .+ (então|e) .+"],
-      "es": [".+ (y|después|también|además) .+", "(primero|después) .+ (luego|y) .+"]
-    }
-  },
-  "UNKNOWN": {
-    "priority": 10,
-    "description": "Unknown or unclassifiable intent",
-    "keywords": {
-      "en": [],
-      "pt": [],
-      "es": []
-    },
-    "patterns": {
-      "en": [],
-      "pt": [],
-      "es": []
+      "en": [
+        ".+ (and|then|also|plus) .+",
+        "(first|after) .+ (then|and) .+",
+        "(summarize|list|find) .+ (and|then) (compare|analyze)"
+      ],
+      "pt": [
+        ".+ (e|depois|também|além) .+",
+        "(primeiro|depois) .+ (então|e) .+"
+      ],
+      "es": [
+        ".+ (y|después|también|además) .+",
+        "(primero|después) .+ (luego|y) .+"
+      ]
     }
   }
 }
