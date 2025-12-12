@@ -15,6 +15,7 @@ import websocketService from './services/websocket.service';
 import chatService from './services/chat.service';
 import { startDocumentWorker, stopDocumentWorker } from './queues/document.queue';
 
+import { DATA_DIR, verifyAllDataFiles } from './config/dataPaths';
 // ============================================================================
 // Global Error Handlers
 // ============================================================================
@@ -148,6 +149,17 @@ io.on('connection', (socket) => {
 
 async function startServer() {
   try {
+    // Verify all data files before starting
+    console.log(`[Server] Using DATA_DIR: ${DATA_DIR}`);
+    const { ok, problems } = verifyAllDataFiles();
+    if (problems.length > 0) {
+      console.error('[Server] CRITICAL: Missing or invalid data files:');
+      problems.forEach(p => console.error(`  - ${p.file}: ${p.error}`));
+      console.error('[Server] Cannot start with missing data files. Exiting.');
+      process.exit(1);
+    }
+    console.log(`[Server] All ${ok.length} data files verified successfully`);
+
     // Test database connection
     await prisma.$connect();
     console.log('[Server] Database connected');

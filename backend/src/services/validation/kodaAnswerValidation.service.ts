@@ -13,8 +13,8 @@
  * Used by: kodaOrchestratorV3.service.ts
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
+import { loadJsonFile } from '../../config/dataPaths';
+
 
 import type {
   IntentClassificationV3,
@@ -75,9 +75,9 @@ export class KodaAnswerValidationService {
 
   constructor() {
     try {
-      const policiesPath = path.resolve(__dirname, '../../data/validation_policies.json');
-      const rawData = fs.readFileSync(policiesPath, 'utf-8');
-      this.policies = JSON.parse(rawData);
+      this.policies = loadJsonFile<ValidationPoliciesJson>('validation_policies.json');
+      // Loaded via loadJsonFile
+      // Converted to use dataPaths
     } catch (err) {
       console.warn('Failed to load validation_policies.json, using defaults:', (err as Error).message);
       this.policies = this.getDefaultPolicies();
