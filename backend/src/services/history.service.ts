@@ -10,7 +10,7 @@
  */
 
 import prisma from '../config/database';
-import geminiClient from './geminiClient.service';
+import geminiGateway from './geminiGateway.service';
 
 /**
  * Generate an AI title for a conversation based on its messages
@@ -40,18 +40,14 @@ export async function generateConversationTitle(
       .map((msg) => `${msg.role}: ${msg.content.substring(0, 200)}`)
       .join('\n');
 
-    const model = geminiClient.getModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: { temperature: 0.3, maxOutputTokens: 20 }
-    });
 
     const prompt = `Generate a concise, descriptive title (3-6 words) for this conversation. Be specific and capture the main topic. Do not use quotes or punctuation at the end.
 
 Conversation:
 ${conversationText}`;
+    const title = await geminiGateway.quickGenerate(prompt, { temperature: 0.3, maxTokens: 20 });
+    if (!title) return 'New Chat';
 
-    const result = await model.generateContent(prompt);
-    const title = result.response.text()?.trim() || 'New Chat';
 
     // Update the conversation with the generated title
     await prisma.conversation.update({
@@ -95,17 +91,12 @@ export async function generateConversationSummary(
       .join('\n')
       .substring(0, 2000);
 
-    const model = geminiClient.getModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: { temperature: 0.3, maxOutputTokens: 100 }
-    });
 
     const prompt = `Summarize this conversation in 1-2 sentences. Focus on the key topics, questions, and outcomes. Be concise and factual.
 
 ${conversationText}`;
+    const summary = await geminiGateway.quickGenerate(prompt, { temperature: 0.3, maxTokens: 100 });
 
-    const result = await model.generateContent(prompt);
-    const summary = result.response.text()?.trim() || null;
 
     if (summary) {
       await prisma.conversation.update({

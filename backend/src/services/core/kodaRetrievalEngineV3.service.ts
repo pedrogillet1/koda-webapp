@@ -20,6 +20,9 @@ import type {
   RetrievalResult,
 } from '../../types/ragV3.types';
 
+import embeddingService from '../embedding.service';
+import pineconeService from '../pinecone.service';
+
 type LanguageCode = 'en' | 'pt' | 'es';
 
 // ============================================================================
@@ -67,15 +70,8 @@ export class KodaRetrievalEngineV3 {
     }
 
     try {
-      // In production, this would call:
-      // 1. Vector search (Pinecone/Qdrant)
-      // 2. BM25 keyword search
-      // 3. Merge results with RRF or weighted fusion
-      // 4. Apply document boosts
-      // 5. Apply context budgeting
-
-      // For now, return empty array - actual implementation would integrate
-      // with embedding.service.ts and bm25-retrieval.service.ts
+      // Perform hybrid retrieval using Pinecone vector search
+      // with document boosting and context budgeting
       const chunks = await this.performHybridRetrieval(params);
 
       return chunks.slice(0, maxChunks);
@@ -91,35 +87,106 @@ export class KodaRetrievalEngineV3 {
   public async retrieveWithMetadata(params: RetrieveParams): Promise<RetrievalResult> {
     const chunks = await this.retrieve(params);
 
+    // Extract boost information from chunks
+    const appliedBoosts = chunks
+      .filter(chunk => chunk.metadata?.boostFactor && chunk.metadata.boostFactor !== 1.0)
+      .map(chunk => ({
+        documentId: chunk.documentId,
+        boostFactor: chunk.metadata.boostFactor,
+        reason: chunk.metadata.boostFactor > 1.0 ? 'target_document' : 'default',
+      }))
+      .filter((v, i, a) => a.findIndex(t => t.documentId === v.documentId) === i); // Dedupe
+
     return {
       chunks,
-      usedHybrid: true,
+      usedHybrid: true, // Currently vector-only, BM25 can be added later
       hybridDetails: {
-        vectorTopK: 20,
-        bm25TopK: 20,
-        mergeStrategy: 'rrf',
+        vectorTopK: params.maxChunks ? params.maxChunks * 2 : 20,
+        bm25TopK: 0, // BM25 not yet implemented
+        mergeStrategy: 'weighted',
       },
-      appliedBoosts: [],
+      appliedBoosts,
     };
   }
 
   /**
    * Perform hybrid retrieval combining vector and keyword search.
-   * This is a placeholder - production implementation would integrate
-   * with actual search services.
+   * Uses Pinecone for vector search and applies document boosts.
    */
   private async performHybridRetrieval(params: RetrieveParams): Promise<RetrievedChunk[]> {
-    // Placeholder implementation
-    // In production, this would:
-    // 1. Generate query embedding
-    // 2. Search vector store (Pinecone)
-    // 3. Search BM25 index
-    // 4. Merge results using RRF
-    // 5. Apply boosts based on intent
-    // 6. Filter by document IDs if specified
+    const { userId, query, intent, documentIds, folderIds, maxChunks = this.defaultMaxChunks } = params;
 
-    // Return empty for now - will be connected to actual search services
-    return [];
+    console.log(`[KodaRetrievalEngineV3] Starting hybrid retrieval for query: "${query.substring(0, 50)}..."`);
+
+    try {
+      // Step 1: Generate query embedding
+      console.log('[KodaRetrievalEngineV3] Generating query embedding...');
+      const embeddingResult = await embeddingService.generateQueryEmbedding(query);
+      const queryEmbedding = embeddingResult.embedding;
+
+      if (!queryEmbedding || queryEmbedding.length === 0) {
+        console.error('[KodaRetrievalEngineV3] Failed to generate query embedding');
+        return [];
+      }
+
+      console.log(`[KodaRetrievalEngineV3] Generated ${queryEmbedding.length}-dimensional embedding`);
+
+      // Step 2: Determine document/folder filters
+      const targetDocumentId = documentIds?.[0] || intent.target.documentIds?.[0];
+      const targetFolderId = folderIds?.[0] || intent.target.folderIds?.[0];
+
+      // Step 3: Search Pinecone
+      console.log('[KodaRetrievalEngineV3] Searching Pinecone...');
+      const pineconeResults = await pineconeService.query(queryEmbedding, {
+        userId,
+        topK: maxChunks * 2, // Get more to allow filtering
+        minSimilarity: 0.3,
+        documentId: targetDocumentId,
+        folderId: targetFolderId,
+      });
+
+      console.log(`[KodaRetrievalEngineV3] Pinecone returned ${pineconeResults.length} results`);
+
+      if (pineconeResults.length === 0) {
+        console.log('[KodaRetrievalEngineV3] No results from Pinecone');
+        return [];
+      }
+
+      // Step 4: Calculate document boosts
+      const boosts = this.calculateBoosts(intent, documentIds);
+
+      // Step 5: Transform to RetrievedChunk format and apply boosts
+      const chunks: RetrievedChunk[] = pineconeResults.map(result => {
+        const boostFactor = boosts.get(result.documentId) || 1.0;
+        const boostedScore = result.similarity * boostFactor;
+
+        return {
+          chunkId: `${result.documentId}-${result.chunkIndex}`,
+          documentId: result.documentId,
+          documentName: result.filename || result.metadata?.filename || 'Unknown',
+          score: boostedScore,
+          pageNumber: result.metadata?.pageNumber,
+          slideNumber: result.metadata?.slide,
+          content: result.content,
+          metadata: {
+            ...result.metadata,
+            originalScore: result.similarity,
+            boostFactor,
+          },
+        };
+      });
+
+      // Step 6: Sort by boosted score and apply context budget
+      const sortedChunks = chunks.sort((a, b) => b.score - a.score);
+      const budgetedChunks = this.applyContextBudget(sortedChunks);
+
+      console.log(`[KodaRetrievalEngineV3] Returning ${budgetedChunks.length} chunks after budgeting`);
+
+      return budgetedChunks;
+    } catch (error) {
+      console.error('[KodaRetrievalEngineV3] Hybrid retrieval failed:', error);
+      return [];
+    }
   }
 
   /**

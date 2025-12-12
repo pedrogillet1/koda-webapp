@@ -24,8 +24,6 @@ import {
   DocumentTarget,
 } from '../../types/ragV3.types';
 
-import { KodaPatternClassificationService } from './kodaPatternClassification.service';
-
 // ============================================================================
 // KEYWORD ARRAYS & PATTERNS (Multilingual, V2 style keyword arrays)
 // ============================================================================
@@ -206,10 +204,8 @@ function detectLanguage(text: string): 'en' | 'pt' | 'es' {
 // ============================================================================
 
 export class KodaIntentEngineService {
-  private patternService: KodaPatternClassificationService;
-
-  constructor(patternService?: KodaPatternClassificationService) {
-    this.patternService = patternService ?? new KodaPatternClassificationService();
+  constructor() {
+    // No dependencies
   }
 
   /**
@@ -242,15 +238,23 @@ export class KodaIntentEngineService {
       language = detectLanguage(normalized);
     }
 
-    // Step 3: Pattern classification
-    const patternResult = this.patternService.evaluate({
-      text: normalized,
-      language,
-    });
+    // Step 3: Collect matched keywords from keyword arrays
+    const matchedKeywords: string[] = [];
+    const matchedPatterns: string[] = [];
 
-    // Flatten matched keywords and patterns for output
-    const matchedKeywords = patternResult.matchedKeywords || [];
-    const matchedPatterns = patternResult.matchedPatterns || [];
+    // Collect matched keywords from each category
+    for (const kw of CHITCHAT_KEYWORDS) {
+      if (normalized.includes(kw.toLowerCase())) matchedKeywords.push(kw);
+    }
+    for (const kw of ANALYTICS_KEYWORDS) {
+      if (normalized.includes(kw.toLowerCase())) matchedKeywords.push(kw);
+    }
+    for (const kw of DOCUMENT_VERBS) {
+      if (normalized.includes(kw.toLowerCase())) matchedKeywords.push(kw);
+    }
+    for (const kw of DOCUMENT_NOUNS) {
+      if (normalized.includes(kw.toLowerCase())) matchedKeywords.push(kw);
+    }
 
     // Step 4: Compute primary intent
     const hasChitchat = containsKeyword(normalized, CHITCHAT_KEYWORDS);

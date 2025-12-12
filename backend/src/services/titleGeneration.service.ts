@@ -9,7 +9,7 @@
  * Uses Gemini 2.5 Flash for fast, cost-effective title generation.
  */
 
-import geminiClient from './geminiClient.service';
+import geminiGateway from './geminiGateway.service';
 
 export type TitleMode =
   | 'chat_title'
@@ -110,16 +110,9 @@ Generate a short, engaging conversation title following the rules above.
 Output: return **ONLY** the title text, nothing else.`;
 
   try {
-    const model = geminiClient.getModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 30
-      }
-    });
+    const title = await geminiGateway.quickGenerate(prompt, { temperature: 0.7, maxTokens: 30 });
 
-    const result = await model.generateContent(prompt);
-    const title = result.response.text()?.trim() || 'New Conversation';
+    if (!title) return 'New Conversation';
 
     // Remove quotes if present
     return title.replace(/^["']|["']$/g, '').replace(/^#+\s*/, '');
@@ -182,16 +175,9 @@ Generate a clear, engaging H1 title for this answer.
 Output: return **ONLY** the title text.`;
 
   try {
-    const model = geminiClient.getModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 40
-      }
-    });
+    const title = await geminiGateway.quickGenerate(prompt, { temperature: 0.7, maxTokens: 40 });
 
-    const result = await model.generateContent(prompt);
-    const title = result.response.text()?.trim() || 'Answer';
+    if (!title) return 'Answer';
 
     // Remove markdown symbols and quotes
     return title.replace(/^#+\s*/, '').replace(/^["']|["']$/g, '');
@@ -249,17 +235,8 @@ Generate 2-5 clear section headings for this answer.
 Output: return **ONLY** a JSON object like {"headings": ["...", "..."]}`;
 
   try {
-    const model = geminiClient.getModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 150,
-        responseMimeType: 'application/json'
-      }
-    });
+    const content = await geminiGateway.quickGenerate(prompt, { temperature: 0.7, maxTokens: 150 });
 
-    const result = await model.generateContent(prompt);
-    const content = result.response.text()?.trim();
     if (!content) return [];
 
     const parsed = JSON.parse(content);
@@ -326,16 +303,8 @@ Generate a short, descriptive title for this document.
 Output: return **ONLY** the title text.`;
 
   try {
-    const model = geminiClient.getModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 30
-      }
-    });
+    const title = await geminiGateway.quickGenerate(prompt, { temperature: 0.7, maxTokens: 30 });
 
-    const result = await model.generateContent(prompt);
-    const title = result.response.text()?.trim();
     if (!title) return filename || 'Untitled Document';
 
     // Remove file extensions and quotes

@@ -39,9 +39,6 @@ import type {
 import { KodaIntentEngineService } from './kodaIntentEngine.service';
 import { KodaRetrievalEngineV3 } from './kodaRetrievalEngineV3.service';
 import { KodaAnswerEngineV3 } from './kodaAnswerEngineV3.service';
-import { KodaFallbackEngineService } from './kodaFallbackEngine.service';
-import { KodaProductHelpService } from './kodaProductHelp.service';
-import { KodaDocumentListingFormatterService } from './kodaDocumentListingFormatter.service';
 
 import { Writable } from 'stream';
 
@@ -72,24 +69,15 @@ export class KodaOrchestratorService {
   private intentEngine: KodaIntentEngineService;
   private retrievalEngine: KodaRetrievalEngineV3;
   private answerEngine: KodaAnswerEngineV3;
-  private fallbackEngine: KodaFallbackEngineService;
-  private productHelp: KodaProductHelpService;
-  private docListFormatter: KodaDocumentListingFormatterService;
 
   constructor(deps?: {
     intentEngine?: KodaIntentEngineService;
     retrievalEngine?: KodaRetrievalEngineV3;
     answerEngine?: KodaAnswerEngineV3;
-    fallbackEngine?: KodaFallbackEngineService;
-    productHelp?: KodaProductHelpService;
-    docListFormatter?: KodaDocumentListingFormatterService;
   }) {
     this.intentEngine = deps?.intentEngine ?? new KodaIntentEngineService();
     this.retrievalEngine = deps?.retrievalEngine ?? new KodaRetrievalEngineV3();
     this.answerEngine = deps?.answerEngine ?? new KodaAnswerEngineV3();
-    this.fallbackEngine = deps?.fallbackEngine ?? new KodaFallbackEngineService();
-    this.productHelp = deps?.productHelp ?? new KodaProductHelpService();
-    this.docListFormatter = deps?.docListFormatter ?? new KodaDocumentListingFormatterService();
   }
 
   /**
@@ -122,16 +110,13 @@ export class KodaOrchestratorService {
       return this.buildFallbackResponse(request, `Intent classification failed: ${(err as Error).message}`);
     }
 
-    // Step 3: Short-circuit intents with direct answers (CHITCHAT, META_AI, PRODUCT_HELP)
+    // Step 3: Short-circuit intents with direct answers (CHITCHAT, META_AI)
     switch (intent.primaryIntent) {
       case 'CHITCHAT':
         return this.handleChitchat(request, intent);
 
       case 'META_AI':
         return this.handleMetaAI(request, intent);
-
-      case 'PRODUCT_HELP':
-        return this.handleProductHelp(request, intent);
 
       default:
         break; // Continue to routing for other intents
@@ -218,15 +203,6 @@ export class KodaOrchestratorService {
         stream.end();
         return;
 
-      case 'PRODUCT_HELP':
-        // Product help is static markdown, stream directly
-        const helpMarkdown = this.productHelp.buildAnswer({
-          query: normalizedQuery,
-          language: intent.language,
-        });
-        stream.write(helpMarkdown);
-        stream.end();
-        return;
 
       default:
         break; // Continue to routing below
@@ -278,48 +254,44 @@ export class KodaOrchestratorService {
   }
 
   /**
-   * Handles PRODUCT_HELP intent by calling productHelp service.
-   */
-  private handleProductHelp(request: RagChatRequestV3, intent: IntentClassificationV3): RagChatResponseV3 {
-    const helpMarkdown = this.productHelp.buildAnswer({
-      query: request.query,
-      language: intent.language,
-    });
-
-    return this.buildNonRagResponse(request, intent, helpMarkdown);
-  }
-
-  /**
-   * Handles ANALYTICS intent by querying analytics engine and formatting the answer.
+   * Handles ANALYTICS intent - routes through answer engine.
    */
   private async handleAnalytics(request: RagChatRequestV3, intent: IntentClassificationV3): Promise<RagChatResponseV3> {
-    const formattedAnswer = this.docListFormatter.formatAnalyticsAnswer({
-      userId: request.userId,
-      query: request.query,
-      intent,
-      language: intent.language,
-    });
-
-    return this.buildNonRagResponse(request, intent, formattedAnswer);
+    try {
+      const answer = await this.answerEngine.answer({
+        userId: request.userId,
+        query: request.query,
+        intent,
+        context: request.context,
+        language: intent.language,
+      });
+      return this.buildNonRagResponse(request, intent, answer);
+    } catch (err) {
+      return this.buildFallbackResponse(request, `Analytics failed: ${(err as Error).message}`);
+    }
   }
 
   /**
-   * Handles SEARCH intent by querying document search engine and formatting the results.
+   * Handles SEARCH intent - routes through retrieval and answer engine.
    */
   private async handleSearch(request: RagChatRequestV3, intent: IntentClassificationV3): Promise<RagChatResponseV3> {
-    const formattedAnswer = this.docListFormatter.formatSearchResults({
-      userId: request.userId,
-      query: request.query,
-      intent,
-      language: intent.language,
-    });
-
-    return this.buildNonRagResponse(request, intent, formattedAnswer);
+    try {
+      const answer = await this.answerEngine.answer({
+        userId: request.userId,
+        query: request.query,
+        intent,
+        context: request.context,
+        language: intent.language,
+      });
+      return this.buildNonRagResponse(request, intent, answer);
+    } catch (err) {
+      return this.buildFallbackResponse(request, `Search failed: ${(err as Error).message}`);
+    }
   }
 
   /**
-   * Handles DOCUMENT_QNA intent by running retrieval, answer, and formatting pipelines.
-   * Falls back to fallbackEngine on errors or low confidence.
+   * Handles DOCUMENT_QNA intent by running retrieval, answer pipelines.
+   * Falls back on errors or low confidence.
    */
   private async handleDocumentQnA(request: RagChatRequestV3, intent: IntentClassificationV3): Promise<RagChatResponseV3> {
     try {
@@ -333,8 +305,7 @@ export class KodaOrchestratorService {
       });
 
       if (!retrievedDocs || retrievedDocs.length === 0) {
-        // No docs found - fallback
-        return this.fallbackEngine.handleFallback(request, intent, 'NO_RELEVANT_CONTENT');
+        return this.buildFallbackResponse(request, 'No relevant documents found for your query.');
       }
 
       // Step 2: Generate answer using answer engine
@@ -349,30 +320,21 @@ export class KodaOrchestratorService {
 
       // Step 3: Check confidence and fallback if low
       if (answerResult.confidenceScore !== undefined && answerResult.confidenceScore < 0.5) {
-        return this.fallbackEngine.handleFallback(request, intent, 'NO_RELEVANT_CONTENT');
+        return this.buildFallbackResponse(request, 'Could not find a confident answer in your documents.');
       }
-
-      // Step 4: Format final answer with documents and metadata
-      const formattedAnswer = this.docListFormatter.formatAnswer({
-        answer: answerResult.answer,
-        documents: retrievedDocs,
-        intent,
-        language: intent.language,
-      });
 
       return {
         userId: request.userId,
         query: request.query,
         language: intent.language,
         primaryIntent: intent.primaryIntent as PrimaryIntent,
-        answer: formattedAnswer,
+        answer: answerResult.answer,
         sourceDocuments: retrievedDocs,
         confidenceScore: answerResult.confidenceScore ?? 1.0,
         timestamp: new Date().toISOString(),
       };
     } catch (err) {
-      // On any error, fallback
-      return this.fallbackEngine.handleFallback(request, intent, 'ERROR_GENERATION');
+      return this.buildFallbackResponse(request, `Error generating answer: ${(err as Error).message}`);
     }
   }
 

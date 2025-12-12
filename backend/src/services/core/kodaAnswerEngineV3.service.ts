@@ -20,7 +20,10 @@ import type {
   IntentClassificationV3,
   RetrievedChunk,
   Citation,
+  QuestionType,
 } from '../../types/ragV3.types';
+
+import geminiGateway from '../geminiGateway.service';
 
 type LanguageCode = 'en' | 'pt' | 'es';
 
@@ -191,15 +194,19 @@ export class KodaAnswerEngineV3 {
     // Build context from documents
     const context = this.buildContext(documents);
 
-    // Generate answer based on question type
-    const answer = this.generateDocumentAnswer(query, context, intent, lang);
+    // Generate answer using Gemini LLM
+    const answer = await this.generateDocumentAnswer(query, context, intent, lang);
 
     // Extract citations
     const citations = this.extractCitations(documents);
 
+    // Calculate confidence based on document relevance scores
+    const avgScore = documents.reduce((sum, doc) => sum + (doc.score || 0.5), 0) / documents.length;
+    const confidenceScore = Math.min(avgScore * 1.2, 1.0); // Scale up slightly, cap at 1.0
+
     return {
       answer,
-      confidenceScore: 0.85, // Placeholder - would be calculated from model
+      confidenceScore,
       citations,
     };
   }
@@ -262,22 +269,133 @@ export class KodaAnswerEngineV3 {
   }
 
   /**
-   * Generate an answer based on documents and question type.
+   * Generate an answer based on documents and question type using Gemini LLM.
    */
-  private generateDocumentAnswer(
+  private async generateDocumentAnswer(
     query: string,
     context: string,
     intent: IntentClassificationV3,
     lang: LanguageCode
-  ): string {
-    // This is a placeholder - in production, this would call an LLM
-    const introMessages: Record<LanguageCode, string> = {
-      en: "Based on your documents, here's what I found:",
-      pt: "Com base nos seus documentos, aqui está o que encontrei:",
-      es: "Basándome en tus documentos, esto es lo que encontré:",
+  ): Promise<string> {
+    try {
+      console.log(`[KodaAnswerEngineV3] Generating answer with Gemini for query: "${query.substring(0, 50)}..."`);
+
+      const systemPrompt = this.buildSystemPrompt(intent, lang);
+      const userPrompt = this.buildUserPrompt(query, context, lang);
+
+      const answer = await geminiGateway.quickGenerate(
+        `${systemPrompt}\n\n${userPrompt}`,
+        {
+          temperature: 0.3, // Lower temperature for factual answers
+          maxTokens: 2000
+          
+        }
+      );
+
+      console.log(`[KodaAnswerEngineV3] Generated answer (${answer.length} chars)`);
+
+      return answer;
+    } catch (error) {
+      console.error('[KodaAnswerEngineV3] Gemini generation failed:', error);
+
+      // Fallback to basic response
+      const fallbackMessages: Record<LanguageCode, string> = {
+        en: "I found relevant information in your documents but encountered an issue generating a detailed response. Please try again.",
+        pt: "Encontrei informações relevantes nos seus documentos, mas tive um problema ao gerar uma resposta detalhada. Por favor, tente novamente.",
+        es: "Encontré información relevante en tus documentos, pero tuve un problema al generar una respuesta detallada. Por favor, inténtalo de nuevo.",
+      };
+
+      return fallbackMessages[lang] || fallbackMessages.en;
+    }
+  }
+
+  /**
+   * Build system prompt based on intent and language.
+   */
+  private buildSystemPrompt(intent: IntentClassificationV3, lang: LanguageCode): string {
+    const languageInstructions: Record<LanguageCode, string> = {
+      en: 'Respond in English.',
+      pt: 'Responda em Português.',
+      es: 'Responde en Español.',
     };
 
-    return `${introMessages[lang] || introMessages.en}\n\n${context.substring(0, 500)}...`;
+    const questionTypeInstructions = this.getQuestionTypeInstructions(intent.questionType, lang);
+
+    return `You are Koda, an intelligent document assistant. Your role is to answer questions based ONLY on the provided document context.
+
+CRITICAL RULES:
+1. ONLY use information from the provided context
+2. If the context doesn't contain the answer, say so clearly
+3. Always cite which document the information comes from
+4. Be concise but comprehensive
+5. ${languageInstructions[lang]}
+
+${questionTypeInstructions}`;
+  }
+
+  /**
+   * Get specific instructions based on question type.
+   */
+  private getQuestionTypeInstructions(questionType: QuestionType, lang: LanguageCode): string {
+    const instructions: Record<string, Record<LanguageCode, string>> = {
+      SUMMARY: {
+        en: 'Provide a clear, concise summary of the key points.',
+        pt: 'Forneça um resumo claro e conciso dos pontos principais.',
+        es: 'Proporciona un resumen claro y conciso de los puntos clave.',
+      },
+      EXTRACT: {
+        en: 'Extract and list the specific information requested.',
+        pt: 'Extraia e liste as informações específicas solicitadas.',
+        es: 'Extrae y enumera la información específica solicitada.',
+      },
+      COMPARE: {
+        en: 'Compare the information and highlight similarities and differences.',
+        pt: 'Compare as informações e destaque semelhanças e diferenças.',
+        es: 'Compara la información y destaca similitudes y diferencias.',
+      },
+      LIST: {
+        en: 'Present the information as a clear, organized list.',
+        pt: 'Apresente as informações como uma lista clara e organizada.',
+        es: 'Presenta la información como una lista clara y organizada.',
+      },
+      YES_NO: {
+        en: 'Give a direct yes/no answer, then explain briefly.',
+        pt: 'Dê uma resposta direta sim/não, depois explique brevemente.',
+        es: 'Da una respuesta directa sí/no, luego explica brevemente.',
+      },
+      NUMERIC: {
+        en: 'Provide the specific number or quantity requested.',
+        pt: 'Forneça o número ou quantidade específica solicitada.',
+        es: 'Proporciona el número o cantidad específica solicitada.',
+      },
+      OTHER: {
+        en: 'Answer the question directly and comprehensively.',
+        pt: 'Responda à pergunta de forma direta e abrangente.',
+        es: 'Responde a la pregunta de forma directa y completa.',
+      },
+    };
+
+    const typeKey = questionType || 'OTHER';
+    return instructions[typeKey]?.[lang] || instructions.OTHER[lang];
+  }
+
+  /**
+   * Build user prompt with query and context.
+   */
+  private buildUserPrompt(query: string, context: string, lang: LanguageCode): string {
+    const labels: Record<LanguageCode, { context: string; question: string }> = {
+      en: { context: 'DOCUMENT CONTEXT', question: 'USER QUESTION' },
+      pt: { context: 'CONTEXTO DO DOCUMENTO', question: 'PERGUNTA DO USUÁRIO' },
+      es: { context: 'CONTEXTO DEL DOCUMENTO', question: 'PREGUNTA DEL USUARIO' },
+    };
+
+    const l = labels[lang] || labels.en;
+
+    return `--- ${l.context} ---
+${context}
+
+--- ${l.question} ---
+${query}`;
   }
 
   /**

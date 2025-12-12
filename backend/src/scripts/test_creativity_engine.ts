@@ -1,5 +1,5 @@
 import 'dotenv/config'; // Load environment variables
-import { llmProvider } from '../services/llm.provider';
+import geminiGateway from '../services/geminiGateway.service';
 import { personaService } from '../services/persona.service';
 
 /**

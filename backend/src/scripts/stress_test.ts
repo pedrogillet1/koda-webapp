@@ -24,7 +24,7 @@ if (missingVars.length > 0) {
 import { conversationManager } from '../services/conversationManager.service';
 import { agentService } from '../services/agent.service';
 import { masterToolbox } from '../tools/master.toolbox';
-import { llmProvider } from '../services/llm.provider';
+import geminiGateway from '../services/geminiGateway.service';
 import { detectLanguage, buildCulturalSystemPrompt, isGreeting, getLocalizedGreeting } from '../services/languageDetection.service';
 import { redisConnection } from '../config/redis';
 import prisma from '../config/database';
