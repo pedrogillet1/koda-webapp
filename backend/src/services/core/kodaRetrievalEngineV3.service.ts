@@ -23,7 +23,7 @@ import type {
 import embeddingService from '../embedding.service';
 import pineconeService from '../pinecone.service';
 import { kodaHybridSearchService } from '../retrieval/kodaHybridSearch.service';
-import { dynamicDocBoostService } from '../retrieval/dynamicDocBoost.service';
+import { dynamicDocBoostService, DocumentBoostMap } from '../retrieval/dynamicDocBoost.service';
 import { kodaRetrievalRankingService } from '../retrieval/kodaRetrievalRanking.service';
 import {
   getTokenBudgetEstimator,
@@ -91,19 +91,19 @@ export class KodaRetrievalEngineV3 {
   /**
    * Full retrieval result with metadata (for advanced use cases).
    * FIXED: usedHybrid now reflects actual retrieval path (not hardcoded)
+   * FIXED: appliedBoosts now comes directly from boost service (not chunk metadata)
    */
   public async retrieveWithMetadata(params: RetrieveParams): Promise<RetrievalResult> {
-    const { result, usedHybrid } = await this.retrieveWithHybridFlag(params);
+    const { result, usedHybrid, boostMap } = await this.retrieveWithHybridFlag(params);
 
-    // Extract boost information from chunks
-    const appliedBoosts = result
-      .filter(chunk => chunk.metadata?.boostFactor && chunk.metadata.boostFactor !== 1.0)
-      .map(chunk => ({
-        documentId: chunk.documentId,
-        boostFactor: chunk.metadata.boostFactor,
-        reason: chunk.metadata.boostFactor > 1.0 ? 'target_document' : 'default',
-      }))
-      .filter((v, i, a) => a.findIndex(t => t.documentId === v.documentId) === i); // Dedupe
+    // Convert boost map to appliedBoosts array (only include non-neutral boosts)
+    const appliedBoosts = Object.values(boostMap)
+      .filter(boost => boost.factor !== 1.0)
+      .map(boost => ({
+        documentId: boost.documentId,
+        boostFactor: boost.factor,
+        reason: boost.reason,
+      }));
 
     return {
       chunks: result,
@@ -118,9 +118,9 @@ export class KodaRetrievalEngineV3 {
   }
 
   /**
-   * Internal method that returns both chunks and whether hybrid was used.
+   * Internal method that returns chunks, whether hybrid was used, and the boost map.
    */
-  private async retrieveWithHybridFlag(params: RetrieveParams): Promise<{ result: RetrievedChunk[], usedHybrid: boolean }> {
+  private async retrieveWithHybridFlag(params: RetrieveParams): Promise<{ result: RetrievedChunk[], usedHybrid: boolean, boostMap: DocumentBoostMap }> {
     const {
       userId,
       query,
@@ -129,21 +129,21 @@ export class KodaRetrievalEngineV3 {
     } = params;
 
     if (!userId || !query) {
-      return { result: [], usedHybrid: false };
+      return { result: [], usedHybrid: false, boostMap: {} };
     }
 
     // Check if we need RAG based on intent
     if (!intent.requiresRAG) {
-      return { result: [], usedHybrid: false };
+      return { result: [], usedHybrid: false, boostMap: {} };
     }
 
     try {
       // Try hybrid retrieval first
-      const { chunks, usedHybrid } = await this.performHybridRetrievalWithFlag(params);
-      return { result: chunks.slice(0, maxChunks), usedHybrid };
+      const { chunks, usedHybrid, boostMap } = await this.performHybridRetrievalWithFlag(params);
+      return { result: chunks.slice(0, maxChunks), usedHybrid, boostMap };
     } catch (error) {
       console.error('[KodaRetrievalEngineV3] Retrieval failed:', error);
-      return { result: [], usedHybrid: false };
+      return { result: [], usedHybrid: false, boostMap: {} };
     }
   }
 
@@ -158,9 +158,9 @@ export class KodaRetrievalEngineV3 {
 
   /**
    * Perform hybrid retrieval with usedHybrid flag tracking.
-   * Returns both chunks and whether hybrid was actually used (vs fallback to vector-only).
+   * Returns chunks, whether hybrid was actually used, and the applied boost map.
    */
-  private async performHybridRetrievalWithFlag(params: RetrieveParams): Promise<{ chunks: RetrievedChunk[], usedHybrid: boolean }> {
+  private async performHybridRetrievalWithFlag(params: RetrieveParams): Promise<{ chunks: RetrievedChunk[], usedHybrid: boolean, boostMap: DocumentBoostMap }> {
     const { userId, query, intent, documentIds, folderIds, maxChunks = this.defaultMaxChunks } = params;
 
     console.log(`[KodaRetrievalEngineV3] Starting HYBRID retrieval (Vector + BM25) for query: "${query.substring(0, 50)}..."`);
@@ -188,7 +188,7 @@ export class KodaRetrievalEngineV3 {
 
       if (hybridResults.length === 0) {
         console.log('[KodaRetrievalEngineV3] No results from hybrid search');
-        return { chunks: [], usedHybrid: true };  // Hybrid was attempted
+        return { chunks: [], usedHybrid: true, boostMap: {} };  // Hybrid was attempted
       }
 
       // Step 3: Compute dynamic document boosts using dedicated service
@@ -222,12 +222,12 @@ export class KodaRetrievalEngineV3 {
 
       console.log(`[KodaRetrievalEngineV3] Returning ${budgetedChunks.length} chunks after budgeting (hybrid)`);
 
-      return { chunks: budgetedChunks, usedHybrid: true };
+      return { chunks: budgetedChunks, usedHybrid: true, boostMap };
     } catch (error) {
       console.error('[KodaRetrievalEngineV3] Hybrid retrieval failed, falling back to vector-only:', error);
       // Fallback to vector-only search
       const vectorChunks = await this.performVectorOnlyRetrieval(params);
-      return { chunks: vectorChunks, usedHybrid: false };  // FIXED: Mark as vector-only fallback
+      return { chunks: vectorChunks, usedHybrid: false, boostMap: {} };  // Vector-only fallback (no boosts)
     }
   }
 
