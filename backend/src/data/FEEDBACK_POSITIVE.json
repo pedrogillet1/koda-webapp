@@ -1,0 +1,138 @@
+{
+  "intent_id": "FEEDBACK_POSITIVE",
+  "name": "FEEDBACK_POSITIVE (Positive Feedback)",
+  "description": "Intent for positive feedback and appreciation of AI responses",
+  "category": "Feedback",
+  "priority": "low",
+  "keywords": {
+    "english": [
+      "great",
+      "perfect",
+      "excellent",
+      "awesome",
+      "good job",
+      "thanks",
+      "helpful",
+      "exactly",
+      "correct",
+      "right",
+      "amazing",
+      "wonderful",
+      "fantastic",
+      "brilliant",
+      "nice",
+      "well done",
+      "that's it",
+      "spot on",
+      "accurate"
+    ],
+    "portuguese": [
+      "ótimo",
+      "perfeito",
+      "excelente",
+      "incrível",
+      "bom trabalho",
+      "obrigado",
+      "útil",
+      "exatamente",
+      "correto",
+      "certo",
+      "maravilhoso",
+      "fantástico",
+      "brilhante",
+      "legal",
+      "bem feito",
+      "é isso",
+      "preciso"
+    ],
+    "spanish": [
+      "genial",
+      "perfecto",
+      "excelente",
+      "increíble",
+      "buen trabajo",
+      "gracias",
+      "útil",
+      "exactamente",
+      "correcto",
+      "bien",
+      "maravilloso",
+      "fantástico",
+      "brillante",
+      "bonito",
+      "bien hecho",
+      "eso es",
+      "preciso"
+    ]
+  },
+  "patterns": {
+    "english": [
+      "^(great|perfect|excellent|awesome|amazing|wonderful|fantastic|brilliant)(!)?$",
+      "^(thanks|thank you|thx)(!)?$",
+      "^(that's|that is)\\s+(great|perfect|helpful|exactly|correct|right|what i needed)",
+      "^(good|nice|well)\\s+(job|done|answer|work)(!)?$",
+      "^(exactly|precisely|correct|right|spot on)(!)?$",
+      "^(this|that)\\s+(is|was)\\s+(helpful|great|perfect|exactly what i needed)",
+      "^(you're|you are)\\s+(amazing|great|helpful|the best)",
+      "^(i|we)\\s+(love|like|appreciate)\\s+(it|this|that|your answer)"
+    ],
+    "portuguese": [
+      "^(ótimo|perfeito|excelente|incrível|maravilhoso|fantástico|brilhante)(!)?$",
+      "^(obrigado|obrigada|valeu)(!)?$",
+      "^(isso é|está)\\s+(ótimo|perfeito|útil|exatamente|correto|certo|o que eu precisava)",
+      "^(bom|belo|bem)\\s+(trabalho|feito|resposta)(!)?$",
+      "^(exatamente|precisamente|correto|certo)(!)?$",
+      "^(isso|isto)\\s+(é|foi)\\s+(útil|ótimo|perfeito|exatamente o que eu precisava)",
+      "^(você é|você está)\\s+(incrível|ótimo|útil|o melhor)",
+      "^(eu|nós)\\s+(amo|gosto|aprecio)\\s+(isso|isto|sua resposta)"
+    ],
+    "spanish": [
+      "^(genial|perfecto|excelente|increíble|maravilloso|fantástico|brillante)(!)?$",
+      "^(gracias)(!)?$",
+      "^(eso es|está)\\s+(genial|perfecto|útil|exactamente|correcto|lo que necesitaba)",
+      "^(buen|bello|bien)\\s+(trabajo|hecho|respuesta)(!)?$",
+      "^(exactamente|precisamente|correcto)(!)?$",
+      "^(eso|esto)\\s+(es|fue)\\s+(útil|genial|perfecto|exactamente lo que necesitaba)",
+      "^(eres|estás)\\s+(increíble|genial|útil|el mejor)",
+      "^(me|nos)\\s+(encanta|gusta|agradezco)\\s+(esto|eso|tu respuesta)"
+    ]
+  },
+  "examples": {
+    "english": [
+      "Great!",
+      "Perfect, thank you!",
+      "That's exactly what I needed",
+      "Good job!",
+      "This is very helpful",
+      "Thanks!",
+      "Excellent answer",
+      "Spot on!",
+      "You're amazing",
+      "I love this response"
+    ],
+    "portuguese": [
+      "Ótimo!",
+      "Perfeito, obrigado!",
+      "É exatamente o que eu precisava",
+      "Bom trabalho!",
+      "Isso é muito útil",
+      "Obrigado!",
+      "Excelente resposta",
+      "Exatamente!",
+      "Você é incrível",
+      "Adorei essa resposta"
+    ],
+    "spanish": [
+      "¡Genial!",
+      "¡Perfecto, gracias!",
+      "Es exactamente lo que necesitaba",
+      "¡Buen trabajo!",
+      "Esto es muy útil",
+      "¡Gracias!",
+      "Excelente respuesta",
+      "¡Exacto!",
+      "Eres increíble",
+      "Me encanta esta respuesta"
+    ]
+  }
+}

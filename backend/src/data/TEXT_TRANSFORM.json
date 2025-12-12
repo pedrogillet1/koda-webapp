@@ -1,0 +1,122 @@
+{
+  "intent_id": "TEXT_TRANSFORM",
+  "name": "TEXT_TRANSFORM (Text Transformation)",
+  "description": "Intent for translating, converting, and transforming text",
+  "category": "Text Processing",
+  "priority": "medium",
+  "keywords": {
+    "english": [
+      "translate",
+      "convert",
+      "transform",
+      "to english",
+      "to portuguese",
+      "to spanish",
+      "format",
+      "reformat",
+      "change to",
+      "into",
+      "capitalize",
+      "lowercase",
+      "uppercase",
+      "json",
+      "csv",
+      "markdown"
+    ],
+    "portuguese": [
+      "traduzir",
+      "converter",
+      "transformar",
+      "para inglês",
+      "para português",
+      "para espanhol",
+      "formatar",
+      "reformatar",
+      "mudar para",
+      "em",
+      "maiúsculo",
+      "minúsculo"
+    ],
+    "spanish": [
+      "traducir",
+      "convertir",
+      "transformar",
+      "al inglés",
+      "al portugués",
+      "al español",
+      "formatear",
+      "reformatear",
+      "cambiar a",
+      "en",
+      "mayúscula",
+      "minúscula"
+    ]
+  },
+  "patterns": {
+    "english": [
+      "^(translate|convert)\\s+(this|that|it|the text)\\s+(to|into)\\s+(english|portuguese|spanish|french|german)",
+      "^(translate|convert)\\s+(to|into)\\s+(english|portuguese|spanish)",
+      "^(in|to)\\s+(english|portuguese|spanish)\\s*(please)?$",
+      "^(format|reformat|transform)\\s+(this|that|it|the text)\\s+(as|to|into)\\s+(json|csv|markdown|html|table)",
+      "^(convert|change)\\s+(this|that|it)\\s+(to|into)\\s+(uppercase|lowercase|title case)",
+      "^(make|change)\\s+(this|that|it)\\s+(uppercase|lowercase|capitalized)",
+      "^(how do you say|what is)\\s+.+\\s+(in|translated to)\\s+(english|portuguese|spanish)"
+    ],
+    "portuguese": [
+      "^(traduzir|converter)\\s+(isso|isto|o texto)\\s+(para|em)\\s+(inglês|português|espanhol|francês|alemão)",
+      "^(traduzir|converter)\\s+(para|em)\\s+(inglês|português|espanhol)",
+      "^(em|para)\\s+(inglês|português|espanhol)\\s*(por favor)?$",
+      "^(formatar|reformatar|transformar)\\s+(isso|isto|o texto)\\s+(como|para|em)\\s+(json|csv|markdown|html|tabela)",
+      "^(converter|mudar)\\s+(isso|isto)\\s+(para|em)\\s+(maiúsculo|minúsculo)",
+      "^(fazer|tornar)\\s+(isso|isto)\\s+(maiúsculo|minúsculo|capitalizado)",
+      "^(como se diz|qual é)\\s+.+\\s+(em|traduzido para)\\s+(inglês|português|espanhol)"
+    ],
+    "spanish": [
+      "^(traducir|convertir)\\s+(esto|eso|el texto)\\s+(al|a|en)\\s+(inglés|portugués|español|francés|alemán)",
+      "^(traducir|convertir)\\s+(al|a|en)\\s+(inglés|portugués|español)",
+      "^(en|al)\\s+(inglés|portugués|español)\\s*(por favor)?$",
+      "^(formatear|reformatear|transformar)\\s+(esto|eso|el texto)\\s+(como|a|en)\\s+(json|csv|markdown|html|tabla)",
+      "^(convertir|cambiar)\\s+(esto|eso)\\s+(a|en)\\s+(mayúscula|minúscula)",
+      "^(hacer|poner)\\s+(esto|eso)\\s+(mayúscula|minúscula|capitalizado)",
+      "^(cómo se dice|cuál es)\\s+.+\\s+(en|traducido al)\\s+(inglés|portugués|español)"
+    ]
+  },
+  "examples": {
+    "english": [
+      "Translate this to Portuguese",
+      "Convert to Spanish",
+      "In English please",
+      "Format this as JSON",
+      "Transform to markdown",
+      "Make it uppercase",
+      "Convert to lowercase",
+      "How do you say 'hello' in Portuguese?",
+      "Reformat as a table",
+      "Change to title case"
+    ],
+    "portuguese": [
+      "Traduzir isso para inglês",
+      "Converter para espanhol",
+      "Em português por favor",
+      "Formatar isso como JSON",
+      "Transformar em markdown",
+      "Fazer maiúsculo",
+      "Converter para minúsculo",
+      "Como se diz 'olá' em inglês?",
+      "Reformatar como tabela",
+      "Mudar para capitalizado"
+    ],
+    "spanish": [
+      "Traducir esto al inglés",
+      "Convertir al portugués",
+      "En español por favor",
+      "Formatear esto como JSON",
+      "Transformar a markdown",
+      "Hacer mayúscula",
+      "Convertir a minúscula",
+      "¿Cómo se dice 'hola' en inglés?",
+      "Reformatear como tabla",
+      "Cambiar a capitalizado"
+    ]
+  }
+}

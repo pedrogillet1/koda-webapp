@@ -142,10 +142,189 @@ export interface DebugLabelsConfig {
   [labelKey: string]: string;
 }
 
+export interface FallbacksConfig {
+  version?: string;
+  fallbacks: Array<{
+    key: string;
+    category: string;
+    description?: string;
+    defaultStyleId?: string;
+    severity?: string;
+    styles: Array<{
+      id: string;
+      maxLength?: number;
+      structure?: string[];
+      tone?: string;
+      languages: {
+        [lang in LanguageCode]?: {
+          template: string;
+          placeholders?: string[];
+        };
+      };
+    }>;
+  }>;
+}
+
+export interface ProductHelpConfig {
+  version?: string;
+  topics: Array<{
+    id: string;
+    category?: string;
+    keywords?: {
+      [lang in LanguageCode]?: string[];
+    };
+    content: {
+      [lang in LanguageCode]?: {
+        title: string;
+        body: string;
+        examples?: string[];
+      };
+    };
+  }>;
+}
+
+export interface CapabilitiesCatalogConfig {
+  version?: string;
+  capabilities: Array<{
+    id: string;
+    name: {
+      [lang in LanguageCode]?: string;
+    };
+    description: {
+      [lang in LanguageCode]?: string;
+    };
+    examples?: {
+      [lang in LanguageCode]?: string[];
+    };
+    enabled: boolean;
+  }>;
+}
+
+export interface IntentPatternsConfig {
+  version?: string;
+  lastUpdated?: string;
+  description?: string;
+  [intentKey: string]: any;
+}
+
+export interface AnalyticsPhrasesConfig {
+  version?: string;
+  phrases: {
+    [category: string]: {
+      [lang in LanguageCode]?: string[];
+    };
+  };
+}
+
+export interface DocAliasesConfig {
+  version?: string;
+  aliases: {
+    [alias: string]: string;
+  };
+}
+
+export interface DocQuerySynonymsConfig {
+  version?: string;
+  synonyms: {
+    [term: string]: string[];
+  };
+}
+
+/**
+ * Individual intent configuration (loaded from {INTENT_ID}.json files)
+ */
+export interface IndividualIntentConfig {
+  intent_id: string;
+  name: string;
+  description: string;
+  category: string;
+  priority: string;
+  keywords: {
+    english: string[];
+    portuguese: string[];
+    spanish: string[];
+  };
+  patterns: {
+    english: string[];
+    portuguese: string[];
+    spanish: string[];
+  };
+  examples: {
+    english: string[];
+    portuguese: string[];
+    spanish: string[];
+  };
+}
+
+/**
+ * Map of all 25 individual intent configurations
+ */
+export interface IntentConfigsMap {
+  DOC_QA?: IndividualIntentConfig;
+  DOC_ANALYTICS?: IndividualIntentConfig;
+  DOC_MANAGEMENT?: IndividualIntentConfig;
+  DOC_SEARCH?: IndividualIntentConfig;
+  DOC_SUMMARIZE?: IndividualIntentConfig;
+  PREFERENCE_UPDATE?: IndividualIntentConfig;
+  MEMORY_STORE?: IndividualIntentConfig;
+  MEMORY_RECALL?: IndividualIntentConfig;
+  ANSWER_REWRITE?: IndividualIntentConfig;
+  ANSWER_EXPAND?: IndividualIntentConfig;
+  ANSWER_SIMPLIFY?: IndividualIntentConfig;
+  FEEDBACK_POSITIVE?: IndividualIntentConfig;
+  FEEDBACK_NEGATIVE?: IndividualIntentConfig;
+  PRODUCT_HELP?: IndividualIntentConfig;
+  ONBOARDING_HELP?: IndividualIntentConfig;
+  FEATURE_REQUEST?: IndividualIntentConfig;
+  GENERIC_KNOWLEDGE?: IndividualIntentConfig;
+  REASONING_TASK?: IndividualIntentConfig;
+  TEXT_TRANSFORM?: IndividualIntentConfig;
+  CHITCHAT?: IndividualIntentConfig;
+  META_AI?: IndividualIntentConfig;
+  OUT_OF_SCOPE?: IndividualIntentConfig;
+  AMBIGUOUS?: IndividualIntentConfig;
+  SAFETY_CONCERN?: IndividualIntentConfig;
+  MULTI_INTENT?: IndividualIntentConfig;
+}
+
+/**
+ * All 25 intent IDs
+ */
+export const ALL_INTENT_IDS = [
+  'DOC_QA',
+  'DOC_ANALYTICS',
+  'DOC_MANAGEMENT',
+  'DOC_SEARCH',
+  'DOC_SUMMARIZE',
+  'PREFERENCE_UPDATE',
+  'MEMORY_STORE',
+  'MEMORY_RECALL',
+  'ANSWER_REWRITE',
+  'ANSWER_EXPAND',
+  'ANSWER_SIMPLIFY',
+  'FEEDBACK_POSITIVE',
+  'FEEDBACK_NEGATIVE',
+  'PRODUCT_HELP',
+  'ONBOARDING_HELP',
+  'FEATURE_REQUEST',
+  'GENERIC_KNOWLEDGE',
+  'REASONING_TASK',
+  'TEXT_TRANSFORM',
+  'CHITCHAT',
+  'META_AI',
+  'OUT_OF_SCOPE',
+  'AMBIGUOUS',
+  'SAFETY_CONCERN',
+  'MULTI_INTENT',
+] as const;
+
+export type IntentId = typeof ALL_INTENT_IDS[number];
+
 /**
  * Complete bundle of all prompt configurations
  */
 export interface PromptConfigBundle {
+  // Core required configs
   systemPrompts: SystemPromptsConfig;
   answerStyles: AnswerStylesConfig;
   answerExamples: AnswerExamplesConfig;
@@ -154,8 +333,22 @@ export interface PromptConfigBundle {
   validationPolicies: ValidationPoliciesConfig;
   retrievalPolicies: RetrievalPoliciesConfig;
   errorLocalization: ErrorLocalizationConfig;
+
+  // Optional configs
   languageProfiles?: LanguageProfilesConfig;
   debugLabels?: DebugLabelsConfig;
+
+  // Extended configs (loaded as optional)
+  fallbacks?: FallbacksConfig;
+  productHelp?: ProductHelpConfig;
+  capabilitiesCatalog?: CapabilitiesCatalogConfig;
+  intentPatterns?: IntentPatternsConfig;
+  analyticsPhrases?: AnalyticsPhrasesConfig;
+  docAliases?: DocAliasesConfig;
+  docQuerySynonyms?: DocQuerySynonymsConfig;
+
+  // Individual intent configs (all 25 intents)
+  intentConfigs: IntentConfigsMap;
 }
 
 /**
@@ -273,9 +466,30 @@ export class PromptConfigService {
       const retrievalPolicies = this.loadJSON<RetrievalPoliciesConfig>('retrieval_policies.json');
       const errorLocalization = this.loadJSON<ErrorLocalizationConfig>('error_localization.json');
 
-      // Optional files
+      // Optional files (basic)
       const languageProfiles = this.loadJSONOptional<LanguageProfilesConfig>('language_profiles.json');
       const debugLabels = this.loadJSONOptional<DebugLabelsConfig>('debug_labels.json');
+
+      // Extended optional files
+      const fallbacks = this.loadJSONOptional<FallbacksConfig>('fallbacks.json');
+      const productHelp = this.loadJSONOptional<ProductHelpConfig>('koda_product_help.json');
+      const capabilitiesCatalog = this.loadJSONOptional<CapabilitiesCatalogConfig>('capabilities_catalog.json');
+      const intentPatterns = this.loadJSONOptional<IntentPatternsConfig>('intent_patterns.json');
+      const analyticsPhrases = this.loadJSONOptional<AnalyticsPhrasesConfig>('analytics_phrases.json');
+      const docAliases = this.loadJSONOptional<DocAliasesConfig>('doc_aliases.json');
+      const docQuerySynonyms = this.loadJSONOptional<DocQuerySynonymsConfig>('doc_query_synonyms.json');
+
+      // Load all 25 individual intent configs
+      const intentConfigs: IntentConfigsMap = {};
+      let loadedIntentCount = 0;
+      for (const intentId of ALL_INTENT_IDS) {
+        const intentConfig = this.loadJSONOptional<IndividualIntentConfig>(`${intentId}.json`);
+        if (intentConfig) {
+          intentConfigs[intentId] = intentConfig;
+          loadedIntentCount++;
+        }
+      }
+      this.logger.info(`[PromptConfig] Loaded ${loadedIntentCount}/${ALL_INTENT_IDS.length} individual intent configs`);
 
       // Step 3: Validate schemas
       this.validateSystemPrompts(systemPrompts);
@@ -285,6 +499,7 @@ export class PromptConfigService {
 
       // Step 4: Build bundle
       this.bundle = {
+        // Core required
         systemPrompts,
         answerStyles,
         answerExamples,
@@ -293,8 +508,19 @@ export class PromptConfigService {
         validationPolicies,
         retrievalPolicies,
         errorLocalization,
+        // Basic optional
         languageProfiles,
         debugLabels,
+        // Extended optional
+        fallbacks,
+        productHelp,
+        capabilitiesCatalog,
+        intentPatterns,
+        analyticsPhrases,
+        docAliases,
+        docQuerySynonyms,
+        // Individual intent configs (all 25)
+        intentConfigs,
       };
 
       this.loadedAt = Date.now();
@@ -530,6 +756,450 @@ export class PromptConfigService {
       files: this.fileMetadata,
       version: this.bundle?.systemPrompts.version,
     };
+  }
+
+  // ============================================================================
+  // EXTENDED CONFIG GETTERS
+  // ============================================================================
+
+  /**
+   * Get fallback response by key
+   */
+  public getFallback(args: {
+    fallbackKey: string;
+    language: LanguageCode;
+    styleId?: string;
+  }): string | null {
+    this.assertInitialized();
+
+    const { fallbackKey, language, styleId } = args;
+
+    if (!this.bundle!.fallbacks) {
+      this.logger.warn('[PromptConfig] Fallbacks config not loaded');
+      return null;
+    }
+
+    const fallback = this.bundle!.fallbacks.fallbacks.find(f => f.key === fallbackKey);
+    if (!fallback) {
+      this.logger.warn(`[PromptConfig] Fallback not found: ${fallbackKey}`);
+      return null;
+    }
+
+    // Find the style (use specified, default, or first available)
+    const targetStyleId = styleId || fallback.defaultStyleId || fallback.styles[0]?.id;
+    const style = fallback.styles.find(s => s.id === targetStyleId) || fallback.styles[0];
+
+    if (!style) {
+      return null;
+    }
+
+    const langTemplate = style.languages[language] || style.languages['en'];
+    return langTemplate?.template || null;
+  }
+
+  /**
+   * Get all fallbacks config
+   */
+  public getFallbacksConfig(): FallbacksConfig | undefined {
+    this.assertInitialized();
+    return this.bundle!.fallbacks;
+  }
+
+  /**
+   * Get product help topic
+   */
+  public getProductHelpTopic(args: {
+    topicId: string;
+    language: LanguageCode;
+  }): { title: string; body: string; examples?: string[] } | null {
+    this.assertInitialized();
+
+    const { topicId, language } = args;
+
+    if (!this.bundle!.productHelp) {
+      this.logger.warn('[PromptConfig] Product help config not loaded');
+      return null;
+    }
+
+    const topic = this.bundle!.productHelp.topics.find(t => t.id === topicId);
+    if (!topic) {
+      this.logger.warn(`[PromptConfig] Product help topic not found: ${topicId}`);
+      return null;
+    }
+
+    const content = topic.content[language] || topic.content['en'];
+    return content || null;
+  }
+
+  /**
+   * Search product help topics by keyword
+   */
+  public searchProductHelp(args: {
+    keyword: string;
+    language: LanguageCode;
+  }): Array<{ id: string; title: string }> {
+    this.assertInitialized();
+
+    const { keyword, language } = args;
+
+    if (!this.bundle!.productHelp) {
+      return [];
+    }
+
+    const keywordLower = keyword.toLowerCase();
+    const results: Array<{ id: string; title: string }> = [];
+
+    for (const topic of this.bundle!.productHelp.topics) {
+      // Check keywords
+      const keywords = topic.keywords?.[language] || topic.keywords?.['en'] || [];
+      const matchesKeyword = keywords.some(k => k.toLowerCase().includes(keywordLower));
+
+      // Check title/body
+      const content = topic.content[language] || topic.content['en'];
+      const matchesContent = content && (
+        content.title.toLowerCase().includes(keywordLower) ||
+        content.body.toLowerCase().includes(keywordLower)
+      );
+
+      if (matchesKeyword || matchesContent) {
+        results.push({
+          id: topic.id,
+          title: content?.title || topic.id,
+        });
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Get all product help config
+   */
+  public getProductHelpConfig(): ProductHelpConfig | undefined {
+    this.assertInitialized();
+    return this.bundle!.productHelp;
+  }
+
+  /**
+   * Get capability by ID
+   */
+  public getCapability(args: {
+    capabilityId: string;
+    language: LanguageCode;
+  }): { name: string; description: string; examples?: string[]; enabled: boolean } | null {
+    this.assertInitialized();
+
+    const { capabilityId, language } = args;
+
+    if (!this.bundle!.capabilitiesCatalog) {
+      this.logger.warn('[PromptConfig] Capabilities catalog not loaded');
+      return null;
+    }
+
+    const capability = this.bundle!.capabilitiesCatalog.capabilities.find(c => c.id === capabilityId);
+    if (!capability) {
+      this.logger.warn(`[PromptConfig] Capability not found: ${capabilityId}`);
+      return null;
+    }
+
+    return {
+      name: capability.name[language] || capability.name['en'] || capabilityId,
+      description: capability.description[language] || capability.description['en'] || '',
+      examples: capability.examples?.[language] || capability.examples?.['en'],
+      enabled: capability.enabled,
+    };
+  }
+
+  /**
+   * Get all enabled capabilities
+   */
+  public getEnabledCapabilities(language: LanguageCode): Array<{ id: string; name: string; description: string }> {
+    this.assertInitialized();
+
+    if (!this.bundle!.capabilitiesCatalog) {
+      return [];
+    }
+
+    return this.bundle!.capabilitiesCatalog.capabilities
+      .filter(c => c.enabled)
+      .map(c => ({
+        id: c.id,
+        name: c.name[language] || c.name['en'] || c.id,
+        description: c.description[language] || c.description['en'] || '',
+      }));
+  }
+
+  /**
+   * Get all capabilities catalog config
+   */
+  public getCapabilitiesCatalogConfig(): CapabilitiesCatalogConfig | undefined {
+    this.assertInitialized();
+    return this.bundle!.capabilitiesCatalog;
+  }
+
+  /**
+   * Get intent patterns config
+   */
+  public getIntentPatternsConfig(): IntentPatternsConfig | undefined {
+    this.assertInitialized();
+    return this.bundle!.intentPatterns;
+  }
+
+  /**
+   * Get intent pattern by key
+   */
+  public getIntentPattern(intentKey: string): any | null {
+    this.assertInitialized();
+
+    if (!this.bundle!.intentPatterns) {
+      return null;
+    }
+
+    return this.bundle!.intentPatterns[intentKey] || null;
+  }
+
+  /**
+   * Get analytics phrases for a category
+   */
+  public getAnalyticsPhrases(args: {
+    category: string;
+    language: LanguageCode;
+  }): string[] {
+    this.assertInitialized();
+
+    const { category, language } = args;
+
+    if (!this.bundle!.analyticsPhrases?.phrases) {
+      return [];
+    }
+
+    const categoryPhrases = this.bundle!.analyticsPhrases.phrases[category];
+    if (!categoryPhrases) {
+      return [];
+    }
+
+    return categoryPhrases[language] || categoryPhrases['en'] || [];
+  }
+
+  /**
+   * Get all analytics phrases config
+   */
+  public getAnalyticsPhrasesConfig(): AnalyticsPhrasesConfig | undefined {
+    this.assertInitialized();
+    return this.bundle!.analyticsPhrases;
+  }
+
+  /**
+   * Resolve document alias to actual document ID/name
+   */
+  public resolveDocAlias(alias: string): string | null {
+    this.assertInitialized();
+
+    if (!this.bundle!.docAliases?.aliases) {
+      return null;
+    }
+
+    const aliasLower = alias.toLowerCase();
+
+    // Try exact match first
+    if (this.bundle!.docAliases.aliases[alias]) {
+      return this.bundle!.docAliases.aliases[alias];
+    }
+
+    // Try case-insensitive match
+    for (const [key, value] of Object.entries(this.bundle!.docAliases.aliases)) {
+      if (key.toLowerCase() === aliasLower) {
+        return value;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Get all doc aliases config
+   */
+  public getDocAliasesConfig(): DocAliasesConfig | undefined {
+    this.assertInitialized();
+    return this.bundle!.docAliases;
+  }
+
+  /**
+   * Get synonyms for a query term
+   */
+  public getQuerySynonyms(term: string): string[] {
+    this.assertInitialized();
+
+    if (!this.bundle!.docQuerySynonyms?.synonyms) {
+      return [];
+    }
+
+    const termLower = term.toLowerCase();
+
+    // Try exact match
+    if (this.bundle!.docQuerySynonyms.synonyms[term]) {
+      return this.bundle!.docQuerySynonyms.synonyms[term];
+    }
+
+    // Try case-insensitive match
+    for (const [key, value] of Object.entries(this.bundle!.docQuerySynonyms.synonyms)) {
+      if (key.toLowerCase() === termLower) {
+        return value;
+      }
+    }
+
+    return [];
+  }
+
+  /**
+   * Expand query with synonyms
+   */
+  public expandQueryWithSynonyms(query: string): string[] {
+    this.assertInitialized();
+
+    if (!this.bundle!.docQuerySynonyms?.synonyms) {
+      return [query];
+    }
+
+    const words = query.split(/\s+/);
+    const expanded: string[] = [query];
+
+    for (const word of words) {
+      const synonyms = this.getQuerySynonyms(word);
+      for (const synonym of synonyms) {
+        const expandedQuery = query.replace(new RegExp(`\\b${word}\\b`, 'gi'), synonym);
+        if (!expanded.includes(expandedQuery)) {
+          expanded.push(expandedQuery);
+        }
+      }
+    }
+
+    return expanded;
+  }
+
+  /**
+   * Get all doc query synonyms config
+   */
+  public getDocQuerySynonymsConfig(): DocQuerySynonymsConfig | undefined {
+    this.assertInitialized();
+    return this.bundle!.docQuerySynonyms;
+  }
+
+  // ============================================================================
+  // INDIVIDUAL INTENT CONFIG GETTERS
+  // ============================================================================
+
+  /**
+   * Get all loaded intent configs
+   */
+  public getIntentConfigs(): IntentConfigsMap {
+    this.assertInitialized();
+    return this.bundle!.intentConfigs;
+  }
+
+  /**
+   * Get individual intent config by ID
+   */
+  public getIntentConfig(intentId: IntentId): IndividualIntentConfig | undefined {
+    this.assertInitialized();
+    return this.bundle!.intentConfigs[intentId];
+  }
+
+  /**
+   * Get keywords for an intent and language
+   */
+  public getIntentKeywords(intentId: IntentId, language: LanguageCode): string[] {
+    this.assertInitialized();
+
+    const config = this.bundle!.intentConfigs[intentId];
+    if (!config) {
+      return [];
+    }
+
+    const langMap: { [key in LanguageCode]: 'english' | 'portuguese' | 'spanish' } = {
+      en: 'english',
+      pt: 'portuguese',
+      es: 'spanish',
+    };
+
+    return config.keywords[langMap[language]] || config.keywords.english || [];
+  }
+
+  /**
+   * Get patterns for an intent and language
+   */
+  public getIntentPatterns(intentId: IntentId, language: LanguageCode): string[] {
+    this.assertInitialized();
+
+    const config = this.bundle!.intentConfigs[intentId];
+    if (!config) {
+      return [];
+    }
+
+    const langMap: { [key in LanguageCode]: 'english' | 'portuguese' | 'spanish' } = {
+      en: 'english',
+      pt: 'portuguese',
+      es: 'spanish',
+    };
+
+    return config.patterns[langMap[language]] || config.patterns.english || [];
+  }
+
+  /**
+   * Get examples for an intent and language
+   */
+  public getIntentExamples(intentId: IntentId, language: LanguageCode): string[] {
+    this.assertInitialized();
+
+    const config = this.bundle!.intentConfigs[intentId];
+    if (!config) {
+      return [];
+    }
+
+    const langMap: { [key in LanguageCode]: 'english' | 'portuguese' | 'spanish' } = {
+      en: 'english',
+      pt: 'portuguese',
+      es: 'spanish',
+    };
+
+    return config.examples[langMap[language]] || config.examples.english || [];
+  }
+
+  /**
+   * Get all intents for a category
+   */
+  public getIntentsByCategory(category: string): IndividualIntentConfig[] {
+    this.assertInitialized();
+
+    const configs = this.bundle!.intentConfigs;
+    const results: IndividualIntentConfig[] = [];
+
+    for (const intentId of ALL_INTENT_IDS) {
+      const config = configs[intentId];
+      if (config && config.category === category) {
+        results.push(config);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Get all loaded intent IDs
+   */
+  public getLoadedIntentIds(): IntentId[] {
+    this.assertInitialized();
+
+    const configs = this.bundle!.intentConfigs;
+    return ALL_INTENT_IDS.filter(id => configs[id] !== undefined);
+  }
+
+  /**
+   * Check if an intent config is loaded
+   */
+  public hasIntentConfig(intentId: IntentId): boolean {
+    this.assertInitialized();
+    return this.bundle!.intentConfigs[intentId] !== undefined;
   }
 
   // ============================================================================

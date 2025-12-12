@@ -1,0 +1,133 @@
+{
+  "intent_id": "PREFERENCE_UPDATE",
+  "name": "PREFERENCE_UPDATE (Update Preferences)",
+  "description": "Intent for updating user preferences and settings",
+  "category": "User Management",
+  "priority": "medium",
+  "keywords": {
+    "english": [
+      "change",
+      "update",
+      "set",
+      "modify",
+      "preference",
+      "settings",
+      "language",
+      "default",
+      "configure",
+      "adjust",
+      "switch",
+      "toggle",
+      "enable",
+      "disable",
+      "turn on",
+      "turn off",
+      "customize"
+    ],
+    "portuguese": [
+      "mudar",
+      "atualizar",
+      "definir",
+      "modificar",
+      "preferência",
+      "configurações",
+      "idioma",
+      "padrão",
+      "configurar",
+      "ajustar",
+      "trocar",
+      "alternar",
+      "ativar",
+      "desativar",
+      "ligar",
+      "desligar",
+      "personalizar"
+    ],
+    "spanish": [
+      "cambiar",
+      "actualizar",
+      "establecer",
+      "modificar",
+      "preferencia",
+      "configuración",
+      "idioma",
+      "predeterminado",
+      "configurar",
+      "ajustar",
+      "cambiar",
+      "alternar",
+      "activar",
+      "desactivar",
+      "encender",
+      "apagar",
+      "personalizar"
+    ]
+  },
+  "patterns": {
+    "english": [
+      "^(change|update|set|modify)\\s+(my|the)\\s+(language|settings|preference|default)",
+      "^(switch|change)\\s+(to|my)\\s+(english|portuguese|spanish|dark mode|light mode)",
+      "^(enable|disable|turn on|turn off)\\s+(notifications|alerts|auto-save)",
+      "^(configure|customize)\\s+(my|the)\\s+(settings|preferences|profile)",
+      "^(set|make)\\s+.+\\s+(as|my)\\s+(default|preference)",
+      "^(i want to|i'd like to)\\s+(change|update|modify)\\s+(my|the)\\s+(settings|preference)",
+      "^(how do i|can i)\\s+(change|update|modify)\\s+(my|the)\\s+(settings|language|preference)"
+    ],
+    "portuguese": [
+      "^(mudar|atualizar|definir|modificar)\\s+(meu|minha|o|a)\\s+(idioma|configurações|preferência|padrão)",
+      "^(trocar|mudar)\\s+(para|meu|minha)\\s+(inglês|português|espanhol|modo escuro|modo claro)",
+      "^(ativar|desativar|ligar|desligar)\\s+(notificações|alertas|auto-salvamento)",
+      "^(configurar|personalizar)\\s+(minhas|as)\\s+(configurações|preferências|perfil)",
+      "^(definir|fazer)\\s+.+\\s+(como|meu|minha)\\s+(padrão|preferência)",
+      "^(eu quero|gostaria de)\\s+(mudar|atualizar|modificar)\\s+(minhas|as)\\s+(configurações|preferência)",
+      "^(como eu|posso)\\s+(mudar|atualizar|modificar)\\s+(minhas|as)\\s+(configurações|idioma|preferência)"
+    ],
+    "spanish": [
+      "^(cambiar|actualizar|establecer|modificar)\\s+(mi|el|la)\\s+(idioma|configuración|preferencia|predeterminado)",
+      "^(cambiar|pasar)\\s+(a|mi)\\s+(inglés|portugués|español|modo oscuro|modo claro)",
+      "^(activar|desactivar|encender|apagar)\\s+(notificaciones|alertas|auto-guardado)",
+      "^(configurar|personalizar)\\s+(mis|las)\\s+(configuraciones|preferencias|perfil)",
+      "^(establecer|hacer)\\s+.+\\s+(como|mi)\\s+(predeterminado|preferencia)",
+      "^(quiero|me gustaría)\\s+(cambiar|actualizar|modificar)\\s+(mis|las)\\s+(configuraciones|preferencia)",
+      "^(cómo|puedo)\\s+(cambiar|actualizar|modificar)\\s+(mis|las)\\s+(configuraciones|idioma|preferencia)"
+    ]
+  },
+  "examples": {
+    "english": [
+      "Change my language to Portuguese",
+      "Update my settings",
+      "Set dark mode as default",
+      "Enable notifications",
+      "Disable auto-save",
+      "Switch to Spanish",
+      "Configure my preferences",
+      "Turn off email alerts",
+      "Customize my profile settings",
+      "How do I change my language?"
+    ],
+    "portuguese": [
+      "Mudar meu idioma para inglês",
+      "Atualizar minhas configurações",
+      "Definir modo escuro como padrão",
+      "Ativar notificações",
+      "Desativar auto-salvamento",
+      "Trocar para espanhol",
+      "Configurar minhas preferências",
+      "Desligar alertas por email",
+      "Personalizar configurações do perfil",
+      "Como eu mudo meu idioma?"
+    ],
+    "spanish": [
+      "Cambiar mi idioma a inglés",
+      "Actualizar mi configuración",
+      "Establecer modo oscuro como predeterminado",
+      "Activar notificaciones",
+      "Desactivar auto-guardado",
+      "Cambiar a portugués",
+      "Configurar mis preferencias",
+      "Apagar alertas por email",
+      "Personalizar configuración del perfil",
+      "¿Cómo cambio mi idioma?"
+    ]
+  }
+}
