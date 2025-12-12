@@ -22,8 +22,10 @@ import type {
 
 import embeddingService from '../embedding.service';
 import pineconeService from '../pinecone.service';
-import { estimateTokens, estimateChunksTokens } from '../../utils/tokenBudgetEstimator';
-import { selectChunksWithinBudget } from '../../utils/contextWindowBudgeting';
+import {
+  getTokenBudgetEstimator,
+  getContextWindowBudgeting,
+} from '../utils';
 
 type LanguageCode = 'en' | 'pt' | 'es';
 
@@ -220,7 +222,7 @@ export class KodaRetrievalEngineV3 {
 
   /**
    * Apply context budgeting to limit total tokens.
-   * Uses the tokenBudgetEstimator for accurate token counting.
+   * Uses the ContextWindowBudgetingService for accurate token counting.
    *
    * @param chunks - Array of retrieved chunks (already sorted by relevance)
    * @param maxTokens - Maximum tokens allowed for chunks
@@ -235,8 +237,9 @@ export class KodaRetrievalEngineV3 {
     // Extract content strings for budget calculation
     const contentStrings = chunks.map(c => c.content);
 
-    // Use the centralized budget selection
-    const budgetResult = selectChunksWithinBudget(contentStrings, maxTokens, language);
+    // Use the centralized budget selection service
+    const budgetingService = getContextWindowBudgeting();
+    const budgetResult = budgetingService.selectChunksWithinBudget(contentStrings, maxTokens, language);
 
     // Map back to chunks (take the first N that fit)
     const budgetedChunks = chunks.slice(0, budgetResult.chunksIncluded);
@@ -254,11 +257,13 @@ export class KodaRetrievalEngineV3 {
 
   /**
    * Get estimated total tokens for a set of chunks.
-   * Useful for pre-flight checks before LLM calls.
+   * Uses TokenBudgetEstimatorService for pre-flight checks before LLM calls.
    */
   public estimateChunkTokens(chunks: RetrievedChunk[], language?: string): number {
-    const contentStrings = chunks.map(c => c.content);
-    return estimateChunksTokens(contentStrings, language);
+    const tokenEstimator = getTokenBudgetEstimator();
+    return chunks.reduce((total, chunk) => {
+      return total + tokenEstimator.estimateDetailed(chunk.content, language).tokens;
+    }, 0);
   }
 }
 

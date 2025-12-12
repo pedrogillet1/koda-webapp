@@ -16,6 +16,10 @@ import chatService from './services/chat.service';
 import { startDocumentWorker, stopDocumentWorker } from './queues/document.queue';
 
 import { DATA_DIR, verifyAllDataFiles } from './config/dataPaths';
+import { initPromptConfig } from './services/core/promptConfig.service';
+import { initTokenBudgetEstimator } from './services/utils/tokenBudgetEstimator.service';
+import { initContextWindowBudgeting } from './services/utils/contextWindowBudgeting.service';
+import { intentConfigService } from './services/core/intentConfig.service';
 // ============================================================================
 // Global Error Handlers
 // ============================================================================
@@ -159,6 +163,29 @@ async function startServer() {
       process.exit(1);
     }
     console.log(`[Server] All ${ok.length} data files verified successfully`);
+
+    // Initialize V3 services (MUST be before routes use them)
+    console.log('[Server] Initializing V3 services...');
+
+    // 1. Initialize token budget estimator
+    initTokenBudgetEstimator();
+    console.log('[Server] TokenBudgetEstimator initialized');
+
+    // 2. Initialize context window budgeting
+    initContextWindowBudgeting();
+    console.log('[Server] ContextWindowBudgeting initialized');
+
+    // 3. Initialize prompt config (loads all JSON data files)
+    initPromptConfig({
+      dataDir: DATA_DIR,
+      env: config.NODE_ENV as 'dev' | 'prod' | 'test',
+      logger: console,
+    });
+    console.log('[Server] PromptConfig initialized');
+
+    // 4. Initialize intent config (loads intent patterns)
+    await intentConfigService.loadPatterns();
+    console.log('[Server] IntentConfig initialized');
 
     // Test database connection
     await prisma.$connect();

@@ -701,6 +701,211 @@ export interface WorkspaceStats {
 }
 
 // ============================================================================
+// PROMPT CONFIG TYPES (V3 - New)
+// ============================================================================
+
+/**
+ * Language code - supported languages
+ */
+export type LanguageCode = 'en' | 'pt' | 'es';
+
+/**
+ * System prompt definition
+ */
+export interface SystemPromptDefinition {
+  key: string;
+  description?: string;
+  templates: {
+    en: string;
+    pt: string;
+    es: string;
+  };
+  placeholders?: string[];
+  version?: number;
+}
+
+/**
+ * Answer style - how to format answers
+ */
+export interface AnswerStyleDefinition {
+  id: string;
+  description?: string;
+  maxLength: number;
+  structure: string[];
+  tone: string;
+  templates: {
+    en: string;
+    pt: string;
+    es: string;
+  };
+  renderHint?: {
+    layout: string;
+    showIcon: boolean;
+    icon?: string;
+    emphasisLevel: string;
+  };
+}
+
+/**
+ * Resolved answer style (with selected language)
+ */
+export interface AnswerStyleResolved {
+  id: string;
+  maxLength: number;
+  structure: string[];
+  tone: string;
+  template: string;
+  renderHint?: {
+    layout: string;
+    showIcon: boolean;
+    icon?: string;
+    emphasisLevel: string;
+  };
+}
+
+/**
+ * Few-shot example
+ */
+export interface FewShotExample {
+  query: string;
+  response: string;
+  context?: string;
+}
+
+/**
+ * Few-shot examples definition
+ */
+export interface FewShotExamplesDefinition {
+  key: string;
+  description?: string;
+  examples: {
+    en: FewShotExample[];
+    pt: FewShotExample[];
+    es: FewShotExample[];
+  };
+}
+
+/**
+ * Resolved few-shot examples (with selected language)
+ */
+export interface FewShotExamplesResolved {
+  key: string;
+  examples: FewShotExample[];
+}
+
+/**
+ * Retrieval policy - controls retrieval behavior
+ */
+export interface RetrievalPolicy {
+  intentKey: string;
+  requiresRetrieval: boolean;
+  topK: number;
+  minScore: number;
+  hybridMode: boolean;
+  hybridWeights?: {
+    vector: number;
+    bm25: number;
+  };
+  boostRecent?: boolean;
+  boostFactors?: {
+    recency: number;
+    title: number;
+    exactMatch: number;
+  };
+}
+
+/**
+ * Table preset - for table formatting
+ */
+export interface TablePreset {
+  id: string;
+  description?: string;
+  columns: string[];
+  headerStyle?: string;
+  cellStyle?: string;
+  maxRows?: number;
+}
+
+/**
+ * Markdown components - reusable markdown patterns
+ */
+export interface MarkdownComponents {
+  citations: {
+    inline: string;
+    block: string;
+  };
+  documentMarker: string;
+  loadMoreMarker: string;
+  codeBlock: string;
+  callout: {
+    info: string;
+    warning: string;
+    error: string;
+  };
+}
+
+/**
+ * Validation rule
+ */
+export interface ValidationRule {
+  id: string;
+  description?: string;
+  check: string;
+  severity: 'error' | 'warning' | 'info';
+  message: {
+    en: string;
+    pt: string;
+    es: string;
+  };
+}
+
+/**
+ * Validation policy
+ */
+export interface ValidationPolicy {
+  key: string;
+  description?: string;
+  rules: ValidationRule[];
+  failOnError: boolean;
+  maxWarnings?: number;
+}
+
+/**
+ * Error messages - localized error messages
+ */
+export interface ErrorMessages {
+  [errorCode: string]: {
+    en: string;
+    pt: string;
+    es: string;
+  };
+}
+
+/**
+ * Prompt config bundle - all configs loaded at startup
+ */
+export interface PromptConfigBundle {
+  systemPrompts: Record<string, SystemPromptDefinition>;
+  answerStyles: Record<string, AnswerStyleDefinition>;
+  answerExamples: Record<string, FewShotExamplesDefinition>;
+  markdownComponents: MarkdownComponents;
+  tablePresets: Record<string, TablePreset>;
+  validationPolicies: Record<string, ValidationPolicy>;
+  retrievalPolicies: Record<string, RetrievalPolicy>;
+  errorLocalization: ErrorMessages;
+}
+
+/**
+ * Logger interface for services
+ */
+export interface LoggerLike {
+  debug?: (message: string, meta?: object) => void;
+  info?: (message: string, meta?: object) => void;
+  warn?: (message: string, meta?: object) => void;
+  error?: (message: string, meta?: object) => void;
+}
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 
