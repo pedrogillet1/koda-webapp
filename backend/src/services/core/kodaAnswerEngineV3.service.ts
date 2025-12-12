@@ -22,6 +22,8 @@ import type {
 } from '../../types/ragV3.types';
 
 import geminiGateway from '../geminiGateway.service';
+import { getContextWindowBudgeting } from '../utils/contextWindowBudgeting.service';
+import { getTokenBudgetEstimator } from '../utils/tokenBudgetEstimator.service';
 
 import type {
   StreamEvent,
@@ -30,6 +32,10 @@ import type {
 } from '../../types/streaming.types';
 
 type LanguageCode = 'en' | 'pt' | 'es';
+
+// Model context limits (Gemini 1.5 Flash default)
+const DEFAULT_MODEL = 'gemini-1.5-flash';
+const CONTEXT_LIMIT_WARNING_THRESHOLD = 0.95; // Warn at 95% utilization
 
 // ============================================================================
 // TYPES
@@ -195,8 +201,23 @@ export class KodaAnswerEngineV3 {
       };
     }
 
-    // Build context from documents
+    // Build context from documents (no re-truncation - already budgeted by retrieval)
     const context = this.buildContext(documents);
+    const systemPrompt = this.buildSystemPrompt(intent, lang);
+
+    // Non-destructive budget guard check
+    const budgetCheck = this.checkContextBudget(systemPrompt, query, context, lang);
+    if (!budgetCheck.withinBudget) {
+      // Budget exceeded - return graceful error instead of silently failing
+      console.error(`[KodaAnswerEngineV3] Budget guard triggered: ${budgetCheck.warnings.join('; ')}`);
+      return {
+        answer: this.getBudgetOverflowMessage(lang),
+        confidenceScore: 0,
+        citations: [],
+        wasTruncated: false,
+        finishReason: 'BUDGET_EXCEEDED',
+      };
+    }
 
     // Generate answer using Gemini LLM (with truncation detection)
     const result = await this.generateDocumentAnswer(query, context, intent, lang);
@@ -264,7 +285,32 @@ export class KodaAnswerEngineV3 {
     const userPrompt = this.buildUserPrompt(query, context, lang);
     const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
 
-    console.log(`[KodaAnswerEngineV3] TRUE STREAMING: Starting for query: "${query.substring(0, 50)}..."`);
+    // Non-destructive budget guard check
+    const budgetCheck = this.checkContextBudget(systemPrompt, query, context, lang);
+    if (!budgetCheck.withinBudget) {
+      // Budget exceeded - return graceful error instead of silently failing
+      const errorMsg = this.getBudgetOverflowMessage(lang);
+      console.error(`[KodaAnswerEngineV3] Budget guard triggered: ${budgetCheck.warnings.join('; ')}`);
+
+      yield { type: 'content', content: errorMsg } as ContentEvent;
+      yield {
+        type: 'metadata',
+        processingTime: Date.now() - startTime,
+        documentsUsed: documents.length,
+      } as StreamEvent;
+      yield { type: 'done', fullAnswer: errorMsg } as StreamEvent;
+
+      return {
+        fullAnswer: errorMsg,
+        intent: intent.primaryIntent || 'DOC_QA',
+        confidence: 0,
+        documentsUsed: documents.length,
+        processingTime: Date.now() - startTime,
+        // Note: Budget exceeded - confidence=0 indicates this was an error case
+      };
+    }
+
+    console.log(`[KodaAnswerEngineV3] TRUE STREAMING: Starting for query: "${query.substring(0, 50)}..." (${budgetCheck.utilizationPercent.toFixed(1)}% context utilization)`);
 
     // Accumulate full answer for final result
     let fullAnswer = '';
@@ -391,12 +437,18 @@ export class KodaAnswerEngineV3 {
 
   /**
    * Build context string from documents.
-   * NOTE: Do NOT truncate content here - retrieval engine already handles token budgeting.
-   * Truncating here would waste the careful budgeting done upstream.
+   *
+   * IMPORTANT: Do NOT truncate or slice documents here!
+   * The retrieval engine (KodaRetrievalEngineV3) already applies careful token budgeting
+   * via selectChunksWithinBudget() and applyContextBudget(). Re-truncating here would:
+   * 1. Waste the upstream budgeting work
+   * 2. Silently drop relevant chunks without reason
+   * 3. Break the end-to-end context budget guarantees
+   *
+   * If you need to limit context, adjust retrieval parameters (maxChunks, token budget).
    */
   private buildContext(documents: any[]): string {
     return documents
-      .slice(0, 10) // Safety limit - retrieval typically returns fewer
       .map((doc, idx) => {
         const content = doc.content || doc.text || '';
         const name = doc.documentName || doc.filename || `Document ${idx + 1}`;
@@ -738,6 +790,101 @@ Por favor, continúa la respuesta desde donde fue cortada. No repitas lo que ya 
     };
 
     return `${trimmed}${endings[lang] || endings.en}`;
+  }
+
+  /**
+   * Non-destructive budget guard check.
+   *
+   * Verifies that the combined prompt (system + user + context) fits within model limits.
+   * This is a GUARD only - it does NOT silently truncate. If over budget, it:
+   * 1. Logs a warning with detailed breakdown
+   * 2. Returns budget status for caller to handle
+   *
+   * The retrieval engine already budgets chunks, so this should rarely trigger.
+   * If it does trigger, it indicates a misconfiguration or edge case.
+   *
+   * @param systemPrompt - System instructions
+   * @param userQuery - User's question
+   * @param context - Document context string (already budgeted by retrieval)
+   * @param language - Language code for token estimation
+   * @returns Budget check result with warnings if over limit
+   */
+  private checkContextBudget(
+    systemPrompt: string,
+    userQuery: string,
+    context: string,
+    language?: string
+  ): {
+    withinBudget: boolean;
+    totalTokens: number;
+    budgetLimit: number;
+    utilizationPercent: number;
+    warnings: string[];
+  } {
+    const tokenEstimator = getTokenBudgetEstimator();
+    const budgetingService = getContextWindowBudgeting();
+
+    // Estimate tokens for each component
+    const systemTokens = tokenEstimator.estimateDetailed(systemPrompt, language).tokens;
+    const userTokens = tokenEstimator.estimateDetailed(userQuery, language).tokens;
+    const contextTokens = tokenEstimator.estimateDetailed(context, language).tokens;
+
+    // Add buffer for response (typically 20% of budget)
+    const responseBuffer = 2000; // Fixed response buffer for Gemini
+    const totalTokens = systemTokens + userTokens + contextTokens + responseBuffer;
+
+    // Get model limit
+    const budgetLimit = budgetingService.getModelContextLimit(DEFAULT_MODEL);
+    const utilizationPercent = (totalTokens / budgetLimit) * 100;
+
+    const warnings: string[] = [];
+    const withinBudget = totalTokens <= budgetLimit;
+
+    // Log detailed breakdown if approaching or exceeding limit
+    if (utilizationPercent >= CONTEXT_LIMIT_WARNING_THRESHOLD * 100) {
+      const breakdown = {
+        systemPrompt: systemTokens,
+        userQuery: userTokens,
+        context: contextTokens,
+        responseBuffer,
+        total: totalTokens,
+        limit: budgetLimit,
+        utilization: `${utilizationPercent.toFixed(1)}%`,
+      };
+
+      if (!withinBudget) {
+        console.error('[KodaAnswerEngineV3] BUDGET EXCEEDED - Context too large', breakdown);
+        warnings.push(
+          `Context budget exceeded: ${totalTokens} tokens > ${budgetLimit} limit (${utilizationPercent.toFixed(1)}%). ` +
+          `Breakdown: system=${systemTokens}, user=${userTokens}, context=${contextTokens}, buffer=${responseBuffer}`
+        );
+      } else {
+        console.warn('[KodaAnswerEngineV3] High context utilization', breakdown);
+        warnings.push(
+          `High context utilization: ${utilizationPercent.toFixed(1)}% (${totalTokens}/${budgetLimit} tokens)`
+        );
+      }
+    }
+
+    return {
+      withinBudget,
+      totalTokens,
+      budgetLimit,
+      utilizationPercent,
+      warnings,
+    };
+  }
+
+  /**
+   * Get budget overflow error message.
+   */
+  private getBudgetOverflowMessage(lang: LanguageCode): string {
+    const messages: Record<LanguageCode, string> = {
+      en: "The context is too large to process. Please try with fewer documents or a more specific question.",
+      pt: "O contexto é muito grande para processar. Tente com menos documentos ou uma pergunta mais específica.",
+      es: "El contexto es demasiado grande para procesar. Intenta con menos documentos o una pregunta más específica.",
+    };
+    return messages[lang] || messages.en;
   }
 }
 
