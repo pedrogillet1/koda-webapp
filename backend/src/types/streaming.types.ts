@@ -96,6 +96,10 @@ export interface DoneEvent extends StreamEventBase {
   documentsUsed?: number;
   tokensUsed?: number;
   processingTime?: number;
+  /** Whether the answer was truncated due to token limits */
+  wasTruncated?: boolean;
+  /** Whether stream was aborted by client disconnect */
+  wasAborted?: boolean;
 }
 
 export interface ErrorEvent extends StreamEventBase {
@@ -128,6 +132,8 @@ export interface StreamingRequest {
     attachedDocumentIds?: string[];
     [key: string]: any;
   };
+  /** AbortSignal for cancellation on client disconnect */
+  abortSignal?: AbortSignal;
 }
 
 export interface StreamingResult {

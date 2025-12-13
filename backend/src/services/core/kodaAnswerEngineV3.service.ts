@@ -58,6 +58,8 @@ export interface AnswerWithDocsParams {
   documents: any[];
   context?: any;
   language: LanguageCode;
+  /** AbortSignal for cancellation on client disconnect */
+  abortSignal?: AbortSignal;
 }
 
 export interface AnswerResult {
@@ -249,13 +251,17 @@ export class KodaAnswerEngineV3 {
    *
    * FIXED: Uses geminiGateway.streamText() directly instead of callback queue.
    * TTFT (Time To First Token) should be <300-800ms with this method.
+   * Supports AbortSignal for cancellation on client disconnect.
    */
   public async *streamAnswerWithDocsAsync(
     params: AnswerWithDocsParams
   ): AsyncGenerator<StreamEvent, StreamingResult, unknown> {
-    const { query, documents, language, intent } = params;
+    const { query, documents, language, intent, abortSignal } = params;
     const lang = language || 'en';
     const startTime = Date.now();
+
+    // Helper to check if aborted
+    const isAborted = () => abortSignal?.aborted ?? false;
 
     // 🛡️ GUARD: Handle empty documents case early with language-aware fallback
     if (!documents || documents.length === 0) {
@@ -312,10 +318,23 @@ export class KodaAnswerEngineV3 {
 
     console.log(`[KodaAnswerEngineV3] TRUE STREAMING: Starting for query: "${query.substring(0, 50)}..." (${budgetCheck.utilizationPercent.toFixed(1)}% context utilization)`);
 
+    // Check abort before starting LLM call
+    if (isAborted()) {
+      console.log('[KodaAnswerEngineV3] Stream aborted before LLM call');
+      return {
+        fullAnswer: '',
+        intent: intent.primaryIntent || 'DOC_QA',
+        confidence: 0,
+        documentsUsed: documents.length,
+        processingTime: Date.now() - startTime,
+      };
+    }
+
     // Accumulate full answer for final result
     let fullAnswer = '';
     let tokensUsed: number | undefined;
     let finishReason: string | undefined;
+    let wasAborted = false;
 
     try {
       // TRUE STREAMING: Use geminiGateway.streamText() AsyncGenerator directly
@@ -330,20 +349,44 @@ export class KodaAnswerEngineV3 {
       // Yield content chunks as they arrive from LLM
       let iterResult = await streamGen.next();
       while (!iterResult.done) {
+        // Check abort during streaming
+        if (isAborted()) {
+          console.log('[KodaAnswerEngineV3] Stream aborted during LLM generation');
+          wasAborted = true;
+          break;
+        }
+
         const chunk = iterResult.value as string;
         fullAnswer += chunk;
         yield { type: 'content', content: chunk } as ContentEvent;
         iterResult = await streamGen.next();
       }
 
-      // Get final metadata from generator return value
-      const finalResult = iterResult.value;
-      if (finalResult) {
-        tokensUsed = finalResult.totalTokens;
-        finishReason = finalResult.finishReason;
+      // Get final metadata from generator return value (only if not aborted)
+      if (!wasAborted && iterResult.done) {
+        const finalResult = iterResult.value;
+        if (finalResult) {
+          tokensUsed = finalResult.totalTokens;
+          finishReason = finalResult.finishReason;
+        }
       }
 
       const processingTime = Date.now() - startTime;
+
+      // Handle aborted case - return early without emitting done/metadata
+      if (wasAborted) {
+        console.log(`[KodaAnswerEngineV3] Stream aborted after ${processingTime}ms, ${fullAnswer.length} chars partial`);
+        return {
+          fullAnswer,
+          intent: intent.primaryIntent || 'DOC_QA',
+          confidence: 0.3, // Lower confidence for partial answer
+          documentsUsed: documents.length,
+          tokensUsed,
+          processingTime,
+          wasTruncated: true, // Treat abort as truncation
+        };
+      }
+
       console.log(`[KodaAnswerEngineV3] TRUE STREAMING: Complete in ${processingTime}ms, ${fullAnswer.length} chars`);
 
       // Detect truncation

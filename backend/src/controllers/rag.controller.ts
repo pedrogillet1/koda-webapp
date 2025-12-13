@@ -269,8 +269,15 @@ export const answerFollowUp = async (req: Request, res: Response): Promise<void>
 /**
  * POST /api/rag/query/stream
  * Generate answer with SSE streaming
+ *
+ * TRUE STREAMING with instant feel:
+ * - AbortController propagated to LLM for clean cancellation
+ * - DB writes deferred until AFTER streaming for optimal TTFT
+ * - Single done event with all metadata for client persistence
  */
 export const queryWithRAGStreaming = async (req: Request, res: Response): Promise<void> => {
+  const startTime = Date.now();
+
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -284,6 +291,10 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       return;
     }
 
+    // TTFT OPTIMIZATION: Ensure conversation exists BEFORE setting up SSE
+    // This is a fast DB check that must happen before streaming starts
+    await ensureConversationExists(conversationId, userId);
+
     // Set up SSE headers
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
@@ -291,14 +302,26 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
-    // Ensure conversation exists
-    await ensureConversationExists(conversationId, userId);
+    // Create AbortController for clean cancellation
+    const abortController = new AbortController();
+    const { signal } = abortController;
+
+    // Handle client disconnect - trigger abort signal
+    let aborted = false;
+    req.on('close', () => {
+      if (!aborted) {
+        aborted = true;
+        abortController.abort();
+        console.log('[RAG V3] Client disconnected, abort signal sent');
+      }
+    });
 
     const request: OrchestratorRequest = {
       userId,
       text: query,
       language: (language as LanguageCode) || 'en',
       conversationId,
+      abortSignal: signal, // Pass abort signal to orchestrator
     };
 
     // TRUE STREAMING: Use orchestrator's async generator
@@ -308,19 +331,13 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     let streamResult: any = {};
     let citations: any[] = [];
 
-    // Handle client disconnect (abort)
-    let aborted = false;
-    req.on('close', () => {
-      aborted = true;
-      console.log('[RAG V3] Client disconnected, aborting stream');
-    });
-
     // FIXED: Consume generator with manual iteration to capture return value
     // Forward all events EXCEPT done (we'll send a combined done with message IDs)
     let iterResult = await stream.next();
     while (!iterResult.done) {
-      if (aborted) {
-        console.log('[RAG V3] Stream aborted by client');
+      // Check abort signal (more reliable than flag)
+      if (signal.aborted) {
+        console.log('[RAG V3] Stream aborted by client (signal)');
         break;
       }
 
@@ -329,7 +346,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
       // Accumulate content for saving
       if (event.type === 'content') {
         fullAnswer += (event as any).content;
-        // Forward content events immediately
+        // Forward content events immediately - NO BUFFERING
         res.write(`data: ${JSON.stringify(event)}\n\n`);
       } else if (event.type === 'citation') {
         // Capture and forward citation events
@@ -345,11 +362,12 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           documentsUsed: doneEvent.documentsUsed,
           tokensUsed: doneEvent.tokensUsed,
           processingTime: doneEvent.processingTime,
+          wasTruncated: doneEvent.wasTruncated,
           citations: doneEvent.citations || citations,
           sourceDocumentIds: doneEvent.sourceDocumentIds || [],
         };
       } else {
-        // Forward other events (intent, retrieving, generating, etc.)
+        // Forward other events (intent, retrieving, generating, metadata, etc.)
         res.write(`data: ${JSON.stringify(event)}\n\n`);
       }
 
@@ -368,18 +386,21 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           documentsUsed: returnValue.documentsUsed,
           tokensUsed: returnValue.tokensUsed,
           processingTime: returnValue.processingTime,
+          wasTruncated: returnValue.wasTruncated,
           citations: returnValue.citations || citations,
         };
       }
     }
 
-    // Don't save if aborted
-    if (aborted) {
+    // Don't save if aborted - just end the response
+    if (signal.aborted) {
+      console.log('[RAG V3] Stream aborted, skipping DB writes');
       res.end();
       return;
     }
 
-    // Save messages to database with FULL metadata
+    // TTFT OPTIMIZATION: DB writes happen AFTER streaming is complete
+    // This ensures the user sees tokens immediately without waiting for DB
     const userMessage = await prisma.message.create({
       data: {
         conversationId,
@@ -399,6 +420,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           processingTime: streamResult.processingTime,
           documentsUsed: streamResult.documentsUsed,
           tokensUsed: streamResult.tokensUsed,
+          wasTruncated: streamResult.wasTruncated,
           citations: streamResult.citations || citations,
           sourceDocumentIds: streamResult.sourceDocumentIds || [],
         }),
@@ -415,9 +437,10 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         fullAnswer,
         intent: streamResult.intent,
         confidence: streamResult.confidence,
-        processingTime: streamResult.processingTime,
+        processingTime: Date.now() - startTime,
         documentsUsed: streamResult.documentsUsed,
         tokensUsed: streamResult.tokensUsed,
+        wasTruncated: streamResult.wasTruncated || false,
         citations: streamResult.citations || citations,
         sourceDocumentIds: streamResult.sourceDocumentIds || [],
       })}\n\n`

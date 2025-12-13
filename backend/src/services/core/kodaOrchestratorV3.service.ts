@@ -138,6 +138,8 @@ export interface OrchestratorRequest {
   conversationId?: string;
   language?: LanguageCode;
   context?: any;
+  /** AbortSignal for cancellation on client disconnect */
+  abortSignal?: AbortSignal;
 }
 
 // Handler context type
@@ -502,6 +504,7 @@ export class KodaOrchestratorV3 {
   /**
    * Stream DOC_QA response using TRUE streaming from answer engine.
    * Event order: intent → retrieving → generating → content* → citations → metadata → done
+   * Supports AbortSignal for cancellation on client disconnect.
    */
   private async *streamDocumentQnA(
     request: OrchestratorRequest,
@@ -509,6 +512,10 @@ export class KodaOrchestratorV3 {
     language: LanguageCode
   ): StreamGenerator {
     const startTime = Date.now();
+    const abortSignal = request.abortSignal;
+
+    // Helper to check if aborted
+    const isAborted = () => abortSignal?.aborted ?? false;
 
     // Check if user has documents
     const hasDocuments = await this.checkUserHasDocuments(request.userId);
@@ -518,6 +525,18 @@ export class KodaOrchestratorV3 {
       yield { type: 'done', fullAnswer: fallback.text } as StreamEvent;
       return {
         fullAnswer: fallback.text,
+        intent: intent.primaryIntent,
+        confidence: intent.confidence,
+        documentsUsed: 0,
+        processingTime: Date.now() - startTime,
+      };
+    }
+
+    // Check abort before retrieval
+    if (isAborted()) {
+      this.logger.info('[Orchestrator] Stream aborted before retrieval');
+      return {
+        fullAnswer: '',
         intent: intent.primaryIntent,
         confidence: intent.confidence,
         documentsUsed: 0,
@@ -552,28 +571,49 @@ export class KodaOrchestratorV3 {
       };
     }
 
+    // Check abort after retrieval
+    if (isAborted()) {
+      this.logger.info('[Orchestrator] Stream aborted after retrieval');
+      return {
+        fullAnswer: '',
+        intent: intent.primaryIntent,
+        confidence: intent.confidence,
+        documentsUsed: retrievalResult.chunks.length,
+        processingTime: Date.now() - startTime,
+      };
+    }
+
     // Yield generating event with document count
     yield {
       type: 'generating',
       message: `Generating answer from ${retrievalResult.chunks.length} document chunks...`,
     } as StreamEvent;
 
-    // TRUE STREAMING: Use answer engine's async generator
+    // TRUE STREAMING: Use answer engine's async generator with abort signal
     const answerStream = this.answerEngine.streamAnswerWithDocsAsync({
       userId: request.userId,
       query: request.text,
       intent: adaptedIntent,
       documents: retrievalResult.chunks,
       language,
+      abortSignal, // Pass abort signal to answer engine
     });
 
     // FIXED: Manually iterate to capture generator return value
     // (for await doesn't give access to return value after completion)
     let fullAnswer = '';
     let tokensUsed = 0;
+    let wasAborted = false;
     let iterResult = await answerStream.next();
 
     while (!iterResult.done) {
+      // Check abort during streaming
+      if (isAborted()) {
+        this.logger.info('[Orchestrator] Stream aborted during LLM generation');
+        wasAborted = true;
+        break;
+      }
+
       const event = iterResult.value;
       yield event;
 
@@ -585,10 +625,24 @@ export class KodaOrchestratorV3 {
     }
 
     // Capture generator return value (when iterResult.done === true)
-    const generatorReturn = iterResult.value as StreamingResult | undefined;
-    if (generatorReturn) {
-      fullAnswer = generatorReturn.fullAnswer || fullAnswer;
-      tokensUsed = generatorReturn.tokensUsed || 0;
+    if (!wasAborted && iterResult.done) {
+      const generatorReturn = iterResult.value as StreamingResult | undefined;
+      if (generatorReturn) {
+        fullAnswer = generatorReturn.fullAnswer || fullAnswer;
+        tokensUsed = generatorReturn.tokensUsed || 0;
+      }
+    }
+
+    // If aborted, return early with partial result
+    if (wasAborted) {
+      return {
+        fullAnswer,
+        intent: intent.primaryIntent,
+        confidence: intent.confidence,
+        documentsUsed: retrievalResult.chunks.length,
+        tokensUsed,
+        processingTime: Date.now() - startTime,
+      };
     }
 
     // Extract citations from retrieval chunks
