@@ -34,13 +34,20 @@ export const CHARS_PER_TOKEN = 4;
  * Model context window limits
  */
 export const MODEL_CONTEXT_LIMITS: Record<string, number> = {
-  'gemini-1.5-flash': 1_000_000,
-  'gemini-1.5-pro': 2_000_000,
+  // Gemini 2.5 (current default)
+  'gemini-2.5-flash': 1_048_576,
+  'gemini-2.5-pro': 1_048_576,
+  // Gemini 2.0
   'gemini-2.0-flash': 1_000_000,
   'gemini-2.0-flash-exp': 1_000_000,
+  // Gemini 1.5 (legacy)
+  'gemini-1.5-flash': 1_000_000,
+  'gemini-1.5-pro': 2_000_000,
+  // OpenAI
   'gpt-4o': 128_000,
   'gpt-4o-mini': 128_000,
   'gpt-4-turbo': 128_000,
+  // Anthropic
   'claude-3-opus': 200_000,
   'claude-3-sonnet': 200_000,
   'claude-3-haiku': 200_000,

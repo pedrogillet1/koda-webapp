@@ -33,8 +33,8 @@ import type {
 
 type LanguageCode = 'en' | 'pt' | 'es';
 
-// Model context limits (Gemini 1.5 Flash default)
-const DEFAULT_MODEL = 'gemini-1.5-flash';
+// Model context limits (Gemini 2.5 Flash default)
+const DEFAULT_MODEL = 'gemini-2.5-flash';
 const CONTEXT_LIMIT_WARNING_THRESHOLD = 0.95; // Warn at 95% utilization
 
 // ============================================================================
