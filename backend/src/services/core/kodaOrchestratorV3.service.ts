@@ -678,7 +678,7 @@ export class KodaOrchestratorV3 {
       docId: c.documentId,
       docName: c.documentName,
       pageNumber: c.pageNumber,
-      chunkId: undefined,
+      chunkId: c.chunkId,  // FIXED: Use actual chunkId from citation
       relevanceScore: undefined,
     }));
 
@@ -748,6 +748,7 @@ export class KodaOrchestratorV3 {
     documentName: string;
     pageNumber?: number;
     snippet?: string;
+    chunkId?: string;
   }> {
     const seen = new Set<string>();
     const citations: Array<{
@@ -755,6 +756,7 @@ export class KodaOrchestratorV3 {
       documentName: string;
       pageNumber?: number;
       snippet?: string;
+      chunkId?: string;
     }> = [];
 
     for (const chunk of chunks.slice(0, 5)) {
@@ -762,11 +764,16 @@ export class KodaOrchestratorV3 {
       if (!docId || seen.has(docId)) continue;
       seen.add(docId);
 
+      // FIXED: Populate chunkId for precise source reference in citation/done events
+      const chunkId = chunk.chunkId || chunk.metadata?.chunkId ||
+        (chunk.metadata?.chunkIndex !== undefined ? `${docId}-${chunk.metadata.chunkIndex}` : undefined);
+
       citations.push({
         documentId: docId,
         documentName: chunk.documentName || chunk.metadata?.filename || 'Document',
         pageNumber: chunk.pageNumber || chunk.metadata?.pageNumber,
         snippet: chunk.content?.substring(0, 100),
+        chunkId,
       });
     }
 
