@@ -347,14 +347,70 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
 
   // ⚡ ZERO-KNOWLEDGE ENCRYPTION: Use plaintext for embeddings if provided
   if (isZeroKnowledge) {
-    // Zero-knowledge encrypted files skip server-side embedding generation.
-    // Embeddings are generated via embedding.service when documents are queried.
-    // The plaintext is only used temporarily and not persisted.
+    // Zero-knowledge encrypted files: backend CAN'T decrypt, must use pre-extracted plaintext
+
+    if (plaintextForEmbeddings && plaintextForEmbeddings.length > 50) {
+      // Store plaintext in metadata for embedding generation
+      await prisma.documentMetadata.create({
+        data: {
+          documentId: document.id,
+          extractedText: plaintextForEmbeddings,
+          wordCount: plaintextForEmbeddings.split(/\s+/).length,
+          characterCount: plaintextForEmbeddings.length,
+        }
+      });
+
+      // Generate embeddings from the pre-extracted plaintext
+      try {
+        const vectorEmbeddingService = await import('./vectorEmbedding.service');
+        const chunks = chunkTextWithOverlap(plaintextForEmbeddings, {
+          maxSize: 1000,
+          overlap: 200,
+          splitOn: ['\n\n', '\n', '. ', ', ', ' ']
+        });
+
+        if (chunks.length > 0) {
+          const chunkObjects = chunks.map((c, idx) => ({
+            chunkIndex: idx,
+            content: c.content,
+          }));
+          await vectorEmbeddingService.default.storeDocumentEmbeddings(document.id, chunkObjects);
+
+          // Update document status to completed
+          await prisma.document.update({
+            where: { id: document.id },
+            data: { status: 'completed' }
+          });
+
+          console.log(`✅ [ZERO-KNOWLEDGE] Generated ${chunks.length} embeddings for ${filename}`);
+        }
+      } catch (embeddingError) {
+        console.error(`❌ [ZERO-KNOWLEDGE] Failed to generate embeddings for ${filename}:`, embeddingError);
+        // Mark as failed if embedding generation fails
+        await prisma.document.update({
+          where: { id: document.id },
+          data: {
+            status: 'failed',
+            error: `Embedding generation failed: ${(embeddingError as Error).message}`
+          }
+        });
+      }
+    } else {
+      console.warn(`⚠️ [ZERO-KNOWLEDGE] No plaintext provided for ${filename} - cannot generate embeddings`);
+      // Mark as failed - zero-knowledge files MUST have plaintext for embeddings
+      await prisma.document.update({
+        where: { id: document.id },
+        data: {
+          status: 'failed',
+          error: 'Zero-knowledge encrypted file uploaded without plaintext for embeddings'
+        }
+      });
+    }
 
     // ⚡ CACHE: Invalidate Redis cache after document upload
     await invalidateUserCache(userId);
 
-    return document; // Return the already-created document
+    return document;
   }
 
   // ⚡ ASYNCHRONOUS PROCESSING: Return immediately, process in background
@@ -463,861 +519,11 @@ export async function processDocumentInBackground(
   }
 }
 
-/**
- * @deprecated This function is no longer used. Use processDocumentAsync instead.
- *
- * This function used coarse-grained progress emissions (0/5/8/20/40/80/100%).
- * processDocumentAsync uses documentProgressService for granular progress (22-100%).
- *
- * Kept temporarily for reference - will be removed in a future cleanup.
- */
-async function processDocumentWithTimeout(
-  documentId: string,
-  fileBuffer: Buffer,
-  filename: string,
-  mimeType: string,
-  userId: string,
-  thumbnailUrl: string | null
-) {
-  try {
-    const processingStartTime = Date.now();
-
-    // Import WebSocket service for progress updates
-    const { emitToUser } = await import('./websocket.service');
-
-    // Stage 1: Starting (0%)
-    emitToUser(userId, 'document-processing-update', {
-      documentId,
-      stage: 'starting',
-      progress: 0,
-      message: 'Processing started...',
-      filename
-    });
-
-    // Extract text based on file type
-    let extractedText = '';
-    let ocrConfidence: number | null = null;
-    let pageCount: number | null = null;
-    let wordCount: number | null = null;
-    let slidesData: any[] | null = null;
-    let pptxMetadata: any | null = null;
-    let pptxSlideChunks: any[] | null = null; // For Phase 4C: Slide-level chunks
-
-    // ⏱️ START TEXT EXTRACTION TIMING
-    const extractionStartTime = Date.now();
-
-    // Progress update: extraction starting (5%)
-    emitToUser(userId, 'document-processing-update', {
-      documentId,
-      stage: 'extracting',
-      progress: 5,
-      message: 'Extracting text from document...',
-      filename
-    });
-
-    // Check if it's a PowerPoint file - use Python PPTX extractor
-    const isPPTX = mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-    if (isPPTX) {
-
-      // Progress update: PowerPoint extraction starting (8%)
-      emitToUser(userId, 'document-processing-update', {
-        documentId,
-        stage: 'extracting',
-        progress: 8,
-        message: 'Processing PowerPoint slides...',
-        filename
-      });
-
-      try {
-        // Save file buffer to temporary file
-        const tempDir = os.tmpdir();
-        const tempFilePath = path.join(tempDir, `pptx-${crypto.randomUUID()}.pptx`);
-        fs.writeFileSync(tempFilePath, fileBuffer);
-
-        // Use textExtraction service for PowerPoint
-        const pptxResult = await textExtractionService.extractTextFromPowerPoint(fileBuffer);
-
-        if (pptxResult.text) {
-          extractedText = pptxResult.text;
-          pageCount = pptxResult.pageCount || null;
-          pptxMetadata = {};
-          slidesData = [];
-          pptxSlideChunks = [];
-
-          // ✅ FIX: PROACTIVE image extraction approach - Always extract images first
-          (async () => {
-            try {
-              // Import prisma in async scope
-              const prismaClient = (await import('../config/database')).default;
-
-
-              // ✅ FIX: ALWAYS extract images first (proactive approach)
-              const { PPTXImageExtractorService } = await import('./ingestion/pptxImageExtractor.service');
-              const extractor = new PPTXImageExtractorService();
-
-              const imageResult = await extractor.extractImages(
-                tempFilePath,
-                documentId,
-                {
-                  uploadToGCS: true,
-                  signedUrlExpiration: 604800 // 7 days instead of 1 hour
-                }
-              );
-
-              if (imageResult.success && imageResult.slides && imageResult.slides.length > 0) {
-
-                // Fetch existing slidesData to preserve text content
-                const existingMetadata = await prismaClient.documentMetadata.findUnique({
-                  where: { documentId }
-                });
-
-                let existingSlidesData: any[] = [];
-                try {
-                  if (existingMetadata?.slidesData) {
-                    existingSlidesData = typeof existingMetadata.slidesData === 'string'
-                      ? JSON.parse(existingMetadata.slidesData)
-                      : existingMetadata.slidesData as any[];
-                  }
-                } catch (e) {
-                }
-
-                // Merge extracted images with existing slide data
-                const mergedSlidesData = existingSlidesData.map((existingSlide: any) => {
-                  const slideNum = existingSlide.slideNumber || existingSlide.slide_number;
-                  const extractedSlide = imageResult.slides!.find(s => s.slideNumber === slideNum);
-
-                  // Use composite image if available, otherwise first image
-                  const imageUrl = extractedSlide?.compositeImageUrl
-                    || (extractedSlide?.images && extractedSlide.images.length > 0
-                        ? extractedSlide.images[0].imageUrl
-                        : null);
-
-                  return {
-                    slideNumber: slideNum,
-                    content: existingSlide.content || '',
-                    textCount: existingSlide.textCount || existingSlide.text_count || 0,
-                    imageUrl: imageUrl || existingSlide.imageUrl // Preserve old imageUrl if extraction failed
-                  };
-                });
-
-                // Update metadata with extracted images (use upsert in case metadata doesn't exist yet)
-                await prismaClient.documentMetadata.upsert({
-                  where: { documentId },
-                  update: {
-                    slidesData: JSON.stringify(mergedSlidesData),
-                    slideGenerationStatus: 'completed'
-                  },
-                  create: {
-                    documentId,
-                    slidesData: JSON.stringify(mergedSlidesData),
-                    slideGenerationStatus: 'completed'
-                  }
-                });
-
-              } else {
-
-                // Update status to show extraction failed (use upsert in case metadata doesn't exist yet)
-                await prismaClient.documentMetadata.upsert({
-                  where: { documentId },
-                  update: {
-                    slideGenerationStatus: 'failed',
-                    slideGenerationError: imageResult.error || 'Image extraction failed'
-                  },
-                  create: {
-                    documentId,
-                    slideGenerationStatus: 'failed',
-                    slideGenerationError: imageResult.error || 'Image extraction failed'
-                  }
-                });
-              }
-
-              // NOTE: LibreOffice/ImageMagick slide generation has been removed.
-              // PPTXImageExtractor (above) handles all image extraction from PPTX files.
-
-            } catch (error: any) {
-              console.error(`❌ [Background] PPTX processing error for ${filename}:`, error);
-
-              // Update status to failed (use upsert in case metadata doesn't exist yet)
-              const prismaClient = (await import('../config/database')).default;
-              await prismaClient.documentMetadata.upsert({
-                where: { documentId },
-                update: {
-                  slideGenerationStatus: 'failed',
-                  slideGenerationError: error.message
-                },
-                create: {
-                  documentId,
-                  slideGenerationStatus: 'failed',
-                  slideGenerationError: error.message
-                }
-              }).catch(err => console.error('Failed to update error status:', err));
-            } finally {
-              // Clean up temp file
-              try {
-                fs.unlinkSync(tempFilePath);
-              } catch (cleanupError: any) {
-              }
-            }
-          })().catch(err => console.error('Background PPTX processing error:', err));
-        } else {
-          throw new Error('PPTX extraction failed');
-        }
-      } catch (pptxError: any) {
-        console.error('❌ CRITICAL: Python PPTX extraction failed. This document will be marked as failed.');
-        console.error('   └── Error:', pptxError.message);
-        // Re-throw the error to be caught by the main try-catch block, which will set the document status to 'failed'
-        throw new Error(`PowerPoint processing failed: ${pptxError.message}`);
-      }
-    }
-    // Check if it's an image type that needs OCR via Gemini Vision
-    else if (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mimeType)) {
-      extractedText = await geminiService.extractTextFromImageWithGemini(fileBuffer, mimeType);
-      ocrConfidence = 0.95;
-    }
-    // 📄 PDF processing - use textExtractionService
-    else if (mimeType === 'application/pdf') {
-      try {
-        console.log('📄 [PDF] Using standard text extraction...');
-        const result = await textExtractionService.extractText(fileBuffer, mimeType);
-        extractedText = result.text;
-        ocrConfidence = result.confidence || null;
-        pageCount = result.pageCount || null;
-        wordCount = result.wordCount || null;
-        console.log(`✅ [PDF] Extracted ${extractedText.length} chars from PDF`);
-      } catch (pdfError: any) {
-        console.error('❌ [PDF] Processing failed:', pdfError.message);
-        throw pdfError;
-      }
-    }
-    else {
-      // Use standard text extraction service for other file types
-      try {
-        const result = await textExtractionService.extractText(fileBuffer, mimeType);
-        extractedText = result.text;
-        ocrConfidence = result.confidence || null;
-        pageCount = result.pageCount || null;
-        wordCount = result.wordCount || null;
-      } catch (extractionError: any) {
-
-        // For images, use Gemini Vision fallback
-        if (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mimeType)) {
-          try {
-            extractedText = await geminiService.extractTextFromImageWithGemini(fileBuffer, mimeType);
-            ocrConfidence = 0.85; // Slightly lower confidence for fallback
-          } catch (visionError) {
-            console.error('❌ Fallback extraction also failed:', visionError);
-            throw new Error(`Failed to extract text from image: ${extractionError.message}`);
-          }
-        } else {
-          // For non-vision files (Word, Excel, etc.) that failed, throw error
-          console.error(`❌ Cannot extract text from ${mimeType}, marking as failed`);
-          throw new Error(`Failed to extract text from ${mimeType}: ${extractionError.message}`);
-        }
-      }
-    }
-
-
-    // ⏱️ END TEXT EXTRACTION TIMING
-    const extractionTime = Date.now() - extractionStartTime;
-
-    // Stage 2: Text extraction complete (20%)
-    emitToUser(userId, 'document-processing-update', {
-      documentId,
-      stage: 'extracted',
-      progress: 20,
-      message: 'Text extracted successfully',
-      filename,
-      extractedLength: extractedText.length
-    });
-
-    // 🛡️ GUARD: Fail if extraction produced too little text (prevents empty documents)
-    const MIN_EXTRACTION_LENGTH = 10;
-    if (!extractedText || extractedText.trim().length < MIN_EXTRACTION_LENGTH) {
-      throw new Error(`Text extraction failed - extracted only ${extractedText?.length || 0} chars (minimum: ${MIN_EXTRACTION_LENGTH}). The document may be empty, corrupted, or in an unsupported format.`);
-    }
-
-    // CONVERT TO MARKDOWN
-    let markdownContent: string | null = null;
-    try {
-      const markdownStartTime = Date.now();
-      const markdownResult = await markdownConversionService.convertToMarkdown(
-        fileBuffer,
-        mimeType,
-        filename,
-        documentId
-      );
-      markdownContent = markdownResult.markdownContent;
-      const markdownTime = Date.now() - markdownStartTime;
-    } catch (error) {
-    }
-
-    // PRE-GENERATE PDF FOR DOCX FILES (so viewing is instant)
-    const isDocx = mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    if (isDocx) {
-      const pdfGenStartTime = Date.now();
-      try {
-        const { convertDocxToPdf } = await import('./ingestion/docx-converter.service');
-
-        // Get the document info
-        const document = await prisma.document.findUnique({
-          where: { id: documentId },
-          select: { encryptedFilename: true, userId: true }
-        });
-
-        if (!document) {
-          throw new Error('Document not found');
-        }
-
-        const pdfKey = `${document.userId}/${documentId}-converted.pdf`;
-
-        // ✅ FIX: Check if PDF already exists in S3
-        const pdfExists = await fileExists(pdfKey);
-
-        if (!pdfExists) {
-          // Save DOCX to temp file
-          const tempDocxPath = path.join(os.tmpdir(), `${documentId}.docx`);
-          fs.writeFileSync(tempDocxPath, fileBuffer);
-
-          // Convert to PDF
-          const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
-
-          if (conversion.success && conversion.pdfPath) {
-            // ✅ FIX: Upload PDF to S3
-            const pdfBuffer = fs.readFileSync(conversion.pdfPath);
-            await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
-
-
-            // Clean up temp files
-            fs.unlinkSync(tempDocxPath);
-            fs.unlinkSync(conversion.pdfPath);
-          } else {
-          }
-        } else {
-        }
-        const pdfGenTime = Date.now() - pdfGenStartTime;
-      } catch (error: any) {
-      }
-    }
-
-    // AUTO-CATEGORIZATION DISABLED: Documents now stay in "Recently Added" by default
-    // Users can manually organize documents using the chat interface or drag-and-drop
-
-    let classification = null;
-    let entities = null;
-    let docIntelligence: any = {};
-
-
-
-    // Create or update metadata record (enriched data added in background)
-    const metadataUpsertStartTime = Date.now();
-
-    // Prepare Document Intelligence data for storage
-    const docIntelData = {
-      classification, // "domain:documentType" format
-      classificationConfidence: docIntelligence.classification?.typeConfidence || null,
-      domain: docIntelligence.classification?.domain || null,
-      domainConfidence: docIntelligence.classification?.domainConfidence || null,
-      entities, // JSON string of entities
-      // Store keywords as JSON in topics field (TF-IDF top keywords)
-      topics: docIntelligence.keywords
-        ? JSON.stringify(docIntelligence.keywords.slice(0, 50).map((k: { word: string; tfIdf: number; isDomainSpecific?: boolean }) => ({
-            word: k.word,
-            tfIdf: k.tfIdf,
-            isDomainSpecific: k.isDomainSpecific
-          })))
-        : null,
-    };
-
-    await prisma.documentMetadata.upsert({
-      where: { documentId },
-      create: {
-        documentId,
-        extractedText,
-        ocrConfidence,
-        classification: docIntelData.classification,
-        classificationConfidence: docIntelData.classificationConfidence,
-        domain: docIntelData.domain,
-        domainConfidence: docIntelData.domainConfidence,
-        entities: docIntelData.entities,
-        topics: docIntelData.topics,
-        summary: null, // Summary added by background enrichment
-        thumbnailUrl,
-        pageCount,
-        wordCount,
-        markdownContent,
-        slidesData: slidesData ? JSON.stringify(slidesData) : null,
-        pptxMetadata: pptxMetadata ? JSON.stringify(pptxMetadata) : null,
-      },
-      update: {
-        extractedText,
-        ocrConfidence,
-        classification: docIntelData.classification,
-        classificationConfidence: docIntelData.classificationConfidence,
-        domain: docIntelData.domain,
-        domainConfidence: docIntelData.domainConfidence,
-        entities: docIntelData.entities,
-        topics: docIntelData.topics,
-        summary: null, // Summary added by background enrichment
-        thumbnailUrl,
-        pageCount,
-        wordCount,
-        markdownContent,
-        slidesData: slidesData ? JSON.stringify(slidesData) : null,
-        pptxMetadata: pptxMetadata ? JSON.stringify(pptxMetadata) : null,
-      },
-    });
-    const metadataUpsertTime = Date.now() - metadataUpsertStartTime;
-    console.log(`💾 [DocIntel] Stored Document Intelligence metadata in ${metadataUpsertTime}ms`);
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // STORE ENTITIES AND KEYWORDS IN DEDICATED TABLES (for advanced querying)
-    // ═══════════════════════════════════════════════════════════════════════════
-    if (docIntelligence.entities && docIntelligence.entities.length > 0) {
-      try {
-        // Delete existing entities for this document (in case of re-upload)
-        await prisma.documentEntity.deleteMany({
-          where: { documentId },
-        });
-
-        // Store entities in dedicated table (batch insert)
-        const entityRecords = docIntelligence.entities.slice(0, 100).map((entity: any) => ({
-          documentId,
-          entityType: entity.type || 'UNKNOWN',
-          value: entity.value || '',
-          normalizedValue: entity.normalizedValue || entity.value || '',
-          pageNumber: entity.pageNumber || null,
-          textIndex: entity.textIndex || 0,
-          context: entity.context || '',
-          confidence: entity.confidence || 1.0,
-          metadata: entity.metadata ? JSON.stringify(entity.metadata) : null,
-        }));
-
-        await prisma.documentEntity.createMany({
-          data: entityRecords,
-          skipDuplicates: true,
-        });
-        console.log(`🏷️ [DocIntel] Stored ${entityRecords.length} entities in DocumentEntity table`);
-      } catch (entityError: any) {
-        console.warn(`⚠️ [DocIntel] Failed to store entities in dedicated table:`, entityError.message);
-      }
-    }
-
-    if (docIntelligence.keywords && docIntelligence.keywords.length > 0) {
-      try {
-        // Delete existing keywords for this document (in case of re-upload)
-        await prisma.documentKeyword.deleteMany({
-          where: { documentId },
-        });
-
-        // Store keywords in dedicated table (batch insert)
-        const keywordRecords = docIntelligence.keywords.slice(0, 100).map((keyword: any) => ({
-          documentId,
-          word: keyword.word || '',
-          count: keyword.count || 1,
-          tfIdf: keyword.tfIdf || null,
-          isDomainSpecific: keyword.isDomainSpecific || false,
-        }));
-
-        await prisma.documentKeyword.createMany({
-          data: keywordRecords,
-          skipDuplicates: true,
-        });
-        console.log(`🔑 [DocIntel] Stored ${keywordRecords.length} keywords in DocumentKeyword table`);
-      } catch (keywordError: any) {
-        console.warn(`⚠️ [DocIntel] Failed to store keywords in dedicated table:`, keywordError.message);
-      }
-    }
-
-    // ⚡ OPTIMIZATION: AUTO-GENERATE TAGS IN BACKGROUND (NON-BLOCKING)
-    // Tag generation takes 10-20s but doesn't block embedding generation
-    // This saves 10-20 seconds by running in parallel!
-    if (extractedText && extractedText.length > 20) {
-
-      // Run in background - don't await!
-      Promise.resolve().then(async () => {
-        try {
-          const tags = await geminiService.generateDocumentTags(filename, extractedText);
-
-          // Create or find tags and link them to the document
-          for (const tagName of tags) {
-            // Get or create tag
-            let tag = await prisma.tag.findUnique({
-              where: { userId_name: { userId, name: tagName } },
-            });
-
-            if (!tag) {
-              tag = await prisma.tag.create({
-                data: { userId, name: tagName },
-              });
-            }
-
-            // Link tag to document (skip if already linked)
-            await prisma.documentTag.upsert({
-              where: {
-                documentId_tagId: {
-                  documentId,
-                  tagId: tag.id,
-                },
-              },
-              update: {},
-              create: {
-                documentId,
-                tagId: tag.id,
-              },
-            });
-          }
-        } catch (error) {
-        }
-      });
-
-    }
-
-    // ⚡ OPTIMIZATION: GENERATE VECTOR EMBEDDINGS IN BACKGROUND (non-blocking)
-    // This saves 15-25 seconds of processing time for instant document availability
-    // Documents can still be used in chat - embeddings will be available shortly after upload
-    if (extractedText && extractedText.length > 50) {
-
-      // Stage 3: Starting embedding generation (40%)
-      emitToUser(userId, 'document-processing-update', {
-        documentId,
-        stage: 'embedding',
-        progress: 40,
-        message: 'Generating AI embeddings...',
-        filename
-      });
-
-      // ═══════════════════════════════════════════════════════════════
-      // KODA FIX: Synchronous embedding generation
-      // Wait for embeddings to complete before marking as completed
-      // ═══════════════════════════════════════════════════════════════
-      try {
-          // Import WebSocket service for progress updates inside async context
-          const { emitToUser: emitToUserAsync } = await import('./websocket.service');
-          const vectorEmbeddingService = await import('./vectorEmbedding.service');
-          const embeddingService = await import('./embedding.service');
-          let chunks;
-
-          // Use enhanced Excel processor for Excel files to preserve cell coordinates
-          if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-              mimeType === 'application/vnd.ms-excel') {
-            const excelProcessor = await import('./ingestion/excelProcessor.service');
-            const excelChunks = await excelProcessor.default.processExcel(fileBuffer);
-
-            // Convert Excel chunks to embedding format with full document metadata
-            // ⚡ CRITICAL: Prepend filename to content so AI sees it prominently
-            chunks = excelChunks.map(chunk => ({
-              content: `📄 File: ${filename} | ${chunk.content}`,
-              metadata: {
-                // ⚡ Document identification (CRITICAL for proper retrieval)
-                documentId: documentId,
-                filename: filename,
-
-                // ⚡ Excel-specific metadata
-                sheet: chunk.metadata.sheetName,
-                sheetNumber: chunk.metadata.sheetNumber,
-                row: chunk.metadata.rowNumber,
-                cells: chunk.metadata.cells,
-                chunkIndex: chunk.metadata.chunkIndex,
-                sourceType: chunk.metadata.sourceType,
-                tableHeaders: chunk.metadata.tableHeaders
-              }
-            }));
-
-            // 🆕 Generate embeddings for Excel chunks using Gemini embedding service
-            const excelTexts = chunks.map(c => c.content);
-            const excelEmbeddingResult = await embeddingService.default.generateBatchEmbeddings(excelTexts, {
-              taskType: 'RETRIEVAL_DOCUMENT',
-              title: filename
-            });
-
-            // Update chunks with embeddings
-            chunks = chunks.map((chunk, i) => ({
-              ...chunk,
-              embedding: excelEmbeddingResult.embeddings[i]?.embedding || new Array(1536).fill(0)
-            }));
-          } else {
-            // 🆕 Phase 4C: For PowerPoint, use slide-level chunks with metadata
-            const isPowerPoint = mimeType.includes('presentation');
-
-            if (isPowerPoint && pptxSlideChunks && pptxSlideChunks.length > 0) {
-              chunks = pptxSlideChunks.map(slideChunk => ({
-                content: slideChunk.content,
-                metadata: {
-                  filename,
-                  slideNumber: slideChunk.metadata.slideNumber,
-                  totalSlides: slideChunk.metadata.totalSlides,
-                  slideTitle: slideChunk.metadata.slideTitle,
-                  hasNotes: slideChunk.metadata.hasNotes,
-                  sourceType: 'powerpoint',
-                  chunkType: 'slide'
-                }
-              }));
-            } else {
-              // ═══════════════════════════════════════════════════════════════
-              // SEMANTIC CHUNKING with proper size and overlap
-              // ═══════════════════════════════════════════════════════════════
-              console.log('📝 [CHUNKING] Using improved chunking with overlap...');
-
-              // Use improved chunking with overlap for better retrieval
-              const overlapChunks = chunkTextWithOverlap(extractedText, {
-                maxSize: 1000,    // ~600 tokens (optimal for embeddings)
-                overlap: 200,     // 20% overlap for context continuity
-                splitOn: ['\n\n', '\n', '. ', '! ', '? '],  // Smart boundaries
-              });
-
-              chunks = overlapChunks.map((chunk) => {
-                return {
-                  content: chunk.content,
-                  metadata: {
-                    chunkIndex: chunk.index,
-                    startChar: chunk.startChar,
-                    endChar: chunk.endChar,
-                  }
-                };
-              });
-
-              console.log(`✅ [CHUNKING] Created ${chunks.length} chunks with overlap + classification`);
-            }
-
-            // 🛡️ GUARD: Fail if no chunks were produced (prevents "completed" documents with no searchable content)
-            if (chunks.length === 0) {
-              throw new Error(`Document produced 0 chunks - text extraction likely failed. Extracted text length: ${extractedText?.length || 0}`);
-            }
-
-            // 🆕 Generate embeddings using OpenAI embedding service
-            const texts = chunks.map(c => c.content);
-            const embeddingResult = await embeddingService.default.generateBatchEmbeddings(texts);
-
-            // Update chunks with embeddings
-            chunks = chunks.map((chunk, i) => ({
-              ...chunk,
-              embedding: embeddingResult.embeddings[i]?.embedding || new Array(1536).fill(0)
-            }));
-          }
-
-          // ✅ FIX: DocumentChunk removed - chunks stored via vectorEmbeddingService
-          // The storeDocumentEmbeddings handles both Pinecone and DocumentEmbedding table
-          console.log(`💾 [Document] Preparing to store ${chunks.length} embeddings...`);
-
-          // Store embeddings in Pinecone + DocumentEmbedding table
-          console.log(`🔄 [DIAGNOSTIC] About to call storeDocumentEmbeddings...`);
-          await vectorEmbeddingService.default.storeDocumentEmbeddings(documentId, chunks);
-          console.log(`✅ [DIAGNOSTIC] storeDocumentEmbeddings completed successfully!`);
-
-          // ═══════════════════════════════════════════════════════════════
-          // VERIFY EMBEDDINGS STORAGE
-          // ═══════════════════════════════════════════════════════════════
-          console.log('🔍 [VERIFICATION] Verifying embeddings were stored...');
-          try {
-            const pineconeService = await import('./pinecone.service');
-            const verification = await pineconeService.default.verifyDocumentEmbeddings(documentId);
-
-            if (!verification.success || verification.count < chunks.length * 0.95) {
-              // Allow 5% loss for edge cases
-              const expectedCount = chunks.length;
-              const actualCount = verification.count;
-
-              console.error(`❌ [VERIFICATION] Embedding storage verification failed!`);
-              console.error(`   Expected: ${expectedCount} chunks`);
-              console.error(`   Found: ${actualCount} embeddings`);
-              console.error(`   Success rate: ${((actualCount / expectedCount) * 100).toFixed(1)}%`);
-
-              throw new Error(
-                `Embedding verification failed: expected ${expectedCount}, got ${actualCount}`
-              );
-            }
-
-            console.log(`✅ [VERIFICATION] Confirmed ${verification.count}/${chunks.length} embeddings stored`);
-
-          } catch (verifyError: any) {
-            // ═══════════════════════════════════════════════════════════════
-            // KODA FIX: Re-throw verification errors to mark document as failed
-            // ═══════════════════════════════════════════════════════════════
-            console.error('❌ [VERIFICATION] Verification error:', verifyError);
-            
-            // If it's a verification failure (not just a Pinecone connection issue), re-throw
-            if (verifyError.message?.includes('Embedding verification failed')) {
-              throw verifyError; // This will mark document as 'failed'
-            }
-            // For other errors (like Pinecone being down), log but continue
-            console.warn('⚠️ [VERIFICATION] Non-critical error, continuing...');
-          }
-
-          // Emit embedding completion (80%)
-          emitToUserAsync(userId, 'document-processing-update', {
-            documentId,
-            stage: 'embedding-complete',
-            progress: 80,
-            message: 'AI embeddings generated',
-            filename,
-            chunksCount: chunks.length
-          });
-
-          // ⚡ NOTIFY USER: Embeddings ready for AI chat
-          emitToUserAsync(userId, 'document-embeddings-ready', {
-            documentId,
-            filename,
-            chunksCount: chunks.length,
-            message: `${filename} is now ready for AI chat!`
-          });
-        // ═══════════════════════════════════════════════════════════════
-        // KODA FIX: Update status after embeddings complete
-        // ═══════════════════════════════════════════════════════════════
-        const crypto = require('crypto');
-        const fileHashActual = crypto.createHash('sha256').update(fileBuffer).digest('hex');
-
-        // ═══════════════════════════════════════════════════════════════
-        // Generate AI-powered display title for the document
-        // ═══════════════════════════════════════════════════════════════
-        let displayTitle: string | null = null;
-        try {
-          const { detectLanguage } = await import('./languageDetection.service');
-          const detectedLang = detectLanguage(extractedText?.slice(0, 500) || '') || 'pt';
-
-          displayTitle = await generateDocumentTitleOnly({
-            filename,
-            documentText: extractedText?.slice(0, 1000), // First 1000 chars for context
-            language: detectedLang
-          });
-          console.log(`📝 [TITLE] Generated display title: "${displayTitle}"`);
-        } catch (titleError: any) {
-          console.warn(`⚠️ [TITLE] Failed to generate title: ${titleError.message}`);
-          // Don't fail the whole process - displayTitle will remain null
-        }
-
-        // ═══════════════════════════════════════════════════════════════
-        // 🛡️ INTEGRITY GUARD: Only mark completed if chunks were stored
-        // ═══════════════════════════════════════════════════════════════
-        if (!chunks || chunks.length === 0) {
-          throw new Error(`Cannot mark document as completed: no chunks were generated (extracted text length: ${extractedText?.length || 0})`);
-        }
-
-        await prisma.document.update({
-          where: { id: documentId },
-          data: {
-            status: 'completed',
-            fileHash: fileHashActual,
-            renderableContent: extractedText || null,
-            embeddingsGenerated: true,
-            chunksCount: chunks.length,
-            displayTitle: displayTitle, // AI-generated human-readable title
-            updatedAt: new Date()
-          },
-        });
-
-        console.log(`✅ [DOCUMENT] Completed with ${chunks.length} embeddings`);
-      } catch (embeddingError: any) {
-        // ═══════════════════════════════════════════════════════════════
-        // KODA FIX: Mark as FAILED if embeddings fail
-        // ═══════════════════════════════════════════════════════════════
-        console.error('❌ [EMBEDDING] Failed:', embeddingError);
-
-        await prisma.document.update({
-          where: { id: documentId },
-          data: {
-            status: 'failed',
-            error: embeddingError.message || 'Embedding generation failed',
-            embeddingsGenerated: false,
-            updatedAt: new Date()
-          },
-        });
-
-        emitToUser(userId, 'document-embeddings-failed', {
-          documentId,
-          filename,
-          error: embeddingError.message || 'Unknown error'
-        });
-
-        throw embeddingError;
-      }
-
-    // 🔍 VERIFY PINECONE STORAGE - Temporarily disabled during OpenAI migration
-    // The embeddings are being stored successfully, verification is failing due to dimension query issues
-
-    // TODO: Re-enable verification after migration is complete
-    // const pineconeService = await import('./pinecone.service');
-    // const verification = await pineconeService.default.verifyDocument(documentId);
-
-    // ═══════════════════════════════════════════════════════════════
-    // KODA FIX: Status update is now handled in the embedding try/catch block above
-    // Document is marked "completed" ONLY after embeddings succeed
-    // ═══════════════════════════════════════════════════════════════
-
-    } else {
-      // ═══════════════════════════════════════════════════════════════
-      // 🛡️ INTEGRITY: No text to embed = FAILURE (document unusable for RAG)
-      // ═══════════════════════════════════════════════════════════════
-      const errorMsg = `Document has insufficient text content for embeddings (length: ${extractedText?.length || 0} chars, minimum: 50)`;
-      console.error(`❌ [INGESTION] ${errorMsg}`);
-
-      // Emit clear failure event to user
-      emitToUser(userId, 'document-ingestion-failed', {
-        documentId,
-        filename,
-        error: errorMsg,
-        reason: 'no_text_content',
-        extractedLength: extractedText?.length || 0
-      });
-
-      // Mark as failed
-      await prisma.document.update({
-        where: { id: documentId },
-        data: {
-          status: 'failed',
-          error: errorMsg,
-          embeddingsGenerated: false,
-          updatedAt: new Date()
-        },
-      });
-
-      throw new Error(errorMsg);
-    }
-
-    // Invalidate cache for this user after successful processing
-    await cacheService.invalidateUserCache(userId);
-
-    // ⏱️ TOTAL PROCESSING TIME
-    const totalProcessingTime = Date.now() - processingStartTime;
-
-    // Stage 4: Processing complete! (100%)
-    emitToUser(userId, 'document-processing-update', {
-      documentId,
-      stage: 'completed',
-      progress: 100,
-      message: 'Document ready!',
-      filename
-    });
-
-    // ✅ FIX: Emit processing-complete event with full document data
-    // This allows frontend to update document status in state
-    const completedDocument = await prisma.document.findUnique({
-      where: { id: documentId },
-      include: { folder: { select: { id: true, name: true, emoji: true } } }
-    });
-    if (completedDocument) {
-      emitToUser(userId, 'processing-complete', completedDocument);
-    }
-
-  } catch (error: any) {
-    // This catch block should never be reached due to outer try-catch,
-    // but kept as a safety net
-    console.error('❌ CRITICAL: Unhandled error in processDocumentWithTimeout:', error);
-
-    try {
-      await prisma.document.update({
-        where: { id: documentId },
-        data: {
-          status: 'failed',
-          updatedAt: new Date()
-        },
-      });
-    } catch (updateError) {
-      console.error('❌ CRITICAL: Failed to update status in inner catch:', updateError);
-    }
-
-    throw error;
-  }
-}
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🗑️ REMOVED: processDocumentWithTimeout (~850 lines of deprecated code)
+// Was using coarse-grained progress (0/5/8/20/40/80/100%)
+// Replaced by processDocumentAsync which uses documentProgressService (22-100%)
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export interface CreateDocumentAfterUploadInput {
   userId: string;
@@ -1329,6 +535,12 @@ export interface CreateDocumentAfterUploadInput {
   folderId?: string;
   thumbnailData?: string; // Base64 encoded thumbnail
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NOTE: ~850 lines of deprecated processDocumentWithTimeout code was removed here
+// The function used coarse progress (0/5/8/20/40/80/100%)
+// Replaced by processDocumentAsync with documentProgressService (22-100%)
+// ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * Create document record after direct upload to GCS (via signed URL)
@@ -1408,19 +620,17 @@ export const createDocumentAfterUpload = async (input: CreateDocumentAfterUpload
           where: { id: document.id },
           data: {
             status: 'failed',
+            error: error.message || 'Processing failed',
             updatedAt: new Date(),
           },
         });
 
-        // Emit WebSocket event for failure
-        const io = require('../server').io;
-        if (io) {
-          io.to(`user:${userId}`).emit('document-processing-failed', {
-            documentId: document.id,
-            filename,
-            error: error.message || 'Processing failed',
-          });
-        }
+        // 🔥 FIX: Use documentProgressService for consistent error events
+        // Emits document-processing-update with stage='failed', status='failed'
+        await documentProgressService.emitError(
+          error.message || 'Processing failed',
+          { documentId: document.id, userId, filename }
+        );
       } catch (updateError) {
         console.error(`❌ Failed to update document status:`, updateError);
       }
@@ -1435,8 +645,9 @@ export const createDocumentAfterUpload = async (input: CreateDocumentAfterUpload
  *
  * 🔥 FIX: Added sessionId parameter for batch upload tracking
  * 🔥 FIX: Using documentProgressService for 12 granular progress stages
+ * 🔥 EXPORTED: For queue worker to call with granular progress
  */
-async function processDocumentAsync(
+export async function processDocumentAsync(
   documentId: string,
   encryptedFilename: string,
   filename: string,
@@ -1453,20 +664,6 @@ async function processDocumentAsync(
     userId,
     filename,
     sessionId
-  };
-
-  // Legacy helper function (kept for backward compatibility with existing code paths)
-  const emitProgress = (stage: string, progress: number, message: string) => {
-    if (io) {
-      io.to(`user:${userId}`).emit('document-processing-update', {
-        documentId,
-        filename,
-        stage,
-        progress,
-        message,
-        status: 'processing'
-      });
-    }
   };
 
   try {
@@ -2057,18 +1254,7 @@ async function processDocumentAsync(
       const errorMsg = `Document has insufficient text content for embeddings (length: ${extractedText?.length || 0} chars, minimum: 50)`;
       console.error(`❌ [INGESTION] ${errorMsg}`);
 
-      // Emit clear failure event to user
-      if (io) {
-        io.to(`user:${userId}`).emit('document-ingestion-failed', {
-          documentId,
-          filename,
-          error: errorMsg,
-          reason: 'no_text_content',
-          extractedLength: extractedText?.length || 0
-        });
-      }
-
-      // Emit error via progress service
+      // Emit error via progress service (emits document-processing-update with status='failed')
       await documentProgressService.emitError(errorMsg, progressOptions);
 
       throw new Error(errorMsg);
@@ -2118,15 +1304,8 @@ async function processDocumentAsync(
       const errorMsg = `Cannot mark document as completed: embeddings not stored (stored=${embeddingsSuccessfullyStored}, chunks=${storedChunksCount})`;
       console.error(`❌ [INTEGRITY] ${errorMsg}`);
 
-      // Emit failure event
-      if (io) {
-        io.to(`user:${userId}`).emit('document-ingestion-failed', {
-          documentId,
-          filename,
-          error: errorMsg,
-          reason: 'no_embeddings'
-        });
-      }
+      // Emit error via progress service (emits document-processing-update with status='failed')
+      await documentProgressService.emitError(errorMsg, progressOptions);
 
       throw new Error(errorMsg);
     }
@@ -2145,20 +1324,9 @@ async function processDocumentAsync(
     // STAGE 19: COMPLETE (100%)
     // 🔥 FIX: Only emit 100% AFTER everything is verified and stored
     // ════════════════════════════════════════════════════════════════════════
+    // 🔥 FIX: COMPLETE stage emits document-processing-update with progress=100, status='completed'
+    // No need for separate document-processing-complete event - frontend uses document-processing-update
     await documentProgressService.emitProgress('COMPLETE', progressOptions);
-
-    // Emit completion event
-    try {
-      if (io) {
-        io.to(`user:${userId}`).emit('document-processing-complete', {
-          documentId,
-          filename,
-          status: 'completed'
-        });
-      }
-    } catch (wsError) {
-      console.error('WebSocket error:', wsError);
-    }
 
     // ✅ OPTIMIZATION: Start background tag generation AFTER document is completed
     // This saves 5-10 seconds by not blocking the upload response
@@ -2187,6 +1355,9 @@ async function processDocumentAsync(
       error.message || 'Processing failed',
       { documentId, userId, filename, sessionId }
     );
+
+    // 🔥 FIX: Re-throw error so callers (like queue worker) can handle retries
+    throw error;
   }
 }
 
@@ -3153,24 +2324,19 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // DOCX FILES: Convert to PDF for universal preview
+  // DOCX FILES: Convert to PDF for universal preview (LibreOffice for excellent fidelity)
   // ═══════════════════════════════════════════════════════════════════════════
   const isDocx = document.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
   if (isDocx) {
-    const { convertDocxToPdf } = await import('./ingestion/docx-converter.service');
-
     // REASON: Use the correct path for the converted PDF
     // WHY: During upload, DOCX is converted to PDF and saved as `${userId}/${documentId}-converted.pdf`
-    // This matches the path used in document.queue.ts line 242
     const pdfKey = `${userId}/${documentId}-converted.pdf`;
 
     const pdfExists = await fileExists(pdfKey);
 
     if (!pdfExists) {
-
       // ✅ FIX: Download DOCX from S3 Storage
-      const tempDocxPath = path.join(os.tmpdir(), `${documentId}.docx`);
       let docxBuffer = await downloadFile(document.encryptedFilename);
 
       // ✅ Validate that the downloaded buffer is not empty
@@ -3178,40 +2344,57 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
         throw new Error(`Downloaded DOCX file is empty: ${document.encryptedFilename}`);
       }
 
-
       // 🔓 DECRYPT FILE if encrypted
-      if (document.isEncrypted) {
+      if (document.isEncrypted && document.encryptionIV && document.encryptionAuthTag) {
         const encryptionService = await import('./encryption.service');
-        docxBuffer = encryptionService.default.decryptFile(docxBuffer, `document-${userId}`);
+        const ivBuffer = Buffer.from(document.encryptionIV, 'base64');
+        const authTagBuffer = Buffer.from(document.encryptionAuthTag, 'base64');
+        const encryptedBuffer = Buffer.concat([ivBuffer, authTagBuffer, docxBuffer]);
+        docxBuffer = encryptionService.default.decryptFile(encryptedBuffer, `document-${userId}`);
       }
 
       // ✅ Validate DOCX file format (check ZIP signature)
-      // DOCX files are ZIP archives, so they should start with 'PK' (0x50, 0x4B)
       if (docxBuffer[0] !== 0x50 || docxBuffer[1] !== 0x4B) {
         throw new Error(`Invalid DOCX file format - not a valid ZIP archive: ${document.encryptedFilename}`);
       }
 
-      fs.writeFileSync(tempDocxPath, docxBuffer);
+      // Try LibreOffice first for excellent fidelity
+      const libreOfficeConverter = await import('./ingestion/libreOfficeConverter.service');
+      const libreOffice = await libreOfficeConverter.checkLibreOfficeAvailable();
 
-      // Convert to PDF
-      const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
+      if (libreOffice.available) {
+        console.log('📄 [getDocumentPreview] Converting DOCX with LibreOffice for excellent fidelity...');
+        const conversion = await libreOfficeConverter.convertToPdf(docxBuffer, document.filename);
 
-      if (conversion.success && conversion.pdfPath) {
-        // ✅ FIX: Upload PDF to S3 Storage
-        const pdfBuffer = fs.readFileSync(conversion.pdfPath);
-        await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
-
-
-        // Clean up temp files
-        fs.unlinkSync(tempDocxPath);
-        fs.unlinkSync(conversion.pdfPath);
+        if (conversion.success && conversion.pdfBuffer) {
+          await uploadFile(pdfKey, conversion.pdfBuffer, 'application/pdf');
+          console.log(`✅ [getDocumentPreview] DOCX PDF uploaded: ${pdfKey}`);
+        } else {
+          throw new Error('LibreOffice DOCX conversion failed: ' + conversion.error);
+        }
       } else {
-        throw new Error('Failed to convert DOCX to PDF: ' + conversion.error);
+        // Fallback to Mammoth+Puppeteer (good but not excellent fidelity)
+        console.log('⚠️ [getDocumentPreview] LibreOffice not available, using Mammoth fallback...');
+        const { convertDocxToPdf } = await import('./ingestion/docx-converter.service');
+
+        const tempDocxPath = path.join(os.tmpdir(), `${documentId}.docx`);
+        fs.writeFileSync(tempDocxPath, docxBuffer);
+
+        const conversion = await convertDocxToPdf(tempDocxPath, os.tmpdir());
+
+        if (conversion.success && conversion.pdfPath) {
+          const pdfBuffer = fs.readFileSync(conversion.pdfPath);
+          await uploadFile(pdfKey, pdfBuffer, 'application/pdf');
+          fs.unlinkSync(tempDocxPath);
+          fs.unlinkSync(conversion.pdfPath);
+        } else {
+          fs.unlinkSync(tempDocxPath);
+          throw new Error('Failed to convert DOCX to PDF: ' + conversion.error);
+        }
       }
     }
 
     // Return backend preview endpoint URL
-    // PDF.js will fetch from our backend which streams from S3
     return {
       previewType: 'pdf',
       previewUrl: `/api/documents/${documentId}/preview-pdf`,
@@ -3221,22 +2404,79 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // POWERPOINT FILES: Return slides data from metadata
+  // POWERPOINT FILES: Convert to PDF for excellent fidelity preview (LibreOffice)
   // ═══════════════════════════════════════════════════════════════════════════
   const isPptx = document.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
                  document.mimeType?.includes('presentation') ||
                  document.mimeType?.includes('powerpoint');
 
   if (isPptx) {
-    // REASON: PowerPoint files use PPTXPreview component with extracted slide data
-    // WHY: Slides are extracted and stored in metadata during document processing
+    // Check if we already have a PDF conversion
+    const pdfKey = `${userId}/${documentId}-converted.pdf`;
+    const pdfExists = await fileExists(pdfKey);
+
+    if (pdfExists) {
+      // Use existing PDF conversion - excellent fidelity
+      return {
+        previewType: 'pptx-pdf',
+        previewUrl: `/api/documents/${documentId}/preview-pdf`,
+        originalType: document.mimeType,
+        filename: document.filename,
+      };
+    }
+
+    // Try to convert PPTX to PDF using LibreOffice
+    try {
+      const libreOfficeConverter = await import('./ingestion/libreOfficeConverter.service');
+      const libreOffice = await libreOfficeConverter.checkLibreOfficeAvailable();
+
+      if (libreOffice.available) {
+        console.log('📊 [getDocumentPreview] Converting PPTX with LibreOffice for excellent fidelity...');
+
+        // Download and decrypt the file
+        const fileBuffer = await downloadFile(document.encryptedFilename);
+
+        let pptxBuffer = fileBuffer;
+        if (document.isEncrypted && document.encryptionIV && document.encryptionAuthTag) {
+          const encryptionService = await import('./encryption.service');
+          const ivBuffer = Buffer.from(document.encryptionIV, 'base64');
+          const authTagBuffer = Buffer.from(document.encryptionAuthTag, 'base64');
+          const encryptedBuffer = Buffer.concat([ivBuffer, authTagBuffer, fileBuffer]);
+          pptxBuffer = encryptionService.default.decryptFile(encryptedBuffer, `document-${userId}`);
+        }
+
+        // Convert to PDF using unified converter
+        const conversion = await libreOfficeConverter.convertToPdf(pptxBuffer, document.filename);
+
+        if (conversion.success && conversion.pdfBuffer) {
+          await uploadFile(pdfKey, conversion.pdfBuffer, 'application/pdf');
+          console.log(`✅ [getDocumentPreview] PPTX PDF uploaded: ${pdfKey}`);
+
+          return {
+            previewType: 'pptx-pdf',
+            previewUrl: `/api/documents/${documentId}/preview-pdf`,
+            originalType: document.mimeType,
+            filename: document.filename,
+          };
+        }
+      }
+    } catch (conversionError: any) {
+      console.warn('⚠️ [getDocumentPreview] PPTX PDF conversion failed:', conversionError.message);
+      // Fall through to slide data approach
+    }
+
+    // Fall back to slide data approach (limited fidelity)
     const slidesData = document.metadata?.slidesData;
     const pptxMetadata = document.metadata?.pptxMetadata;
+    const slideGenerationStatus = document.metadata?.slideGenerationStatus;
+    const slideGenerationError = document.metadata?.slideGenerationError;
 
     return {
       previewType: 'pptx',
-      slidesData: slidesData ? JSON.parse(slidesData as string) : [],
-      pptxMetadata: pptxMetadata ? JSON.parse(pptxMetadata as string) : {},
+      slidesData: slidesData ? (typeof slidesData === 'string' ? JSON.parse(slidesData) : slidesData) : [],
+      pptxMetadata: pptxMetadata ? (typeof pptxMetadata === 'string' ? JSON.parse(pptxMetadata) : pptxMetadata) : {},
+      slideGenerationStatus: slideGenerationStatus || null,
+      slideGenerationError: slideGenerationError || null,
       originalType: document.mimeType,
       filename: document.filename,
     };
@@ -3287,7 +2527,7 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // EXCEL FILES: Convert to HTML for in-browser preview
+  // EXCEL FILES: Convert to PDF for excellent fidelity preview (LibreOffice)
   // ═══════════════════════════════════════════════════════════════════════════
   const excelTypes = [
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
@@ -3295,14 +2535,83 @@ export const getDocumentPreview = async (documentId: string, userId: string) => 
   ];
 
   if (excelTypes.includes(document.mimeType)) {
-    // Return download URL for Excel files
-    const url = await getSignedUrl(document.encryptedFilename, 3600);
-    return {
-      previewType: 'excel',
-      downloadUrl: url,
-      originalType: document.mimeType,
-      filename: document.filename,
-    };
+    // Check if we already have a PDF conversion
+    const pdfKey = `${userId}/${documentId}-converted.pdf`;
+    const pdfExists = await fileExists(pdfKey);
+
+    if (pdfExists) {
+      // Use existing PDF conversion - excellent fidelity
+      return {
+        previewType: 'excel-pdf',
+        previewUrl: `/api/documents/${documentId}/preview-pdf`,
+        originalType: document.mimeType,
+        filename: document.filename,
+      };
+    }
+
+    try {
+      // Download and decrypt the file
+      const fileBuffer = await downloadFile(document.encryptedFilename);
+
+      let excelBuffer = fileBuffer;
+      if (document.isEncrypted && document.encryptionIV && document.encryptionAuthTag) {
+        const encryptionService = await import('./encryption.service');
+        const ivBuffer = Buffer.from(document.encryptionIV, 'base64');
+        const authTagBuffer = Buffer.from(document.encryptionAuthTag, 'base64');
+        const encryptedBuffer = Buffer.concat([ivBuffer, authTagBuffer, fileBuffer]);
+        excelBuffer = encryptionService.default.decryptFile(encryptedBuffer, `document-${userId}`);
+      }
+
+      // Try LibreOffice first for excellent fidelity
+      const libreOfficeConverter = await import('./ingestion/libreOfficeConverter.service');
+      const libreOffice = await libreOfficeConverter.checkLibreOfficeAvailable();
+
+      if (libreOffice.available) {
+        console.log('📊 [getDocumentPreview] Converting Excel with LibreOffice for excellent fidelity...');
+        const conversion = await libreOfficeConverter.convertToPdf(excelBuffer, document.filename);
+
+        if (conversion.success && conversion.pdfBuffer) {
+          await uploadFile(pdfKey, conversion.pdfBuffer, 'application/pdf');
+          console.log(`✅ [getDocumentPreview] Excel PDF uploaded: ${pdfKey}`);
+
+          return {
+            previewType: 'excel-pdf',
+            previewUrl: `/api/documents/${documentId}/preview-pdf`,
+            originalType: document.mimeType,
+            filename: document.filename,
+          };
+        }
+      }
+
+      // Fallback to HTML tables if LibreOffice not available
+      console.log('⚠️ [getDocumentPreview] LibreOffice not available, using HTML table fallback...');
+      const { generateExcelHtmlPreview } = await import('./ingestion/excelHtmlPreview.service');
+      const preview = await generateExcelHtmlPreview(excelBuffer);
+      const url = await getSignedUrl(document.encryptedFilename, 3600);
+
+      return {
+        previewType: 'excel',
+        htmlContent: preview.htmlContent,
+        sheetCount: preview.sheetCount,
+        sheets: preview.sheets,
+        downloadUrl: url,
+        originalType: document.mimeType,
+        filename: document.filename,
+      };
+    } catch (error: any) {
+      console.error('❌ [getDocumentPreview] Excel preview generation failed:', error.message);
+      const url = await getSignedUrl(document.encryptedFilename, 3600);
+      return {
+        previewType: 'excel',
+        htmlContent: null,
+        sheetCount: 0,
+        sheets: [],
+        downloadUrl: url,
+        originalType: document.mimeType,
+        filename: document.filename,
+        error: 'Failed to generate preview: ' + error.message,
+      };
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -3748,19 +3057,11 @@ export const retryDocument = async (documentId: string, userId: string) => {
         },
       });
 
-      // 🔥 FIX: Emit error to user via WebSocket
-      const io = require('../server').io;
-      if (io) {
-        io.to(`user:${userId}`).emit('document-processing-update', {
-          documentId: document.id,
-          filename: document.filename,
-          stage: 'failed',
-          progress: 0,
-          message: error.message || 'Processing failed',
-          status: 'failed',
-          error: error.message
-        });
-      }
+      // 🔥 FIX: Use documentProgressService for consistent error events
+      await documentProgressService.emitError(
+        error.message || 'Processing failed',
+        { documentId: document.id, userId, filename: document.filename }
+      );
     });
 
 
