@@ -246,6 +246,5 @@ export class KodaFallbackEngineV3 {
   }
 }
 
-// Singleton instance
-export const kodaFallbackEngineV3 = new KodaFallbackEngineV3();
-export default kodaFallbackEngineV3;
+// Use container.getFallbackEngine() instead of singleton
+export default KodaFallbackEngineV3;

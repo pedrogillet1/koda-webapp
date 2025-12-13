@@ -26,7 +26,7 @@ export { convertDocxToPdf } from './docx-converter.service';
 
 // File Processing
 export { default as excelProcessor } from './excelProcessor.service';
-export { PPTXImageExtractorService, pptxImageExtractorService } from './pptxImageExtractor.service';
+export { PPTXImageExtractorService } from './pptxImageExtractor.service';
 
 // Title Generation
 export { generateDocumentTitleOnly, generateTitleArtifacts } from './titleGeneration.service';

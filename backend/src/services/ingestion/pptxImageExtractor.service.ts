@@ -295,5 +295,5 @@ export class PPTXImageExtractorService {
   }
 }
 
-export const pptxImageExtractorService = new PPTXImageExtractorService();
+
  

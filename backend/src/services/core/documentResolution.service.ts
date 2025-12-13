@@ -15,20 +15,11 @@ import {
 
 /**
  * Service responsible for resolving free-text document name mentions into real document IDs.
+ * Use container to get instance if needed in future.
  */
 export class DocumentResolutionService {
-  private static instance: DocumentResolutionService;
-
-  private constructor() {}
-
-  /**
-   * Singleton accessor
-   */
-  public static getInstance(): DocumentResolutionService {
-    if (!DocumentResolutionService.instance) {
-      DocumentResolutionService.instance = new DocumentResolutionService();
-    }
-    return DocumentResolutionService.instance;
+  constructor() {
+    // No-op - service uses static methods and Prisma directly
   }
 
   /**
@@ -243,4 +234,4 @@ export class DocumentResolutionService {
   }
 }
 
-export const documentResolutionService = DocumentResolutionService.getInstance();
+

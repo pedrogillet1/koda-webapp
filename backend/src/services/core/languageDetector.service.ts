@@ -65,8 +65,7 @@ export class DefaultLanguageDetector implements ILanguageDetector {
   }
 }
 
-// Export default instance
-export const defaultLanguageDetector = new DefaultLanguageDetector();
+// Use container.getLanguageDetector() instead of singleton
+// Singleton removed - use DI container
+export default DefaultLanguageDetector;
 
-// Alias for backward compatibility
-export const languageDetectorService = defaultLanguageDetector;

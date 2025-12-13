@@ -1,9 +1,10 @@
 import OpenAI from 'openai';
 import { config } from '../config/env';
-import { languageDetectorService } from './core/languageDetector.service';
+import { getContainer } from '../bootstrap/container';
+
 
 // Use V3 LanguageDetectorService for language instructions
-const createLanguageInstruction = (lang: string) => languageDetectorService.createLanguageInstruction(lang);
+const createLanguageInstruction = (lang: string) => getContainer().getLanguageDetector().createLanguageInstruction(lang);
 
 // Minimal context manager stub
 const contextManager = {

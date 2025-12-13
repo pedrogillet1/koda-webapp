@@ -3695,8 +3695,9 @@ export const regeneratePPTXSlides = async (documentId: string, userId: string) =
       // 5. Extract images from PPTX using PPTXImageExtractor
       // NOTE: LibreOffice/ImageMagick slide generation has been removed.
       // PPTXImageExtractor handles all image extraction from PPTX files.
-      const { pptxImageExtractorService } = await import('./ingestion/pptxImageExtractor.service');
-      const imageResult = await pptxImageExtractorService.extractImages(
+      const { PPTXImageExtractorService } = await import('./ingestion/pptxImageExtractor.service');
+      const pptxExtractor = new PPTXImageExtractorService();
+      const imageResult = await pptxExtractor.extractImages(
           tempFilePath,
           documentId,
           { uploadToGCS: true }
