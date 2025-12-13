@@ -381,12 +381,16 @@ export const uploadDocument = async (input: UploadDocumentInput) => {
 
 /**
  * Process document in background without blocking the upload
- * TypeScript cache fully cleared
+ *
+ * 🔥 FIX: Now routes through processDocumentAsync for unified granular progress
+ * - Uses documentProgressService for 12+ progress stages (22-100%)
+ * - Eliminates duplicate code path with coarse progress (0/5/8/20/40/80/100%)
+ *
  * EXPORTED for background worker to reprocess pending documents
  */
 export async function processDocumentInBackground(
   documentId: string,
-  fileBuffer: Buffer,
+  fileBuffer: Buffer,  // Note: Not used anymore - processDocumentAsync downloads from storage
   filename: string,
   mimeType: string,
   userId: string,
@@ -395,10 +399,29 @@ export async function processDocumentInBackground(
   const PROCESSING_TIMEOUT = 180000; // 3 minutes max per document
 
   try {
+    // 🔥 FIX: Get encryptedFilename from document record for processDocumentAsync
+    const document = await prisma.document.findUnique({
+      where: { id: documentId },
+      select: { encryptedFilename: true }
+    });
+
+    if (!document?.encryptedFilename) {
+      throw new Error(`Document ${documentId} not found or missing encryptedFilename`);
+    }
 
     // Wrap entire processing in a timeout
     await Promise.race([
-      processDocumentWithTimeout(documentId, fileBuffer, filename, mimeType, userId, thumbnailUrl),
+      // 🔥 FIX: Use processDocumentAsync instead of processDocumentWithTimeout
+      // This routes through the unified progress service with granular stages
+      processDocumentAsync(
+        documentId,
+        document.encryptedFilename,
+        filename,
+        mimeType,
+        userId,
+        thumbnailUrl,
+        undefined  // sessionId - not available in this code path
+      ),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error(`Processing timeout after ${PROCESSING_TIMEOUT / 1000} seconds`)), PROCESSING_TIMEOUT)
       )
@@ -418,9 +441,16 @@ export async function processDocumentInBackground(
         where: { id: documentId },
         data: {
           status: 'failed',
+          error: error.message || 'Processing failed',
           updatedAt: new Date(),
         }
       });
+
+      // 🔥 FIX: Emit error via documentProgressService for consistent UI updates
+      await documentProgressService.emitError(
+        error.message || 'Processing failed',
+        { documentId, userId, filename }
+      );
 
       console.log(`⚠️  Marked document as failed: ${filename}`);
       console.log(`   └── Reason: ${error.message || 'Unknown error'}`);
@@ -434,7 +464,12 @@ export async function processDocumentInBackground(
 }
 
 /**
- * Internal function with comprehensive error handling at each step
+ * @deprecated This function is no longer used. Use processDocumentAsync instead.
+ *
+ * This function used coarse-grained progress emissions (0/5/8/20/40/80/100%).
+ * processDocumentAsync uses documentProgressService for granular progress (22-100%).
+ *
+ * Kept temporarily for reference - will be removed in a future cleanup.
  */
 async function processDocumentWithTimeout(
   documentId: string,
@@ -1798,11 +1833,6 @@ async function processDocumentAsync(
 
       // 🔥 FIX: Removed fire-and-forget - embeddings must complete before marking document done
       try {
-        // ════════════════════════════════════════════════════════════════════════
-        // STAGE 9: EMBEDDING START (62%)
-        // ════════════════════════════════════════════════════════════════════════
-        await documentProgressService.emitProgress('EMBEDDING_START', progressOptions);
-
           const vectorEmbeddingService = await import('./vectorEmbedding.service');
           const embeddingService = await import('./embedding.service');
           let chunks;
@@ -1833,7 +1863,23 @@ async function processDocumentAsync(
               }
             }));
 
-            // 🆕 Generate embeddings for Excel chunks using Gemini embedding service
+            // 🛡️ GUARD: Fail if no chunks were produced from Excel
+            if (chunks.length === 0) {
+              throw new Error(`Excel document produced 0 chunks - file may be empty or corrupted`);
+            }
+
+            // ════════════════════════════════════════════════════════════════════════
+            // 🔥 FIX: CHUNKING_COMPLETE for Excel path (60%)
+            // ════════════════════════════════════════════════════════════════════════
+            await documentProgressService.emitProgress('CHUNKING_COMPLETE', progressOptions);
+            console.log(`✅ [CHUNKING] Created ${chunks.length} Excel chunks, starting embedding generation...`);
+
+            // ════════════════════════════════════════════════════════════════════════
+            // 🔥 FIX: EMBEDDING_START for Excel path (62%)
+            // ════════════════════════════════════════════════════════════════════════
+            await documentProgressService.emitProgress('EMBEDDING_START', progressOptions);
+
+            // 🆕 Generate embeddings for Excel chunks using embedding service
             const excelTexts = chunks.map(c => c.content);
             const excelEmbeddingResult = await embeddingService.default.generateBatchEmbeddings(excelTexts, {
               taskType: 'RETRIEVAL_DOCUMENT',
@@ -1845,6 +1891,11 @@ async function processDocumentAsync(
               ...chunk,
               embedding: excelEmbeddingResult.embeddings[i]?.embedding || new Array(1536).fill(0)
             }));
+
+            // ════════════════════════════════════════════════════════════════════════
+            // 🔥 FIX: EMBEDDING_COMPLETE for Excel path (70%)
+            // ════════════════════════════════════════════════════════════════════════
+            await documentProgressService.emitProgress('EMBEDDING_COMPLETE', progressOptions);
           } else {
             // 🆕 Phase 4C: For PowerPoint, use slide-level chunks with metadata
             const isPowerPoint = mimeType.includes('presentation');
@@ -1893,7 +1944,18 @@ async function processDocumentAsync(
               throw new Error(`Document produced 0 chunks - text extraction likely failed. Extracted text length: ${extractedText?.length || 0}`);
             }
 
-            // 🆕 Generate embeddings using OpenAI embedding service
+            // ════════════════════════════════════════════════════════════════════════
+            // 🔥 FIX: CHUNKING_COMPLETE (60%) - emitted BEFORE embedding generation
+            // ════════════════════════════════════════════════════════════════════════
+            await documentProgressService.emitProgress('CHUNKING_COMPLETE', progressOptions);
+            console.log(`✅ [CHUNKING] Created ${chunks.length} chunks, starting embedding generation...`);
+
+            // ════════════════════════════════════════════════════════════════════════
+            // 🔥 FIX: EMBEDDING_START (62%) - correct position before embedding generation
+            // ════════════════════════════════════════════════════════════════════════
+            await documentProgressService.emitProgress('EMBEDDING_START', progressOptions);
+
+            // 🆕 Generate embeddings using embedding service
             const texts = chunks.map(c => c.content);
             const embeddingResult = await embeddingService.default.generateBatchEmbeddings(texts);
 
@@ -1902,12 +1964,13 @@ async function processDocumentAsync(
               ...chunk,
               embedding: embeddingResult.embeddings[i]?.embedding || new Array(1536).fill(0)
             }));
+
+            // ════════════════════════════════════════════════════════════════════════
+            // 🔥 FIX: EMBEDDING_COMPLETE (70%) - emitted AFTER embedding generation
+            // ════════════════════════════════════════════════════════════════════════
+            await documentProgressService.emitProgress('EMBEDDING_COMPLETE', progressOptions);
           }
 
-          // ════════════════════════════════════════════════════════════════════════
-          // STAGE 10: CHUNKING COMPLETE (60%)
-          // ════════════════════════════════════════════════════════════════════════
-          await documentProgressService.emitProgress('CHUNKING_COMPLETE', progressOptions);
           console.log(`💾 [Document] Preparing to store ${chunks.length} embeddings...`);
 
           // ════════════════════════════════════════════════════════════════════════
@@ -2208,7 +2271,9 @@ function chunkPowerPointText(text: string, maxWords: number = 500): Array<{conte
   const chunks: Array<{content: string, metadata: any}> = [];
 
   // Split by slide markers
-  const slideRegex = /===\s*Slide\s+(\d+)\s*===\n([\s\S]*?)(?=\n===\s*Slide\s+\d+\s*===|$)/gi;
+  // 🔥 FIX: Use \s+ instead of \n to handle whitespace-normalized text from postProcessOCRText
+  // postProcessOCRText replaces all whitespace (including newlines) with single spaces
+  const slideRegex = /===\s*Slide\s+(\d+)\s*===\s+([\s\S]*?)(?=\s*===\s*Slide\s+\d+\s*===|$)/gi;
   let match;
   let chunkIndex = 0;
 
@@ -2290,6 +2355,69 @@ function chunkPowerPointText(text: string, maxWords: number = 500): Array<{conte
     }
   }
 
+  // 🔥 FIX: Fallback if regex didn't match any slides (e.g., heavily normalized text)
+  // Fall back to standard chunking if no slide markers were successfully parsed
+  if (chunks.length === 0 && text.trim().length > 0) {
+    console.warn('[chunkPowerPointText] Slide regex did not match - falling back to standard chunking');
+
+    // Remove slide markers and chunk the plain text
+    const plainText = text.replace(/===\s*Slide\s+\d+\s*===/gi, '').trim();
+
+    if (plainText.length > 0) {
+      const wordCount = plainText.split(/\s+/).length;
+
+      if (wordCount <= maxWords) {
+        // Entire text fits in one chunk
+        chunks.push({
+          content: plainText,
+          metadata: {
+            chunkIndex: 0,
+            startChar: 0,
+            endChar: plainText.length,
+            wordCount,
+            fallback: true
+          }
+        });
+      } else {
+        // Split into sentence-based chunks
+        const sentences = plainText.match(/[^.!?]+[.!?]+/g) || [plainText];
+        let currentChunk = '';
+        let currentWordCount = 0;
+        let chunkIdx = 0;
+
+        for (const sentence of sentences) {
+          const sentenceWords = sentence.trim().split(/\s+/).length;
+
+          if (currentWordCount + sentenceWords > maxWords && currentChunk.length > 0) {
+            chunks.push({
+              content: currentChunk.trim(),
+              metadata: {
+                chunkIndex: chunkIdx++,
+                wordCount: currentWordCount,
+                fallback: true
+              }
+            });
+            currentChunk = '';
+            currentWordCount = 0;
+          }
+
+          currentChunk += sentence + ' ';
+          currentWordCount += sentenceWords;
+        }
+
+        if (currentChunk.trim().length > 0) {
+          chunks.push({
+            content: currentChunk.trim(),
+            metadata: {
+              chunkIndex: chunkIdx,
+              wordCount: currentWordCount,
+              fallback: true
+            }
+          });
+        }
+      }
+    }
+  }
 
   return chunks;
 }

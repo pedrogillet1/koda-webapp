@@ -21,6 +21,7 @@ import { Queue, Worker, Job } from 'bullmq';
 import { config } from '../config/env';
 import prisma from '../config/database';
 import { emitToUser } from '../services/websocket.service';
+import documentProgressService from '../services/documentProgress.service';
 
 // ═══════════════════════════════════════════════════════════════
 // Queue Configuration
@@ -110,40 +111,33 @@ export function startDocumentWorker() {
 
       console.log(`🚀 [Worker] Processing: ${filename} (${documentId.substring(0, 8)}...)`);
 
+      // Progress options for DocumentProgressService
+      const progressOptions = {
+        documentId,
+        userId,
+        filename,
+      };
+
       try {
-        // Emit progress: started
+        // Emit progress: started using DocumentProgressService for consistency
         await job.updateProgress(5);
-        emitToUser(userId, 'document-progress', {
-          documentId,
-          progress: 5,
-          stage: 'downloading',
-          message: 'Starting...',
-        });
+        await documentProgressService.emitCustomProgress(5, 'Starting...', progressOptions);
 
         // Import the document service dynamically to avoid circular deps
         const documentService = await import('../services/document.service');
 
-        // Emit progress: processing
+        // Emit progress: processing - reprocessDocument handles granular progress internally
         await job.updateProgress(15);
-        emitToUser(userId, 'document-progress', {
-          documentId,
-          progress: 15,
-          stage: 'extracting',
-          message: 'Extracting text...',
-        });
+        await documentProgressService.emitProgress('EXTRACTION_START', progressOptions);
 
         // Use reprocessDocument for retrying/processing documents
         // This function handles downloading from storage and full processing
+        // Note: reprocessDocument emits its own progress events for stages 22-99%
         const result = await documentService.reprocessDocument(documentId, userId);
 
-        // Emit progress: completed
+        // Emit progress: completed - CRITICAL: progress=100 and stage='complete'
         await job.updateProgress(100);
-        emitToUser(userId, 'document-progress', {
-          documentId,
-          progress: 100,
-          stage: 'completed',
-          message: 'Ready!',
-        });
+        await documentProgressService.emitProgress('COMPLETE', progressOptions);
 
         const totalTime = Date.now() - startTime;
         console.log(`✅ [Worker] Completed in ${(totalTime / 1000).toFixed(1)}s: ${filename}`);
@@ -162,13 +156,11 @@ export function startDocumentWorker() {
           },
         });
 
-        // Emit WebSocket event for failure
-        emitToUser(userId, 'document-progress', {
-          documentId,
-          progress: 0,
-          stage: 'failed',
-          message: error.message || 'Processing failed',
-        });
+        // Emit failure using DocumentProgressService - CRITICAL: stage='failed', status='failed'
+        await documentProgressService.emitError(
+          error.message || 'Processing failed',
+          progressOptions
+        );
 
         throw error; // Re-throw to trigger retry
       }
