@@ -448,8 +448,13 @@ export class KodaOrchestratorV3 {
       // Step 4: Route to streaming handler based on (possibly overridden) intent
       let result: StreamingResult;
 
+      // Track whether the handler emits its own done event (to avoid duplicate)
+      const streamingIntents = ['DOC_QA', 'DOC_SEARCH', 'DOC_SUMMARIZE'];
+      const handlerEmitsDone = streamingIntents.includes(finalIntent.primaryIntent);
+
       if (finalIntent.primaryIntent === 'DOC_QA' || finalIntent.primaryIntent === 'DOC_SEARCH' || finalIntent.primaryIntent === 'DOC_SUMMARIZE') {
         // Document-related intents use TRUE streaming
+        // These handlers emit their own rich done event with citations, formatted, etc.
         result = yield* this.streamDocumentQnA(request, finalIntent, language);
       } else if (finalIntent.primaryIntent === 'CHITCHAT' || finalIntent.primaryIntent === 'META_AI') {
         // Simple intents - generate once and yield
@@ -467,18 +472,24 @@ export class KodaOrchestratorV3 {
         };
       }
 
-      // Yield metadata event
-      yield {
-        type: 'metadata',
-        processingTime: result.processingTime,
-        documentsUsed: result.documentsUsed,
-      } as StreamEvent;
+      // Only emit metadata/done for handlers that don't emit their own
+      // Streaming handlers (DOC_QA, DOC_SEARCH, DOC_SUMMARIZE) emit rich done events
+      // with citations, formatted answer, sourceDocumentIds, wasTruncated, etc.
+      // Emitting another done here would overwrite that rich metadata.
+      if (!handlerEmitsDone) {
+        // Yield metadata event
+        yield {
+          type: 'metadata',
+          processingTime: result.processingTime,
+          documentsUsed: result.documentsUsed,
+        } as StreamEvent;
 
-      // Yield done event - REQUIRED for proper stream completion
-      yield {
-        type: 'done',
-        fullAnswer: result.fullAnswer,
-      } as StreamEvent;
+        // Yield done event - REQUIRED for proper stream completion
+        yield {
+          type: 'done',
+          fullAnswer: result.fullAnswer,
+        } as StreamEvent;
+      }
 
       return result;
 
