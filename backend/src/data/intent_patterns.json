@@ -1,6 +1,6 @@
 {
   "version": "3.0.0",
-  "lastUpdated": "2025-12-12",
+  "lastUpdated": "2025-12-13",
   "description": "Intent classification patterns for V3 services - All 25 intents",
   "DOC_QA": {
     "priority": 80,
@@ -281,7 +281,12 @@
         "key points",
         "tldr",
         "recap",
-        "condense"
+        "condense",
+        "cliff notes",
+        "gist",
+        "boil down",
+        "executive summary",
+        "key takeaways"
       ],
       "pt": [
         "resumir",
@@ -291,7 +296,10 @@
         "destaque",
         "pontos principais",
         "recapitular",
-        "condensar"
+        "condensar",
+        "essência",
+        "sumário executivo",
+        "pontos chave"
       ],
       "es": [
         "resumir",
@@ -301,7 +309,10 @@
         "destacar",
         "puntos principales",
         "recapitular",
-        "condensar"
+        "condensar",
+        "esencia",
+        "resumen ejecutivo",
+        "conclusiones clave"
       ]
     },
     "patterns": {
@@ -1001,7 +1012,11 @@
         "reasoning",
         "if then",
         "what if",
-        "analyze"
+        "analyze",
+        "percentage",
+        "discount",
+        "next number",
+        "sequence"
       ],
       "pt": [
         "calcular",
@@ -1013,7 +1028,11 @@
         "raciocínio",
         "se então",
         "e se",
-        "analisar"
+        "analisar",
+        "porcentagem",
+        "desconto",
+        "próximo número",
+        "sequência"
       ],
       "es": [
         "calcular",
@@ -1025,7 +1044,11 @@
         "razonamiento",
         "si entonces",
         "qué si",
-        "analizar"
+        "analizar",
+        "porcentaje",
+        "descuento",
+        "siguiente número",
+        "secuencia"
       ]
     },
     "patterns": {
@@ -1033,17 +1056,23 @@
         "(calculate|compute|solve) (this|the)",
         "what is \\d+",
         "if .+ then",
-        "what (would|if)"
+        "what (would|if)",
+        "what percentage",
+        "next (number|in the sequence)"
       ],
       "pt": [
         "(calcular|resolver) (isso|o)",
         "quanto é \\d+",
-        "se .+ então"
+        "se .+ então",
+        "qual (porcentagem|percentual)",
+        "próximo (número|na sequência)"
       ],
       "es": [
         "(calcular|resolver) (esto|el)",
         "cuánto es \\d+",
-        "si .+ entonces"
+        "si .+ entonces",
+        "qué porcentaje",
+        "siguiente (número|en la secuencia)"
       ]
     }
   },
@@ -1226,7 +1255,7 @@
   },
   "OUT_OF_SCOPE": {
     "priority": 90,
-    "description": "Harmful or out-of-scope requests",
+    "description": "Harmful, illegal, or inappropriate requests",
     "keywords": {
       "en": [
         "hack",
@@ -1240,7 +1269,25 @@
         "attack",
         "harm",
         "violence",
-        "weapon"
+        "weapon",
+        "bomb",
+        "terror",
+        "kill",
+        "hurt",
+        "drugs",
+        "poison",
+        "kidnap",
+        "blackmail",
+        "forge",
+        "fake id",
+        "torture",
+        "smuggle",
+        "trafficking",
+        "racist",
+        "sexist",
+        "hate speech",
+        "ransomware",
+        "phishing"
       ],
       "pt": [
         "hackear",
@@ -1254,7 +1301,22 @@
         "atacar",
         "prejudicar",
         "violência",
-        "arma"
+        "arma",
+        "bomba",
+        "terror",
+        "matar",
+        "ferir",
+        "drogas",
+        "envenenar",
+        "sequestrar",
+        "chantagear",
+        "falsificar",
+        "torturar",
+        "contrabando",
+        "tráfico",
+        "racista",
+        "sexista",
+        "discurso de ódio"
       ],
       "es": [
         "hackear",
@@ -1268,21 +1330,50 @@
         "atacar",
         "dañar",
         "violencia",
-        "arma"
+        "arma",
+        "bomba",
+        "terror",
+        "matar",
+        "herir",
+        "drogas",
+        "envenenar",
+        "secuestrar",
+        "chantajear",
+        "falsificar",
+        "torturar",
+        "contrabando",
+        "tráfico",
+        "racista",
+        "sexista",
+        "discurso de odio"
       ]
     },
     "patterns": {
       "en": [
         "how (to|do i|can i) (hack|steal|break into|bypass)",
-        "(create|make|build) (a |)(malware|virus|weapon)"
+        "(create|make|build) (a |)(malware|virus|weapon)",
+        "how to (kill|hurt|harm|poison|kidnap|torture)",
+        "how to (make|build) a (bomb|weapon|gun)",
+        "(forge|fake) (documents?|id|identity)",
+        "(blackmail|extort)",
+        "(racist|sexist|hate) (jokes?|content|speech)",
+        "get away with (murder|crime|fraud)"
       ],
       "pt": [
         "como (hackear|roubar|invadir|burlar)",
-        "(criar|fazer) (um |)(malware|vírus|arma)"
+        "(criar|fazer) (um |)(malware|vírus|arma)",
+        "como (matar|ferir|envenenar|sequestrar|torturar)",
+        "como (fazer|construir) (uma |)(bomba|arma)",
+        "(falsificar) (documentos?|identidade)",
+        "(racistas?|sexistas?) (piadas?|conteúdo)"
       ],
       "es": [
         "cómo (hackear|robar|entrar|eludir)",
-        "(crear|hacer) (un |)(malware|virus|arma)"
+        "(crear|hacer) (un |)(malware|virus|arma)",
+        "cómo (matar|herir|envenenar|secuestrar|torturar)",
+        "cómo (hacer|construir) (una |un |)(bomba|arma)",
+        "(falsificar) (documentos?|identidad)",
+        "(racistas?|sexistas?) (chistes?|contenido)"
       ]
     }
   },
@@ -1342,7 +1433,17 @@
         "depression",
         "crisis",
         "emergency",
-        "help me please"
+        "help me please",
+        "want to die",
+        "dont want to live",
+        "no reason to live",
+        "feeling suicidal",
+        "end it all",
+        "overdose",
+        "goodbye letters",
+        "nobody would miss me",
+        "world better without me",
+        "cutting myself"
       ],
       "pt": [
         "suicídio",
@@ -1355,7 +1456,15 @@
         "depressão",
         "crise",
         "emergência",
-        "me ajude por favor"
+        "me ajude por favor",
+        "quero morrer",
+        "não quero viver",
+        "sem razão para viver",
+        "me sentindo suicida",
+        "acabar com tudo",
+        "overdose",
+        "cartas de despedida",
+        "ninguém sentiria minha falta"
       ],
       "es": [
         "suicidio",
@@ -1368,24 +1477,45 @@
         "depresión",
         "crisis",
         "emergencia",
-        "ayúdame por favor"
+        "ayúdame por favor",
+        "quiero morir",
+        "no quiero vivir",
+        "sin razón para vivir",
+        "me siento suicida",
+        "acabar con todo",
+        "sobredosis",
+        "cartas de despedida",
+        "nadie me extrañaría"
       ]
     },
     "patterns": {
       "en": [
         "(want to|going to|thinking of) (kill|hurt|harm) (myself|yourself)",
         "(suicidal|suicide) (thoughts|ideation)",
-        "end (my|it all)"
+        "end (my|it all)",
+        "(nobody|no one) would miss me",
+        "world (would be|is) better without me",
+        "(written|wrote) (my |)(goodbye|farewell)",
+        "how (much|many) (pills|medication) (would|to) (overdose|end)",
+        "dont want to (wake up|live|be here)"
       ],
       "pt": [
         "(quero|vou|pensando em) (me matar|me machucar)",
         "(pensamentos|ideação) suicida",
-        "acabar com (minha vida|tudo)"
+        "acabar com (minha vida|tudo)",
+        "ninguém (sentiria|sentirá) minha falta",
+        "mundo (seria|estaria) melhor sem mim",
+        "(escrevi|escrito) (minhas |)(cartas de |)despedida",
+        "não quero (acordar|viver|estar aqui)"
       ],
       "es": [
         "(quiero|voy a|pensando en) (matarme|hacerme daño)",
         "(pensamientos|ideación) suicida",
-        "acabar con (mi vida|todo)"
+        "acabar con (mi vida|todo)",
+        "nadie me (extrañaría|extrañará)",
+        "mundo (sería|estaría) mejor sin mí",
+        "(escribí|escrito) (mis |)(cartas de |)despedida",
+        "no quiero (despertar|vivir|estar aquí)"
       ]
     }
   },
