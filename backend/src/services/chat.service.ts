@@ -180,7 +180,12 @@ async function sendMessage(params: SendMessageParams): Promise<MessageResult> {
   // Get AI response via V3 orchestrator
   const response = await getOrchestrator().orchestrate(request);
 
-  // Save assistant message
+  // Extract sources from response - FIX: actually use the citation data
+  const sourceDocumentIds = response.metadata?.sourceDocumentIds || [];
+  const citations = response.citations || [];
+  const documentsUsed = response.metadata?.documentsUsed || 0;
+
+  // Save assistant message with full citation metadata
   const assistantMessage = await prisma.message.create({
     data: {
       conversationId,
@@ -189,7 +194,9 @@ async function sendMessage(params: SendMessageParams): Promise<MessageResult> {
       metadata: JSON.stringify({
         primaryIntent: response.metadata?.intent,
         language: request.language,
-        sourceDocuments: response.metadata?.documentsUsed ? [] : [],
+        sourceDocuments: sourceDocumentIds,
+        citations,
+        documentsUsed,
         confidenceScore: response.metadata?.confidence,
       }),
     },
@@ -222,7 +229,7 @@ async function sendMessage(params: SendMessageParams): Promise<MessageResult> {
   return {
     userMessage,
     assistantMessage,
-    sources: [], // V3 handles sources differently
+    sources: citations,
   };
 }
 
@@ -257,32 +264,64 @@ async function sendMessageStreaming(
   const stream = getOrchestrator().orchestrateStream(request);
 
   let fullAnswer = '';
-  let streamResult: any;
+  let streamResult: {
+    intent?: string;
+    confidence?: number;
+    documentsUsed?: number;
+    citations?: any[];
+    sourceDocumentIds?: string[];
+  } = {};
 
-  // Forward content chunks to callback in real-time
-  for await (const event of stream) {
+  // Use manual iteration to capture the 'done' event with full metadata
+  // (for await...of doesn't give access to events other than content)
+  let iterResult = await stream.next();
+  while (!iterResult.done) {
+    const event = iterResult.value;
     if (event.type === 'content') {
-      fullAnswer += event.content;
-      onChunk(event.content);  // Forward to callback immediately
+      fullAnswer += (event as any).content;
+      onChunk((event as any).content);  // Forward to callback immediately
+    } else if (event.type === 'done') {
+      // Capture done event metadata including citations - FIX: persist all metadata
+      const doneEvent = event as any;
+      fullAnswer = doneEvent.fullAnswer || fullAnswer;
+      streamResult = {
+        intent: doneEvent.intent,
+        confidence: doneEvent.confidence,
+        documentsUsed: doneEvent.documentsUsed,
+        citations: doneEvent.citations,
+        sourceDocumentIds: doneEvent.sourceDocumentIds,
+      };
+    }
+    iterResult = await stream.next();
+  }
+
+  // Also capture generator return value as fallback
+  if (iterResult.done && iterResult.value) {
+    const returnValue = iterResult.value;
+    fullAnswer = returnValue.fullAnswer || fullAnswer;
+    if (!streamResult.intent) {
+      streamResult = {
+        ...streamResult,
+        intent: returnValue.intent,
+        confidence: returnValue.confidence,
+        documentsUsed: returnValue.documentsUsed,
+        citations: returnValue.citations,
+      };
     }
   }
 
-  // Get the final result from the generator
-  const finalNext = await stream.next();
-  if (finalNext.done && finalNext.value) {
-    streamResult = finalNext.value;
-    fullAnswer = streamResult.fullAnswer || fullAnswer;
-  }
-
-  // Save assistant message
+  // Save assistant message with full citation metadata - FIX: include citations
   const assistantMessage = await prisma.message.create({
     data: {
       conversationId,
       role: 'assistant',
       content: fullAnswer,
       metadata: JSON.stringify({
-        primaryIntent: streamResult?.intent,
-        confidence: streamResult?.confidence,
+        primaryIntent: streamResult.intent,
+        confidence: streamResult.confidence,
+        sourceDocuments: streamResult.sourceDocumentIds || [],
+        citations: streamResult.citations || [],
+        documentsUsed: streamResult.documentsUsed || 0,
       }),
     },
   });
@@ -296,7 +335,7 @@ async function sendMessageStreaming(
   return {
     userMessage,
     assistantMessage,
-    sources: [], // V3 handles sources differently
+    sources: streamResult.citations || [],
   };
 }
 
