@@ -1,7 +1,7 @@
 {
   "version": "3.0.0",
   "lastUpdated": "2025-12-13",
-  "description": "Intent classification patterns for V3 services - All 25 intents",
+  "description": "Intent classification patterns for V3 services - All 29 intents",
   "DOC_QA": {
     "priority": 80,
     "description": "Questions about document content",
@@ -2535,6 +2535,20 @@
         "(no solo|tanto) .+ (sino también|como) .+",
         ".+ (seguido de|y finalmente) .+"
       ]
+    }
+  },
+  "UNKNOWN": {
+    "priority": 1,
+    "description": "Fallback for queries that don't match any specific intent - routes to fallback/formatting",
+    "keywords": {
+      "en": [],
+      "pt": [],
+      "es": []
+    },
+    "patterns": {
+      "en": [],
+      "pt": [],
+      "es": []
     }
   }
 }
