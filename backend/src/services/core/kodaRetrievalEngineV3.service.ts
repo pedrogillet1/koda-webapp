@@ -20,8 +20,8 @@ import type {
   RetrievalResult,
 } from '../../types/ragV3.types';
 
-import embeddingService from '../embedding.service';
-import pineconeService from '../pinecone.service';
+import type { EmbeddingService } from '../embedding.service';
+import type { PineconeService } from '../pinecone.service';
 import { KodaHybridSearchService } from '../retrieval/kodaHybridSearch.service';
 import { DynamicDocBoostService, DocumentBoostMap } from '../retrieval/dynamicDocBoost.service';
 import { KodaRetrievalRankingService } from '../retrieval/kodaRetrievalRanking.service';
@@ -55,6 +55,8 @@ export interface RetrievalEngineDependencies {
   hybridSearch: KodaHybridSearchService;
   dynamicDocBoost: DynamicDocBoostService;
   retrievalRanking: KodaRetrievalRankingService;
+  embedding: EmbeddingService;
+  pinecone: PineconeService;
 }
 
 export class KodaRetrievalEngineV3 {
@@ -62,11 +64,15 @@ export class KodaRetrievalEngineV3 {
   private hybridSearch: KodaHybridSearchService;
   private dynamicDocBoost: DynamicDocBoostService;
   private retrievalRanking: KodaRetrievalRankingService;
+  private embedding: EmbeddingService;
+  private pinecone: PineconeService;
 
   constructor(deps: RetrievalEngineDependencies) {
     this.hybridSearch = deps.hybridSearch;
     this.dynamicDocBoost = deps.dynamicDocBoost;
     this.retrievalRanking = deps.retrievalRanking;
+    this.embedding = deps.embedding;
+    this.pinecone = deps.pinecone;
   }
 
   /**
@@ -257,7 +263,7 @@ export class KodaRetrievalEngineV3 {
     console.log('[KodaRetrievalEngineV3] Falling back to vector-only retrieval...');
 
     try {
-      const embeddingResult = await embeddingService.generateQueryEmbedding(query);
+      const embeddingResult = await this.embedding.generateQueryEmbedding(query);
       const queryEmbedding = embeddingResult.embedding;
 
       if (!queryEmbedding || queryEmbedding.length === 0) {
@@ -267,7 +273,7 @@ export class KodaRetrievalEngineV3 {
       const targetDocumentId = documentIds?.[0] || intent?.target?.documentIds?.[0];
       const targetFolderId = folderIds?.[0] || intent?.target?.folderIds?.[0];
 
-      const pineconeResults = await pineconeService.query(queryEmbedding, {
+      const pineconeResults = await this.pinecone.query(queryEmbedding, {
         userId,
         topK: maxChunks * 2,
         minSimilarity: 0.3,

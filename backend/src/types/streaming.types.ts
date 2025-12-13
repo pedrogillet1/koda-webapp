@@ -64,6 +64,7 @@ export interface CitationEvent extends StreamEventBase {
     documentId: string;
     documentName: string;
     pageNumber?: number;
+    chunkId?: string;     // Chunk ID for precise citation source
     snippet?: string;
   }>;
 }
@@ -81,11 +82,14 @@ export interface DoneEvent extends StreamEventBase {
   assistantMessageId?: string;
   conversationId?: string;
   fullAnswer?: string;  // Complete answer for saving
+  /** Formatted answer with {{DOC::...}} markers for frontend rendering */
+  formatted?: string;
   // Citations for save path (store in message metadata)
   citations?: Array<{
     documentId: string;
     documentName: string;
     pageNumber?: number;
+    chunkId?: string;     // Chunk ID for precise citation source
     snippet?: string;
   }>;
   // Source document IDs for metadata persistence
@@ -148,6 +152,7 @@ export interface StreamingResult {
     documentId: string;
     documentName: string;
     pageNumber?: number;
+    chunkId?: string;     // Chunk ID for precise citation source
     snippet?: string;
   }>;
 }

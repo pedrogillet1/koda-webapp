@@ -6,16 +6,13 @@
  * - Chunk ID mismatch (now uses canonical format: documentId-chunkIndex)
  * - SQL injection risk (parameterized queries)
  * - Uses shared Prisma client from config/database
- *
- * NOTE: Currently uses singleton pattern. For proper testability, consider
- * registering in container.ts and injecting into consumers (e.g., kodaRetrievalEngineV3).
- * Singleton makes mocking difficult in unit tests.
+ * - Uses DI for embedding/pinecone services (no more singleton imports)
  */
 
 import prisma from '../../config/database';  // FIXED: Use shared Prisma client
 import { Prisma } from '@prisma/client';  // For parameterized queries
-import pineconeService from '../pinecone.service';
-import embeddingService from '../embedding.service';
+import type { EmbeddingService } from '../embedding.service';
+import type { PineconeService } from '../pinecone.service';
 import { RetrievedChunk, RetrievalFilters } from '../../types/ragV3.types';
 
 interface HybridSearchParams {
@@ -28,17 +25,22 @@ interface HybridSearchParams {
 
 type HybridSearchResult = RetrievedChunk[];
 
+export interface HybridSearchDependencies {
+  embedding: EmbeddingService;
+  pinecone: PineconeService;
+}
+
 /**
  * Service to perform hybrid search combining vector search (Pinecone) and BM25 (DB full-text).
  * Normalizes and merges scores from both sources, deduplicates, and returns unified RetrievedChunk[].
  */
 export class KodaHybridSearchService {
-  private embeddingService: typeof embeddingService;
-  private pineconeService: typeof pineconeService;
+  private embeddingService: EmbeddingService;
+  private pineconeService: PineconeService;
 
-  constructor() {
-    this.embeddingService = embeddingService;
-    this.pineconeService = pineconeService;
+  constructor(deps: HybridSearchDependencies) {
+    this.embeddingService = deps.embedding;
+    this.pineconeService = deps.pinecone;
   }
 
   /**
@@ -247,10 +249,5 @@ export class KodaHybridSearchService {
   }
 }
 
-// Singleton instance for direct import
-// TODO: For better testability, register in container.ts and inject into consumers
-// Singleton removed - use container.getKodaHybridSearch() instead
-
-
-// Export class for DI registration when ready
+// Export class for DI - instantiate via container.getHybridSearch()
 export default KodaHybridSearchService;

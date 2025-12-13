@@ -654,15 +654,56 @@ export class KodaOrchestratorV3 {
       } as StreamEvent;
     }
 
+    // ====================================================================
+    // FORMATTING CONTRACT: Run accumulated answer through formatting pipeline
+    // This ensures streaming responses get the same treatment as non-streaming:
+    // - {{DOC::...}} marker injection
+    // - Markdown validation
+    // - Truncation detection
+    // ====================================================================
+
+    // Convert citations to formatting pipeline format
+    const convertedCitations = citations.map(c => ({
+      docId: c.documentId,
+      docName: c.documentName,
+      pageNumber: c.pageNumber,
+      chunkId: undefined,
+      relevanceScore: undefined,
+    }));
+
+    // Extract document references for marker injection
+    const documentReferences = this.extractDocumentReferences(retrievalResult.chunks);
+
+    // Format the complete answer through the pipeline
+    const formatted = await this.formattingPipeline.format({
+      text: fullAnswer,
+      citations: convertedCitations,
+      documents: documentReferences,
+      intent: intent.primaryIntent,
+      language,
+    });
+
+    // Use formatted text if available, log truncation detection
+    const formattedAnswer = formatted.markdown || formatted.text || fullAnswer;
+    const wasTruncated = formatted.truncationDetected;
+
+    if (wasTruncated) {
+      this.logger.warn('[Orchestrator] Streaming answer truncation detected', {
+        confidence: formatted.truncationDetails?.confidence,
+        reasons: formatted.truncationDetails?.reasons,
+      });
+    }
+
     // Build final result with all metadata
     const result: StreamingResult = {
-      fullAnswer,
+      fullAnswer: formattedAnswer, // Use formatted version
       intent: intent.primaryIntent,
       confidence: intent.confidence,
       documentsUsed: retrievalResult.chunks.length,
       tokensUsed,
       processingTime: Date.now() - startTime,
       citations,
+      wasTruncated,
     };
 
     // Extract unique document IDs for metadata persistence
@@ -670,15 +711,17 @@ export class KodaOrchestratorV3 {
       c => c.documentId || c.metadata?.documentId
     ).filter(Boolean))];
 
-    // Emit single done event with full metadata including citations for save path
+    // Emit single done event with full metadata including formatted answer for frontend
     yield {
       type: 'done',
-      fullAnswer,
+      fullAnswer: formattedAnswer,
+      formatted: formattedAnswer, // Explicitly include formatted version with markers
       intent: result.intent,
       confidence: result.confidence,
       documentsUsed: result.documentsUsed,
       tokensUsed: result.tokensUsed,
       processingTime: result.processingTime,
+      wasTruncated,
       citations,
       sourceDocumentIds,
     } as StreamEvent;

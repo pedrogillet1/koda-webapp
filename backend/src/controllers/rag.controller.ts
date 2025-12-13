@@ -365,6 +365,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
           wasTruncated: doneEvent.wasTruncated,
           citations: doneEvent.citations || citations,
           sourceDocumentIds: doneEvent.sourceDocumentIds || [],
+          formatted: doneEvent.formatted, // Formatted answer with {{DOC::...}} markers
         };
       } else {
         // Forward other events (intent, retrieving, generating, metadata, etc.)
@@ -428,6 +429,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
     });
 
     // Send SINGLE combined done event with message IDs, citations, and full metadata
+    // IMPORTANT: formatted field contains the answer with {{DOC::...}} markers for frontend rendering
     res.write(
       `data: ${JSON.stringify({
         type: 'done',
@@ -435,6 +437,7 @@ export const queryWithRAGStreaming = async (req: Request, res: Response): Promis
         assistantMessageId: assistantMessage.id,
         conversationId,
         fullAnswer,
+        formatted: streamResult.formatted || fullAnswer, // Formatted answer with markers
         intent: streamResult.intent,
         confidence: streamResult.confidence,
         processingTime: Date.now() - startTime,

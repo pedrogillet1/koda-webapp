@@ -126,23 +126,12 @@ class KodaV3Container {
     console.log('🚀 [Container] Initializing Koda V3 services...');
 
     try {
-      // ========== STEP 1: Use pre-loaded config singletons ==========
-      // These are loaded in server.ts BEFORE container init (fail-fast on startup)
-      console.log('📦 [Container] Using pre-loaded config singletons...');
+      // ========== STEP 1: Assign config singletons ==========
+      // Config singletons are assigned here, then loaded in Step 4
+      console.log('📦 [Container] Assigning config singletons...');
       this.services.fallbackConfig = fallbackConfigService;
       this.services.intentConfig = intentConfigService;
       this.services.productHelp = kodaProductHelpServiceV3;
-
-      // Verify configs are loaded (fail-fast)
-      if (!this.services.fallbackConfig.isReady()) {
-        throw new BootstrapWiringError('FallbackConfig not loaded - must call loadFallbacks() before container init');
-      }
-      if (!this.services.intentConfig.isReady()) {
-        throw new BootstrapWiringError('IntentConfig not loaded - must call loadPatterns() before container init');
-      }
-      if (!this.services.productHelp.isReady()) {
-        throw new BootstrapWiringError('ProductHelp not loaded - must call loadContent() before container init');
-      }
 
       // ========== STEP 2: Create infrastructure services ==========
       console.log('📦 [Container] Creating infrastructure services...');
@@ -160,13 +149,18 @@ class KodaV3Container {
 
       // ========== STEP 3: Create leaf services (no dependencies) ==========
       console.log('📦 [Container] Creating leaf services...');
-      this.services.hybridSearch = new KodaHybridSearchService();
+      this.services.hybridSearch = new KodaHybridSearchService({
+        embedding: this.services.embedding!,
+        pinecone: this.services.pinecone!,
+      });
       this.services.dynamicDocBoost = new DynamicDocBoostService();
-      // retrievalEngine depends on hybridSearch, dynamicDocBoost, retrievalRanking
+      // retrievalEngine depends on hybridSearch, dynamicDocBoost, retrievalRanking, embedding, pinecone
       this.services.retrievalEngine = new KodaRetrievalEngineV3({
         hybridSearch: this.services.hybridSearch,
         dynamicDocBoost: this.services.dynamicDocBoost,
         retrievalRanking: this.services.retrievalRanking!,
+        embedding: this.services.embedding!,
+        pinecone: this.services.pinecone!,
       });
       this.services.answerEngine = new KodaAnswerEngineV3();
       this.services.formattingPipeline = new KodaFormattingPipelineV3Service({
@@ -185,6 +179,30 @@ class KodaV3Container {
       await this.services.intentConfig.loadPatterns();
       await this.services.fallbackConfig.loadFallbacks();
       await this.services.productHelp.loadContent();
+
+      // ========== STEP 4.5: Validate configs loaded with non-zero data (fail-fast) ==========
+      const intentStats = this.services.intentConfig.getStatistics();
+      const fallbackStats = this.services.fallbackConfig.getStatistics();
+      const productHelpStats = this.services.productHelp.getStatistics();
+
+      // Log statistics at startup for verification
+      console.log('📊 [Container] Config statistics:');
+      console.log('   - Intent patterns: ' + intentStats.totalIntents + ' intents, ' + intentStats.totalKeywords + ' keywords, ' + intentStats.totalPatterns + ' patterns');
+      console.log('   - Fallbacks: ' + fallbackStats.totalScenarios + ' scenarios, ' + fallbackStats.totalStyles + ' styles');
+      console.log('   - Product help: ' + productHelpStats.topicsLoaded + ' topics, ' + productHelpStats.capabilitiesLoaded + ' capabilities');
+
+      // Fail-fast if critical configs have zero data
+      if (intentStats.totalIntents === 0) {
+        throw new BootstrapWiringError('IntentConfig loaded but has 0 intent patterns - check intent_patterns.json');
+      }
+      if (fallbackStats.totalScenarios === 0) {
+        throw new BootstrapWiringError('FallbackConfig loaded but has 0 scenarios - check fallbacks.json');
+      }
+      if (productHelpStats.topicsLoaded === 0 && productHelpStats.capabilitiesLoaded === 0) {
+        throw new BootstrapWiringError('ProductHelp loaded but has 0 topics/capabilities - check koda_product_help.json');
+      }
+
+      console.log('✅ [Container] All configs validated with non-zero data');
 
       // ========== STEP 5: Create intent engine (depends on loaded intentConfig) ==========
       console.log('📦 [Container] Creating intent engine...');
