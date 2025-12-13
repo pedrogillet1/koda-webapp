@@ -17,8 +17,41 @@ import {
 import {
   hasMarkers as hasV3Markers,
   parseDocumentMarkers as parseV3DocMarkers,
-  parseLoadMoreMarkers as parseV3LoadMoreMarkers
+  parseLoadMoreMarkers as parseV3LoadMoreMarkers,
+  hasIncompleteMarkers
 } from '../utils/kodaMarkerParser';
+
+/**
+ * STREAMING HOLDBACK:
+ * When streaming, markers like {{DOC::id=...}} may arrive split across chunks.
+ * We need to hold back text from the last potential marker start ({{) until
+ * either the marker completes (}}) or we confirm it's not a marker.
+ *
+ * @param {string} text - Content to process
+ * @param {boolean} streaming - Whether we're currently streaming
+ * @returns {{ safeContent: string, heldBack: string }}
+ */
+function applyStreamingHoldback(text, streaming) {
+  if (!text) return { safeContent: '', heldBack: '' };
+  if (!streaming) return { safeContent: text, heldBack: '' };
+  if (!hasIncompleteMarkers(text)) return { safeContent: text, heldBack: '' };
+
+  // Find the last potential incomplete marker start
+  const lastOpenBrace = text.lastIndexOf('{{');
+  if (lastOpenBrace === -1) return { safeContent: text, heldBack: '' };
+
+  // Check if there's a closing }} after the last {{
+  const closingAfterOpen = text.indexOf('}}', lastOpenBrace);
+  if (closingAfterOpen !== -1) {
+    // Marker is complete - check for another {{ after it
+    const nextOpen = text.indexOf('{{', closingAfterOpen);
+    if (nextOpen === -1) return { safeContent: text, heldBack: '' };
+    return { safeContent: text.slice(0, nextOpen), heldBack: text.slice(nextOpen) };
+  }
+
+  // No closing after the last open - hold back from there
+  return { safeContent: text.slice(0, lastOpenBrace), heldBack: text.slice(lastOpenBrace) };
+}
 
 /**
  * ✨ StreamingMarkdown Component (with Koda Markdown Contract)
@@ -239,12 +272,20 @@ const StreamingMarkdown = ({
     return { ...defaultComponents, ...customComponents };
   }, [documentMap, onOpenPreview, customComponents]);
 
+  // ============================================================
+  // STREAMING HOLDBACK: Hold back incomplete markers during streaming
+  // This prevents raw marker text from flashing on screen
+  // ============================================================
+  const { safeContent, heldBack } = useMemo(() => {
+    return applyStreamingHoldback(content || '', isStreaming);
+  }, [content, isStreaming]);
+
   // Clean content: normalize whitespace and fix UTF-8 encoding issues
   // Per Koda Markdown Contract: max 2 newlines, fix Portuguese character encoding
   const normalizedContent = useMemo(() => {
-    if (!content) return '';
+    if (!safeContent) return '';
 
-    let cleaned = content;
+    let cleaned = safeContent;
 
     // Fix UTF-8 encoding issues (VocÃª → Você) - common Portuguese character encoding
     cleaned = cleaned
@@ -336,7 +377,7 @@ const StreamingMarkdown = ({
       .replace(/\r\n/g, '\n');     // Consistent line endings
 
     return cleaned.trim();
-  }, [content]);
+  }, [safeContent]);
 
   // Memoize the markdown rendering for performance
   const renderedMarkdown = useMemo(() => {
@@ -366,6 +407,10 @@ const StreamingMarkdown = ({
       }}
     >
       {renderedMarkdown}
+      {/* Show held-back content as plain text during streaming (pending marker completion) */}
+      {isStreaming && heldBack && (
+        <span className="held-back-text" style={{ opacity: 0.7 }}>{heldBack}</span>
+      )}
       {isStreaming && (
         <span className="streaming-cursor" aria-hidden="true" />
       )}
