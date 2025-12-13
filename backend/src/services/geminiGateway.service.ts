@@ -690,8 +690,34 @@ class GeminiGateway {
 // EXPORTS
 // =============================================================================
 
-// Singleton instance
-const geminiGateway = GeminiGateway.getInstance();
+// Lazy singleton accessor - prevents crash on import when GEMINI_API_KEY is absent
+let _instance: GeminiGateway | null = null;
+
+/**
+ * Get the GeminiGateway singleton instance.
+ * Throws only when actually called if GEMINI_API_KEY is missing.
+ */
+export function getGeminiGateway(): GeminiGateway {
+  if (!_instance) {
+    _instance = GeminiGateway.getInstance();
+  }
+  return _instance;
+}
+
+/**
+ * Check if Gemini gateway is available (API key is set)
+ */
+export function isGeminiAvailable(): boolean {
+  return !!process.env.GEMINI_API_KEY;
+}
+
+// Proxy object for backwards compatibility with existing imports
+// Lazily accesses the gateway only when methods are called
+const geminiGateway: GeminiGateway = new Proxy({} as GeminiGateway, {
+  get(_target, prop: keyof GeminiGateway) {
+    return getGeminiGateway()[prop];
+  },
+});
 
 export default geminiGateway;
 export { geminiGateway, GeminiGateway };
